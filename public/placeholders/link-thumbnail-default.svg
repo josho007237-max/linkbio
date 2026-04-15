@@ -1,0 +1,13 @@
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="thumb-bg" x1="26" y1="20" x2="218" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#22C55E"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="240" rx="32" fill="url(#thumb-bg)"/>
+  <rect x="38" y="68" width="164" height="104" rx="16" fill="white" fill-opacity="0.9"/>
+  <rect x="56" y="92" width="76" height="12" rx="6" fill="#0F172A" fill-opacity="0.78"/>
+  <rect x="56" y="114" width="118" height="10" rx="5" fill="#334155" fill-opacity="0.68"/>
+  <rect x="56" y="132" width="96" height="10" rx="5" fill="#334155" fill-opacity="0.68"/>
+</svg>
