@@ -258,7 +258,7 @@ export const SavedProfilesManagerCard = ({
                 id="delete-route-confirm"
                 value={deleteConfirmInput}
                 onChange={(event) => setDeleteConfirmInput(event.target.value)}
-                placeholder={deleteSlug}
+                placeholder={`/${deleteSlug}`}
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -274,7 +274,7 @@ export const SavedProfilesManagerCard = ({
               <Button
                 variant="destructive"
                 onClick={handleConfirmDelete}
-                disabled={deleteConfirmInput !== deleteSlug}
+                disabled={deleteConfirmInput !== `/${deleteSlug}`}
               >
                 {t("saved_manager_confirm_delete")}
               </Button>

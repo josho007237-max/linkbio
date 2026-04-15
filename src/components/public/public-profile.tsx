@@ -19,14 +19,37 @@ export const PublicProfile = ({
   clickSummary,
   onPublicLinkClick,
 }: PublicProfileProps) => {
-  const { t } = useI18n();
+  const { language, setLanguage, t } = useI18n();
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#e4eefb,_transparent_42%),linear-gradient(to_bottom,_var(--background),_var(--muted))] px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl space-y-6 lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:items-start lg:gap-10 lg:space-y-0">
         <div className="rounded-2xl border bg-card/95 p-5 text-center shadow-sm backdrop-blur sm:p-6 lg:sticky lg:top-8 lg:text-left">
-          <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
-            {t("public_page_heading")}
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
+              {t("public_page_heading")}
+            </p>
+            <div className="inline-flex items-center gap-1 rounded-md border border-border bg-background/70 p-1">
+              <span className="px-1 text-[10px] text-muted-foreground">{t("language_switch_label")}</span>
+              <button
+                type="button"
+                onClick={() => setLanguage("en")}
+                className={`rounded px-2 py-1 text-xs font-medium transition ${
+                  language === "en" ? "bg-primary/15 text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {t("lang_en")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("th")}
+                className={`rounded px-2 py-1 text-xs font-medium transition ${
+                  language === "th" ? "bg-primary/15 text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {t("lang_th")}
+              </button>
+            </div>
+          </div>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl lg:text-4xl">
             /{profile.header.username}
           </h1>

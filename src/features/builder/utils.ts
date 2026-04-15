@@ -60,7 +60,7 @@ export const createEmptyDiscountCode = (): BioLink => ({
 export const createEmptyEmbedPost = (): BioLink => ({
   id: createId("embed"),
   contentType: "embed_post",
-  title: "Embed Post",
+  title: "Social Embed",
   url: "https://example.com",
   description: "Tap to open embedded content.",
   enabled: true,

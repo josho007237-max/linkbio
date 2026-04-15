@@ -35,7 +35,7 @@ const EMPTY_SUMMARY: ClickSummary = {
 export const PublicProfilePageClient = ({
   username,
 }: PublicProfilePageClientProps) => {
-  const { t } = useI18n();
+  const { language, setLanguage, t } = useI18n();
   const slug = useMemo(() => toProfileSlug(username), [username]);
   const [mounted, setMounted] = useState(false);
   const [profile, setProfile] = useState<BuilderData | null>(null);
@@ -91,6 +91,29 @@ export const PublicProfilePageClient = ({
     return (
       <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#e8eefc,_transparent_40%),linear-gradient(to_bottom,_var(--background),_var(--muted))] px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-xl rounded-3xl border bg-card/95 p-8 text-center shadow-sm backdrop-blur">
+          <div className="mb-4 flex justify-end">
+            <div className="inline-flex items-center gap-1 rounded-md border border-border bg-background/70 p-1">
+              <span className="px-1 text-[10px] text-muted-foreground">{t("language_switch_label")}</span>
+              <button
+                type="button"
+                onClick={() => setLanguage("en")}
+                className={`rounded px-2 py-1 text-xs font-medium transition ${
+                  language === "en" ? "bg-primary/15 text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {t("lang_en")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("th")}
+                className={`rounded px-2 py-1 text-xs font-medium transition ${
+                  language === "th" ? "bg-primary/15 text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {t("lang_th")}
+              </button>
+            </div>
+          </div>
           <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
             {t("public_missing_title")}
           </p>

@@ -60,6 +60,7 @@ export const DataToolsCard = () => {
   } | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [strongConfirmText, setStrongConfirmText] = useState("");
+  const [clearCurrentConfirmText, setClearCurrentConfirmText] = useState("");
   const [confirmPinInput, setConfirmPinInput] = useState("");
   const [pinDraft, setPinDraft] = useState("");
   const [isMounted, setIsMounted] = useState(false);
@@ -216,6 +217,7 @@ export const DataToolsCard = () => {
     resetBuilderData();
     setConfirmAction(null);
     setStrongConfirmText("");
+    setClearCurrentConfirmText("");
     setConfirmPinInput("");
     setBackupRefreshKey((value) => value + 1);
     window.dispatchEvent(new Event("storage"));
@@ -234,6 +236,7 @@ export const DataToolsCard = () => {
 
     setConfirmAction(null);
     setStrongConfirmText("");
+    setClearCurrentConfirmText("");
     setConfirmPinInput("");
     setBackupRefreshKey((value) => value + 1);
     window.dispatchEvent(new Event("storage"));
@@ -253,6 +256,7 @@ export const DataToolsCard = () => {
 
     setConfirmAction(null);
     setStrongConfirmText("");
+    setClearCurrentConfirmText("");
     setConfirmPinInput("");
     setBackupRefreshKey((value) => value + 1);
     window.dispatchEvent(new Event("storage"));
@@ -293,6 +297,7 @@ export const DataToolsCard = () => {
     safetySettings.enabled &&
     (confirmAction === "clearCurrentRoute" || confirmAction === "clearAllData");
   const isPinValid = !isPinRequiredForConfirm || confirmPinInput === safetySettings.pin;
+  const clearCurrentExpectedText = `/${currentSlug}`;
 
   return (
     <>
@@ -426,9 +431,22 @@ export const DataToolsCard = () => {
               </p>
             ) : null}
             {confirmAction === "clearCurrentRoute" ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t("data_tools_confirm_current_desc", { slug: currentSlug })}
-              </p>
+              <>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {t("data_tools_confirm_current_desc", { slug: currentSlug })}
+                </p>
+                <div className="mt-4 space-y-2">
+                  <label htmlFor="clear-current-confirm" className="text-xs text-muted-foreground">
+                    {t("data_tools_type_clear_current", { slug: currentSlug })}
+                  </label>
+                  <Input
+                    id="clear-current-confirm"
+                    value={clearCurrentConfirmText}
+                    onChange={(event) => setClearCurrentConfirmText(event.target.value)}
+                    placeholder={clearCurrentExpectedText}
+                  />
+                </div>
+              </>
             ) : null}
             {confirmAction === "clearAllData" ? (
               <>
@@ -454,6 +472,7 @@ export const DataToolsCard = () => {
                 onClick={() => {
                   setConfirmAction(null);
                   setStrongConfirmText("");
+                  setClearCurrentConfirmText("");
                   setConfirmPinInput("");
                 }}
               >
@@ -465,7 +484,11 @@ export const DataToolsCard = () => {
                 </Button>
               ) : null}
               {confirmAction === "clearCurrentRoute" ? (
-                <Button variant="destructive" onClick={handleConfirmClearCurrentRoute} disabled={!isPinValid}>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmClearCurrentRoute}
+                  disabled={clearCurrentConfirmText !== clearCurrentExpectedText || !isPinValid}
+                >
                   {t("data_tools_confirm_current")}
                 </Button>
               ) : null}

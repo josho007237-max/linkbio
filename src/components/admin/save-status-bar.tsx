@@ -70,6 +70,7 @@ export const SaveStatusBar = ({
         </div>
         <div className="flex items-center gap-2">
           <div className="inline-flex rounded-md border border-border bg-background/70 p-1">
+            <span className="px-1 py-1 text-[10px] text-muted-foreground">{t("language_switch_label")}</span>
             <button
               type="button"
               onClick={() => setLanguage("en")}
