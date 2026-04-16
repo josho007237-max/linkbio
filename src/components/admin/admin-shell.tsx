@@ -11,6 +11,7 @@ import { useI18n } from "@/i18n/use-i18n";
 import { BuilderData } from "@/features/builder/types";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
 import {
+  clearStaleLocalStorageKeysOnce,
   getActiveEditorSlug,
   getSavedProfileBySlug,
   getSavedProfilesFromLocal,
@@ -39,6 +40,7 @@ const getUniqueSlug = (baseSlug: string, existingSlugs: Set<string>) => {
 
 export const AdminShell = () => {
   const { t } = useI18n();
+  const storageWarningMessage = t("storage_warning_quota");
   const header = useBuilderStore((state) => state.header);
   const theme = useBuilderStore((state) => state.theme);
   const text = useBuilderStore((state) => state.text);
@@ -51,6 +53,8 @@ export const AdminShell = () => {
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
   const [collisionDialog, setCollisionDialog] = useState<CollisionDialogState | null>(null);
   const [currentEditorSlug, setCurrentEditorSlug] = useState(toProfileSlug(header.username));
+  const [isWorkspaceReady, setIsWorkspaceReady] = useState(false);
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
   const previousSlugRef = useRef<string>(toProfileSlug(header.username));
   const lastSavedSnapshotRef = useRef<string>("");
@@ -122,21 +126,42 @@ export const AdminShell = () => {
 
   useEffect(() => {
     let syncFrameId: number | null = null;
+    clearStaleLocalStorageKeysOnce();
     const activeSlug = getActiveEditorSlug();
-    if (activeSlug) {
-      previousSlugRef.current = activeSlug;
+    const resolvedSlug = activeSlug ?? previousSlugRef.current;
+    const savedWorkspace = getSavedProfileBySlug(resolvedSlug);
+
+    if (savedWorkspace) {
+      previousSlugRef.current = resolvedSlug;
+      const savedSnapshot = JSON.stringify(savedWorkspace);
+      lastSavedSnapshotRef.current = savedSnapshot;
+      useBuilderStore.getState().replaceBuilderData(savedWorkspace);
       syncFrameId = window.requestAnimationFrame(() => {
-        setCurrentEditorSlug(activeSlug);
+        setCurrentEditorSlug(resolvedSlug);
+        setSaveStatus("saved");
+        setLastSavedAt(new Date());
+        setIsWorkspaceReady(true);
       });
     } else {
-      setActiveEditorSlug(previousSlugRef.current);
+      previousSlugRef.current = resolvedSlug;
+      setActiveEditorSlug(resolvedSlug);
       syncFrameId = window.requestAnimationFrame(() => {
-        setCurrentEditorSlug(previousSlugRef.current);
+        setCurrentEditorSlug(resolvedSlug);
+        setIsWorkspaceReady(true);
       });
     }
 
     const onStorage = () => setProfileRefreshKey((value) => value + 1);
+    const onStorageWarning = () => {
+      setStorageWarning(storageWarningMessage);
+      window.setTimeout(() => {
+        setStorageWarning((current) =>
+          current === storageWarningMessage ? null : current,
+        );
+      }, 2600);
+    };
     window.addEventListener("storage", onStorage);
+    window.addEventListener("linkbio-storage-warning", onStorageWarning);
     const intervalId = window.setInterval(onStorage, 2500);
 
     return () => {
@@ -144,6 +169,7 @@ export const AdminShell = () => {
         window.cancelAnimationFrame(syncFrameId);
       }
       window.removeEventListener("storage", onStorage);
+      window.removeEventListener("linkbio-storage-warning", onStorageWarning);
       window.clearInterval(intervalId);
       if (autosaveTimerRef.current) {
         window.clearTimeout(autosaveTimerRef.current);
@@ -152,7 +178,7 @@ export const AdminShell = () => {
         window.clearTimeout(saveOperationTimerRef.current);
       }
     };
-  }, []);
+  }, [storageWarningMessage]);
 
   useEffect(() => {
     const activeSlug = getActiveEditorSlug();
@@ -166,10 +192,17 @@ export const AdminShell = () => {
   }, [profileRefreshKey]);
 
   useEffect(() => {
+    if (!isWorkspaceReady) {
+      return;
+    }
+
     const snapshot = JSON.stringify(builderData);
 
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true;
+      if (snapshot === lastSavedSnapshotRef.current) {
+        return;
+      }
       const initFrameId = window.requestAnimationFrame(() => {
         persistProfile(builderData, snapshot);
       });
@@ -203,7 +236,7 @@ export const AdminShell = () => {
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [builderData, persistProfile]);
+  }, [builderData, isWorkspaceReady, persistProfile]);
 
   const slugCollisionWarning = useMemo(() => {
     void profileRefreshKey;
@@ -257,7 +290,7 @@ export const AdminShell = () => {
       <div className="mx-auto grid max-w-[1700px] gap-4 lg:grid-cols-12">
         <div className="lg:col-span-3 xl:col-span-2">
           <div className="lg:sticky lg:top-4 rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/35 p-2 shadow-sm backdrop-blur">
-            <AdminSidebar username={header.username} />
+            <AdminSidebar currentSlug={currentEditorSlug} />
           </div>
         </div>
 
@@ -315,6 +348,11 @@ export const AdminShell = () => {
               </Button>
             </div>
           </div>
+        </div>
+      ) : null}
+      {storageWarning ? (
+        <div className="fixed right-4 bottom-4 z-[96] rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-lg">
+          {storageWarning}
         </div>
       ) : null}
     </>

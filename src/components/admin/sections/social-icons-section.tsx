@@ -3,10 +3,11 @@
 import Image from "next/image";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
-import { ChangeEvent, useState } from "react";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/components/admin/section-card";
+import { CustomImageUpload } from "@/components/admin/shared/custom-image-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +16,16 @@ import { Switch } from "@/components/ui/switch";
 import { SocialFormValues, socialSchema } from "@/features/builder/schema";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
 import { useI18n } from "@/i18n/use-i18n";
-import { fileToDataUrl } from "@/lib/media/file-data-url";
 
 const PLATFORM_OPTIONS = ["instagram", "tiktok", "youtube", "x", "facebook", "website"] as const;
+
+const normalizeImageSrc = (value: string | null | undefined): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized || null;
+};
 
 export const SocialIconsSection = () => {
   const { t } = useI18n();
@@ -47,39 +55,6 @@ export const SocialIconsSection = () => {
     setOpenAdd(false);
   });
   const urlError = form.formState.errors.url?.message;
-
-  const handleUploadExistingIcon = async (
-    socialId: string,
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      updateSocial(socialId, { iconUrl: dataUrl });
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  const handleUploadNewIcon = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      form.setValue("iconUrl", dataUrl, { shouldDirty: true, shouldValidate: true });
-    } finally {
-      event.target.value = "";
-    }
-  };
 
   return (
     <SectionCard
@@ -131,12 +106,12 @@ export const SocialIconsSection = () => {
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+                <div className="grid gap-2 sm:grid-cols-[auto_1fr] sm:items-center">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{t("social_icon_preview")}</span>
-                    {social.iconUrl ? (
+                    {normalizeImageSrc(social.iconUrl) ? (
                       <Image
-                        src={social.iconUrl}
+                        src={normalizeImageSrc(social.iconUrl) as string}
                         alt=""
                         width={24}
                         height={24}
@@ -146,16 +121,13 @@ export const SocialIconsSection = () => {
                       <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </div>
-                  <Input type="file" accept="image/*" onChange={(event) => handleUploadExistingIcon(social.id, event)} />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => updateSocial(social.id, { iconUrl: undefined })}
-                    disabled={!social.iconUrl}
-                  >
-                    {t("social_icon_remove")}
-                  </Button>
+                  <CustomImageUpload
+                    value={social.iconUrl}
+                    preset="icon"
+                    onValueChange={(nextValue) => updateSocial(social.id, { iconUrl: nextValue || undefined })}
+                    className="w-full"
+                    uploadLabel={t("social_icon_upload")}
+                  />
                 </div>
                 {!parsed.success ? (
                   <p className="text-xs text-destructive">{t("social_invalid_url")}</p>
@@ -204,27 +176,14 @@ export const SocialIconsSection = () => {
           </label>
           <div className="space-y-2">
             <Label>{t("social_icon_upload")}</Label>
-            <Input type="file" accept="image/*" onChange={handleUploadNewIcon} />
-            {formIconUrl ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{t("social_icon_preview")}</span>
-                <Image
-                  src={formIconUrl}
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="size-6 rounded object-cover"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => form.setValue("iconUrl", "", { shouldDirty: true })}
-                >
-                  {t("social_icon_remove")}
-                </Button>
-              </div>
-            ) : null}
+            <CustomImageUpload
+              value={formIconUrl}
+              preset="icon"
+              onValueChange={(nextValue) =>
+                form.setValue("iconUrl", nextValue, { shouldDirty: true, shouldValidate: true })
+              }
+              uploadLabel={t("social_icon_upload")}
+            />
           </div>
           <div className="flex gap-2">
             <Button type="submit">{t("social_save")}</Button>

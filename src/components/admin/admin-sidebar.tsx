@@ -11,18 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/i18n/use-i18n";
-import { toProfileSlug } from "@/lib/local-storage/profile-storage";
 import { cn } from "@/lib/utils";
 
 type AdminSidebarProps = {
-  username: string;
+  currentSlug: string;
 };
 
-export const AdminSidebar = ({ username }: AdminSidebarProps) => (
-  <AdminSidebarContent username={username} />
+export const AdminSidebar = ({ currentSlug }: AdminSidebarProps) => (
+  <AdminSidebarContent currentSlug={currentSlug} />
 );
 
-const AdminSidebarContent = ({ username }: AdminSidebarProps) => {
+const AdminSidebarContent = ({ currentSlug }: AdminSidebarProps) => {
   const { t } = useI18n();
   const SECTION_ITEMS = useMemo(
     () => [
@@ -37,8 +36,7 @@ const AdminSidebarContent = ({ username }: AdminSidebarProps) => {
   );
   const [copied, setCopied] = useState(false);
   const [activeSection, setActiveSection] = useState<string>(SECTION_ITEMS[0].id);
-  const slug = toProfileSlug(username);
-  const publicPath = `/${slug}`;
+  const publicPath = `/${currentSlug}`;
   const publicUrl = useMemo(() => {
     if (typeof window === "undefined") {
       return publicPath;
@@ -155,9 +153,9 @@ const AdminSidebarContent = ({ username }: AdminSidebarProps) => {
       </div>
 
       <div className="mt-4 space-y-3">
-        <SavedProfilesManagerCard username={username} />
-        <AnalyticsSummaryCard username={username} />
-        <DataToolsCard />
+        <SavedProfilesManagerCard currentSlug={currentSlug} />
+        <AnalyticsSummaryCard currentSlug={currentSlug} />
+        <DataToolsCard currentSlug={currentSlug} />
       </div>
     </aside>
   );

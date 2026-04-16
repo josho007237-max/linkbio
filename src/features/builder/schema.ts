@@ -20,19 +20,33 @@ export const headerSchema = z.object({
   displayName: z.string().trim().min(2, "Display name is required."),
   tagline: z.string().trim().min(2, "Tagline is required."),
   avatarUrl: imageSourceSchema,
+  heroImageUrl: imageSourceSchema.default("/placeholders/wallpaper-default.svg"),
+  layout: z.enum(["classic", "hero"]),
+  titleMode: z.enum(["display_name", "username"]),
+  heroTextAlign: z.enum(["left", "center"]).default("center"),
+  heroOverlay: z.boolean().default(true),
+  heroOverlayStrength: z.number().min(0).max(0.9).default(0.35),
+  matchThemeToHero: z.boolean().default(false),
 });
 
 export const wallpaperSchema = z.object({
   wallpaperUrl: imageSourceSchema,
+  wallpaperVideoUrl: z.string().trim().optional(),
+  wallpaperStyle: z.enum(["fill", "gradient", "blur", "pattern", "image", "video"]),
   pageBackground: z.string().trim().min(4),
   cardBackground: z.string().trim().min(4),
   textColor: z.string().trim().min(4),
   mutedTextColor: z.string().trim().min(4),
+  titleColor: z.string().trim().min(4),
+  titleSize: z.number().min(14).max(72),
+  pageFont: z.enum(["inter", "poppins", "manrope", "space_grotesk"]),
 });
 
 export const textSchema = z.object({
   intro: z.string().trim().min(2, "Intro text is required."),
   body: z.string().trim().min(2, "Body text is required."),
+  footerEnabled: z.boolean(),
+  footerText: z.string().trim(),
 });
 
 export const buttonSchema = z.object({
@@ -41,6 +55,8 @@ export const buttonSchema = z.object({
   buttonRadius: z.number().min(0).max(999),
   uppercase: z.boolean(),
   shadow: z.boolean(),
+  style: z.enum(["solid", "glass", "outline"]),
+  shadowLevel: z.number().int().min(0).max(3),
 });
 
 export const socialSchema = z.object({
@@ -300,10 +316,17 @@ export const builderDataSchema = z.object({
   theme: z.object({
     name: z.enum(["midnight", "sunset", "forest"]),
     wallpaperUrl: imageSourceSchema,
+    wallpaperVideoUrl: z.string().optional(),
+    wallpaperStyle: z
+      .enum(["fill", "gradient", "blur", "pattern", "image", "video"])
+      .optional(),
     pageBackground: z.string().trim().min(4),
     cardBackground: z.string().trim().min(4),
     textColor: z.string().trim().min(4),
     mutedTextColor: z.string().trim().min(4),
+    titleColor: z.string().trim().min(4).optional(),
+    titleSize: z.number().min(14).max(72).optional(),
+    pageFont: z.enum(["inter", "poppins", "manrope", "space_grotesk"]).optional(),
     buttonBackground: z.string().trim().min(4),
     buttonTextColor: z.string().trim().min(4),
     buttonRadius: z.number().min(0).max(999),
@@ -312,6 +335,8 @@ export const builderDataSchema = z.object({
   buttonStyle: z.object({
     uppercase: z.boolean(),
     shadow: z.boolean(),
+    style: z.enum(["solid", "glass", "outline"]).optional(),
+    shadowLevel: z.number().min(0).max(3).optional(),
   }),
   socials: z.array(
     z.object({

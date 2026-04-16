@@ -5,10 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n } from "@/i18n/use-i18n";
 import { getClickSummary, type ClickSummary } from "@/lib/local-storage/analytics-storage";
-import { toProfileSlug } from "@/lib/local-storage/profile-storage";
 
 type AnalyticsSummaryCardProps = {
-  username: string;
+  currentSlug: string;
 };
 
 const EMPTY_SUMMARY: ClickSummary = {
@@ -21,9 +20,8 @@ const EMPTY_SUMMARY: ClickSummary = {
   totalCodeCopies: 0,
 };
 
-export const AnalyticsSummaryCard = ({ username }: AnalyticsSummaryCardProps) => {
+export const AnalyticsSummaryCard = ({ currentSlug }: AnalyticsSummaryCardProps) => {
   const { t } = useI18n();
-  const slug = useMemo(() => toProfileSlug(username), [username]);
   const [isMounted, setIsMounted] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -47,8 +45,8 @@ export const AnalyticsSummaryCard = ({ username }: AnalyticsSummaryCardProps) =>
       return EMPTY_SUMMARY;
     }
     void refreshKey;
-    return getClickSummary(slug);
-  }, [isMounted, refreshKey, slug]);
+    return getClickSummary(currentSlug);
+  }, [currentSlug, isMounted, refreshKey]);
 
   const data = summary ?? EMPTY_SUMMARY;
 

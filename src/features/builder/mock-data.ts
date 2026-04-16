@@ -7,15 +7,26 @@ export const mockBuilderData: BuilderData = {
     displayName: defaultBrandPreset.brandName,
     tagline: defaultBrandPreset.tagline,
     avatarUrl: defaultBrandPreset.avatarUrl,
+    heroImageUrl: defaultBrandPreset.heroImageUrl,
+    layout: "classic",
+    titleMode: "display_name",
+    heroTextAlign: "center",
+    heroOverlay: true,
+    heroOverlayStrength: 0.35,
+    matchThemeToHero: false,
   },
   theme: defaultBrandPreset.theme,
   text: {
     intro: defaultBrandPreset.intro,
     body: defaultBrandPreset.body,
+    footerEnabled: false,
+    footerText: "Powered by Link-in-Bio Builder",
   },
   buttonStyle: {
     uppercase: false,
     shadow: true,
+    style: "solid",
+    shadowLevel: 2,
   },
   socials: [
     {

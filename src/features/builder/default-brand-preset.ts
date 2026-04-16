@@ -3,10 +3,15 @@ import { ThemeName } from "@/features/builder/types";
 type BrandPresetTheme = {
   name: ThemeName;
   wallpaperUrl: string;
+  wallpaperVideoUrl?: string;
+  wallpaperStyle?: "fill" | "gradient" | "blur" | "pattern" | "image" | "video";
   pageBackground: string;
   cardBackground: string;
   textColor: string;
   mutedTextColor: string;
+  titleColor?: string;
+  titleSize?: number;
+  pageFont?: "inter" | "poppins" | "manrope" | "space_grotesk";
   buttonBackground: string;
   buttonTextColor: string;
   buttonRadius: number;
@@ -31,6 +36,7 @@ export type BrandPreset = {
   intro: string;
   body: string;
   avatarUrl: string;
+  heroImageUrl: string;
   buttonLabels: BrandPresetButtonLabels;
   socialUrls: BrandPresetSocialUrls;
   theme: BrandPresetTheme;
@@ -43,6 +49,7 @@ export const defaultBrandPreset: BrandPreset = {
   intro: "Start with the most important destination for your audience.",
   body: "Use this page to guide visitors to your services, booking flow, portfolio, and business updates.",
   avatarUrl: "/placeholders/avatar-default.svg",
+  heroImageUrl: "/placeholders/wallpaper-default.svg",
   buttonLabels: {
     primary: "Book a Consultation",
     secondary: "Explore Services",
@@ -56,10 +63,14 @@ export const defaultBrandPreset: BrandPreset = {
   theme: {
     name: "midnight",
     wallpaperUrl: "/placeholders/wallpaper-default.svg",
+    wallpaperStyle: "image",
     pageBackground: "#0B1222",
     cardBackground: "rgba(17, 25, 40, 0.85)",
     textColor: "#F4F7FF",
     mutedTextColor: "#B8C2DB",
+    titleColor: "#F4F7FF",
+    titleSize: 28,
+    pageFont: "inter",
     buttonBackground: "#2563EB",
     buttonTextColor: "#EFF6FF",
     buttonRadius: 18,

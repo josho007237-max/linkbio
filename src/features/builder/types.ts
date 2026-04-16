@@ -3,10 +3,15 @@ export type ThemeName = "midnight" | "sunset" | "forest";
 export type BuilderTheme = {
   name: ThemeName;
   wallpaperUrl: string;
+  wallpaperVideoUrl?: string;
+  wallpaperStyle?: "fill" | "gradient" | "blur" | "pattern" | "image" | "video";
   pageBackground: string;
   cardBackground: string;
   textColor: string;
   mutedTextColor: string;
+  titleColor?: string;
+  titleSize?: number;
+  pageFont?: "inter" | "poppins" | "manrope" | "space_grotesk";
   buttonBackground: string;
   buttonTextColor: string;
   buttonRadius: number;
@@ -104,16 +109,27 @@ export type ProfileHeader = {
   displayName: string;
   tagline: string;
   avatarUrl: string;
+  heroImageUrl?: string;
+  layout?: "classic" | "hero";
+  titleMode?: "display_name" | "username";
+  heroTextAlign?: "left" | "center";
+  heroOverlay?: boolean;
+  heroOverlayStrength?: number;
+  matchThemeToHero?: boolean;
 };
 
 export type ProfileText = {
   intro: string;
   body: string;
+  footerEnabled?: boolean;
+  footerText?: string;
 };
 
 export type ButtonStyle = {
   uppercase: boolean;
   shadow: boolean;
+  style?: "solid" | "glass" | "outline";
+  shadowLevel?: 0 | 1 | 2 | 3;
 };
 
 export type BuilderData = {

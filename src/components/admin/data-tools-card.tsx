@@ -6,22 +6,29 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { mockBuilderData } from "@/features/builder/mock-data";
 import { builderDataSchema } from "@/features/builder/schema";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
 import { BuilderData } from "@/features/builder/types";
 import { normalizeBuilderData } from "@/features/builder/utils";
 import { useI18n } from "@/i18n/use-i18n";
+import { safeJsonParse } from "@/lib/json/safe-json-parse";
 import {
-  ANALYTICS_KEY,
   clearAnalyticsStore,
+  getAnalyticsEventsForSlug,
   removeAnalyticsForSlug,
+  replaceAnalyticsEventsForSlug,
+  type AnalyticsEventSnapshot,
 } from "@/lib/local-storage/analytics-storage";
 import {
   BUILDER_STORE_KEY,
-  PROFILE_INDEX_KEY,
   clearProfileIndex,
+  getSavedProfileBySlug,
+  getSavedProfilesFromLocal,
   removeProfileBySlug,
+  setActiveEditorSlug,
   toProfileSlug,
+  upsertProfileIndex,
 } from "@/lib/local-storage/profile-storage";
 import {
   getSafetySettings,
@@ -29,20 +36,46 @@ import {
   type SafetySettings,
 } from "@/lib/local-storage/safety-settings";
 
-const RESET_BACKUP_KEY = "linkbio-reset-backup-v1";
+const RESET_BACKUP_KEY_PREFIX = "linkbio-reset-backup-v2";
 const STRONG_CONFIRM_TEXT = "CLEAR ALL";
 
 type ResetBackupEnvelope = {
   createdAt: string;
+  slug: string;
   data: BuilderData;
-  builderStoreRaw: string | null;
-  profileIndexRaw: string | null;
-  analyticsRaw: string | null;
+  savedProfile: BuilderData | null;
+  analyticsEvents: AnalyticsEventSnapshot[];
 };
 
 type ConfirmAction = "resetEditor" | "clearCurrentRoute" | "clearAllData" | null;
 
-export const DataToolsCard = () => {
+type DataToolsCardProps = {
+  currentSlug: string;
+};
+
+const createUniqueSlug = (baseSlug: string, existingSlugs: Set<string>) => {
+  const initial = toProfileSlug(baseSlug);
+  if (!existingSlugs.has(initial)) {
+    return initial;
+  }
+
+  let index = 2;
+  while (existingSlugs.has(`${initial}-${index}`)) {
+    index += 1;
+  }
+  return `${initial}-${index}`;
+};
+
+const createPageWorkspaceData = (slug: string, pageName: string): BuilderData => ({
+  ...mockBuilderData,
+  header: {
+    ...mockBuilderData.header,
+    username: slug,
+    displayName: pageName,
+  },
+});
+
+export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
   const { t } = useI18n();
   const header = useBuilderStore((state) => state.header);
   const theme = useBuilderStore((state) => state.theme);
@@ -51,7 +84,6 @@ export const DataToolsCard = () => {
   const socials = useBuilderStore((state) => state.socials);
   const links = useBuilderStore((state) => state.links);
   const replaceBuilderData = useBuilderStore((state) => state.replaceBuilderData);
-  const resetBuilderData = useBuilderStore((state) => state.resetBuilderData);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [statusMessage, setStatusMessage] = useState<{
@@ -66,11 +98,16 @@ export const DataToolsCard = () => {
   const [isMounted, setIsMounted] = useState(false);
   const [backupRefreshKey, setBackupRefreshKey] = useState(0);
   const statusTimerRef = useRef<number | null>(null);
-  const currentSlug = useMemo(() => toProfileSlug(header.username), [header.username]);
 
   const data = useMemo(
     () => ({ header, theme, text, buttonStyle, socials, links }),
     [buttonStyle, header, links, socials, text, theme],
+  );
+
+  const activeSlug = useMemo(() => toProfileSlug(currentSlug), [currentSlug]);
+  const backupKey = useMemo(
+    () => `${RESET_BACKUP_KEY_PREFIX}-${activeSlug}`,
+    [activeSlug],
   );
 
   useEffect(() => {
@@ -106,38 +143,34 @@ export const DataToolsCard = () => {
     }
 
     void backupRefreshKey;
-    const raw = window.localStorage.getItem(RESET_BACKUP_KEY);
+    const raw = window.localStorage.getItem(backupKey);
     if (!raw) {
       return null;
     }
 
     try {
-      const parsed = JSON.parse(raw) as Partial<ResetBackupEnvelope>;
+      const parsed = safeJsonParse<Partial<ResetBackupEnvelope>>(raw, {});
       const validation = builderDataSchema.safeParse(parsed.data);
-      if (!validation.success || !parsed.createdAt) {
+      if (!validation.success || !parsed.createdAt || !parsed.slug) {
         return null;
       }
 
       return {
         createdAt: parsed.createdAt,
+        slug: toProfileSlug(parsed.slug),
         data: normalizeBuilderData(validation.data as BuilderData),
-        builderStoreRaw:
-          typeof parsed.builderStoreRaw === "string" || parsed.builderStoreRaw === null
-            ? parsed.builderStoreRaw
+        savedProfile:
+          parsed.savedProfile && builderDataSchema.safeParse(parsed.savedProfile).success
+            ? normalizeBuilderData(parsed.savedProfile)
             : null,
-        profileIndexRaw:
-          typeof parsed.profileIndexRaw === "string" || parsed.profileIndexRaw === null
-            ? parsed.profileIndexRaw
-            : null,
-        analyticsRaw:
-          typeof parsed.analyticsRaw === "string" || parsed.analyticsRaw === null
-            ? parsed.analyticsRaw
-            : null,
+        analyticsEvents: Array.isArray(parsed.analyticsEvents)
+          ? parsed.analyticsEvents
+          : [],
       };
     } catch {
       return null;
     }
-  }, [backupRefreshKey, isMounted]);
+  }, [backupKey, backupRefreshKey, isMounted]);
 
   const safetySettings = useMemo<SafetySettings>(() => {
     if (!isMounted) {
@@ -179,7 +212,11 @@ export const DataToolsCard = () => {
 
     try {
       const content = await file.text();
-      const parsed = JSON.parse(content);
+      const parsed = safeJsonParse<unknown>(content, null);
+      if (!parsed) {
+        showToast("error", t("data_tools_toast_import_format_error"));
+        return;
+      }
       const validation = builderDataSchema.safeParse(parsed);
 
       if (!validation.success) {
@@ -203,18 +240,29 @@ export const DataToolsCard = () => {
 
     const backup: ResetBackupEnvelope = {
       createdAt: new Date().toISOString(),
+      slug: activeSlug,
       data,
-      builderStoreRaw: window.localStorage.getItem(BUILDER_STORE_KEY),
-      profileIndexRaw: window.localStorage.getItem(PROFILE_INDEX_KEY),
-      analyticsRaw: window.localStorage.getItem(ANALYTICS_KEY),
+      savedProfile: getSavedProfileBySlug(activeSlug),
+      analyticsEvents: getAnalyticsEventsForSlug(activeSlug),
     };
-    window.localStorage.setItem(RESET_BACKUP_KEY, JSON.stringify(backup));
+    try {
+      const serialized = JSON.stringify(backup);
+      if (!serialized.trim()) {
+        window.localStorage.removeItem(backupKey);
+        return;
+      }
+      window.localStorage.setItem(backupKey, serialized);
+    } catch {
+      return;
+    }
   };
 
   const handleConfirmResetEditor = () => {
     createBackupSnapshot();
 
-    resetBuilderData();
+    replaceBuilderData(
+      createPageWorkspaceData(activeSlug, header.displayName || t("saved_manager_new_page_default")),
+    );
     setConfirmAction(null);
     setStrongConfirmText("");
     setClearCurrentConfirmText("");
@@ -230,9 +278,19 @@ export const DataToolsCard = () => {
     }
 
     createBackupSnapshot();
-    removeProfileBySlug(currentSlug);
-    removeAnalyticsForSlug(currentSlug);
-    resetBuilderData();
+    removeProfileBySlug(activeSlug);
+    removeAnalyticsForSlug(activeSlug);
+
+    const fallbackPages = getSavedProfilesFromLocal().filter((item) => item.slug !== activeSlug);
+    const fallbackPage = fallbackPages[0];
+    if (fallbackPage) {
+      replaceBuilderData(fallbackPage.data);
+      setActiveEditorSlug(fallbackPage.slug);
+    } else {
+      const nextSlug = createUniqueSlug(`${activeSlug}-new`, new Set([activeSlug]));
+      replaceBuilderData(createPageWorkspaceData(nextSlug, t("saved_manager_new_page_default")));
+      setActiveEditorSlug(nextSlug);
+    }
 
     setConfirmAction(null);
     setStrongConfirmText("");
@@ -252,7 +310,8 @@ export const DataToolsCard = () => {
     clearProfileIndex();
     clearAnalyticsStore();
     window.localStorage.removeItem(BUILDER_STORE_KEY);
-    resetBuilderData();
+    replaceBuilderData(createPageWorkspaceData(activeSlug, t("saved_manager_new_page_default")));
+    setActiveEditorSlug(activeSlug);
 
     setConfirmAction(null);
     setStrongConfirmText("");
@@ -270,23 +329,13 @@ export const DataToolsCard = () => {
     }
 
     replaceBuilderData(backupSnapshot.data);
-    if (backupSnapshot.builderStoreRaw === null) {
-      window.localStorage.removeItem(BUILDER_STORE_KEY);
+    if (backupSnapshot.savedProfile) {
+      upsertProfileIndex(backupSnapshot.savedProfile, activeSlug);
     } else {
-      window.localStorage.setItem(BUILDER_STORE_KEY, backupSnapshot.builderStoreRaw);
+      removeProfileBySlug(activeSlug);
     }
-
-    if (backupSnapshot.profileIndexRaw === null) {
-      window.localStorage.removeItem(PROFILE_INDEX_KEY);
-    } else {
-      window.localStorage.setItem(PROFILE_INDEX_KEY, backupSnapshot.profileIndexRaw);
-    }
-
-    if (backupSnapshot.analyticsRaw === null) {
-      window.localStorage.removeItem(ANALYTICS_KEY);
-    } else {
-      window.localStorage.setItem(ANALYTICS_KEY, backupSnapshot.analyticsRaw);
-    }
+    replaceAnalyticsEventsForSlug(activeSlug, backupSnapshot.analyticsEvents);
+    setActiveEditorSlug(activeSlug);
 
     window.dispatchEvent(new Event("storage"));
     setBackupRefreshKey((value) => value + 1);
@@ -297,7 +346,7 @@ export const DataToolsCard = () => {
     safetySettings.enabled &&
     (confirmAction === "clearCurrentRoute" || confirmAction === "clearAllData");
   const isPinValid = !isPinRequiredForConfirm || confirmPinInput === safetySettings.pin;
-  const clearCurrentExpectedText = `/${currentSlug}`;
+  const clearCurrentExpectedText = `/${activeSlug}`;
 
   return (
     <>
@@ -433,11 +482,11 @@ export const DataToolsCard = () => {
             {confirmAction === "clearCurrentRoute" ? (
               <>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {t("data_tools_confirm_current_desc", { slug: currentSlug })}
+                  {t("data_tools_confirm_current_desc", { slug: activeSlug })}
                 </p>
                 <div className="mt-4 space-y-2">
                   <label htmlFor="clear-current-confirm" className="text-xs text-muted-foreground">
-                    {t("data_tools_type_clear_current", { slug: currentSlug })}
+                    {t("data_tools_type_clear_current", { slug: activeSlug })}
                   </label>
                   <Input
                     id="clear-current-confirm"

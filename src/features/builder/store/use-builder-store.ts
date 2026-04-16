@@ -26,6 +26,149 @@ type BuilderStore = BuilderData & {
   resetBuilderData: () => void;
 };
 
+const MAX_PERSISTED_DATA_URL_LENGTH = 180_000;
+
+const sanitizeMaybePersistedDataUrl = (value: unknown): string => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (!normalized.startsWith("data:image/")) {
+    return normalized;
+  }
+  if (!normalized.includes(",")) {
+    return "";
+  }
+  return normalized.length > MAX_PERSISTED_DATA_URL_LENGTH ? "" : normalized;
+};
+
+const sanitizePersistedState = (state: BuilderStore) => {
+  const socials = Array.isArray(state.socials) ? state.socials : [];
+  const links = Array.isArray(state.links) ? state.links : [];
+
+  return {
+    header: {
+      ...state.header,
+      avatarUrl: sanitizeMaybePersistedDataUrl(state.header?.avatarUrl),
+      heroImageUrl: sanitizeMaybePersistedDataUrl(state.header?.heroImageUrl),
+    },
+    theme: {
+      ...state.theme,
+      wallpaperUrl: sanitizeMaybePersistedDataUrl(state.theme?.wallpaperUrl),
+    },
+    text: state.text,
+    buttonStyle: state.buttonStyle,
+    socials: socials.map((social) => ({
+      ...social,
+      iconUrl: sanitizeMaybePersistedDataUrl(social?.iconUrl),
+    })),
+    links: links.map((link) => ({
+      ...link,
+      settings: {
+        ...link.settings,
+        thumbnailUrl: sanitizeMaybePersistedDataUrl(link.settings?.thumbnailUrl),
+      },
+      discount: link.discount
+        ? {
+            ...link.discount,
+            cardThumbnail: sanitizeMaybePersistedDataUrl(link.discount?.cardThumbnail),
+            modalHeroImage: sanitizeMaybePersistedDataUrl(link.discount?.modalHeroImage),
+          }
+        : link.discount,
+      embedPost: link.embedPost
+        ? {
+            ...link.embedPost,
+            cardIcon: sanitizeMaybePersistedDataUrl(link.embedPost?.cardIcon),
+            cardThumbnail: sanitizeMaybePersistedDataUrl(link.embedPost?.cardThumbnail),
+          }
+        : link.embedPost,
+    })),
+  };
+};
+
+const buildMinimalPersistedState = (state: BuilderStore) => ({
+  ...mockBuilderData,
+  header: {
+    ...mockBuilderData.header,
+    username:
+      typeof state.header?.username === "string" && state.header.username.trim()
+        ? state.header.username.trim()
+        : mockBuilderData.header.username,
+    displayName:
+      typeof state.header?.displayName === "string" && state.header.displayName.trim()
+        ? state.header.displayName.trim()
+        : mockBuilderData.header.displayName,
+  },
+});
+
+const safePersistPartialize = (state: BuilderStore) => {
+  try {
+    return sanitizePersistedState(state);
+  } catch {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("linkbio-storage-warning", {
+          detail: {
+            reason: "sanitize_persist_error",
+            key: BUILDER_STORE_KEY,
+          },
+        }),
+      );
+    }
+    return buildMinimalPersistedState(state);
+  }
+};
+
+const guardedLocalStorage = {
+  getItem: (name: string): string | null => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    try {
+      return window.localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      if (!value.trim()) {
+        window.localStorage.removeItem(name);
+        return;
+      }
+      window.localStorage.setItem(name, value);
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent("linkbio-storage-warning", {
+          detail: {
+            reason: "quota_or_storage_error",
+            key: name,
+          },
+        }),
+      );
+      return;
+    }
+  },
+  removeItem: (name: string): void => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.removeItem(name);
+    } catch {
+      return;
+    }
+  },
+};
+
 const mergeLinkSettings = (current: BioLink, next: Partial<LinkSettings>): LinkSettings => ({
   ...current.settings,
   ...next,
@@ -148,15 +291,8 @@ export const useBuilderStore = create<BuilderStore>()(
     }),
     {
       name: BUILDER_STORE_KEY,
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        header: state.header,
-        theme: state.theme,
-        text: state.text,
-        buttonStyle: state.buttonStyle,
-        socials: state.socials,
-        links: state.links,
-      }),
+      storage: createJSONStorage(() => guardedLocalStorage),
+      partialize: safePersistPartialize,
     },
   ),
 );

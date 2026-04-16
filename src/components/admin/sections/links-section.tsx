@@ -22,10 +22,11 @@ import {
   SquarePen,
   Trash2,
 } from "lucide-react";
-import { ChangeEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/components/admin/section-card";
+import { CustomImageUpload } from "@/components/admin/shared/custom-image-upload";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -65,7 +66,6 @@ import {
 import { useI18n } from "@/i18n/use-i18n";
 import { getPerLinkClickCounts } from "@/lib/local-storage/analytics-storage";
 import { toProfileSlug } from "@/lib/local-storage/profile-storage";
-import { fileToDataUrl } from "@/lib/media/file-data-url";
 import { cn } from "@/lib/utils";
 
 type SortableLinkItemProps = {
@@ -294,6 +294,24 @@ export const LinksSection = () => {
   });
   const editEnabled = useWatch({ control: editForm.control, name: "enabled" });
   const editContentType = useWatch({ control: editForm.control, name: "contentType" });
+  const editModalHeroImage = useWatch({ control: editForm.control, name: "modalHeroImage" });
+  const editCardThumbnail = useWatch({ control: editForm.control, name: "cardThumbnail" });
+  const editEmbedCardIcon = useWatch({ control: editForm.control, name: "embedCardIcon" });
+  const editEmbedCardThumbnail = useWatch({
+    control: editForm.control,
+    name: "embedCardThumbnail",
+  });
+  const editDismissible = useWatch({ control: editForm.control, name: "dismissible" });
+  const editEmbedProvider = useWatch({ control: editForm.control, name: "embedProvider" });
+  const editEmbedMode = useWatch({ control: editForm.control, name: "embedMode" });
+  const editEmbedDismissible = useWatch({
+    control: editForm.control,
+    name: "embedDismissible",
+  });
+  const settingsThumbnailUrl = useWatch({
+    control: settingsForm.control,
+    name: "thumbnailUrl",
+  });
   const prioritize = useWatch({ control: settingsForm.control, name: "prioritize" });
   const locked = useWatch({ control: settingsForm.control, name: "locked" });
   const editUrlError = editForm.formState.errors.url?.message;
@@ -330,6 +348,7 @@ export const LinksSection = () => {
   const slug = useMemo(() => toProfileSlug(username), [username]);
   const [isDndMounted, setIsDndMounted] = useState(false);
   const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0);
+  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -547,101 +566,6 @@ export const LinksSection = () => {
     reorderLinks(String(active.id), String(over.id));
   };
 
-  const handleThumbnailUpload = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      settingsForm.setValue("thumbnailUrl", dataUrl, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  const handleEditThumbnailUpload = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      editForm.setValue("cardThumbnail", dataUrl, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  const handleEditHeroImageUpload = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      editForm.setValue("modalHeroImage", dataUrl, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  const handleEditEmbedThumbnailUpload = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      editForm.setValue("embedCardThumbnail", dataUrl, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  const handleEditEmbedIconUpload = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      editForm.setValue("embedCardIcon", dataUrl, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-    } finally {
-      event.target.value = "";
-    }
-  };
-
   return (
     <SectionCard
       id="links"
@@ -663,6 +587,9 @@ export const LinksSection = () => {
         <Plus className="size-4" />
         {t("links_add_embed_post")}
       </Button>
+      {uploadWarning ? (
+        <p className="text-xs text-amber-600">{uploadWarning}</p>
+      ) : null}
 
       {links.length === 0 ? (
         <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
@@ -818,7 +745,17 @@ export const LinksSection = () => {
                       </div>
                       <div className="space-y-2">
                         <Label>{t("discount_modal_hero_upload")}</Label>
-                        <Input type="file" accept="image/*" onChange={handleEditHeroImageUpload} />
+                        <CustomImageUpload
+                          value={editModalHeroImage}
+                          preset="avatar_hero"
+                          onValueChange={(nextValue) =>
+                            editForm.setValue("modalHeroImage", nextValue, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                          onError={(message) => setUploadWarning(message)}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>{t("discount_modal_description")}</Label>
@@ -871,7 +808,7 @@ export const LinksSection = () => {
                       </div>
                       <label className="flex items-center gap-2 text-sm">
                         <Switch
-                          checked={Boolean(editForm.watch("dismissible"))}
+                          checked={Boolean(editDismissible)}
                           onCheckedChange={(v) => editForm.setValue("dismissible", v)}
                         />
                         {t("discount_dismissible")}
@@ -904,13 +841,13 @@ export const LinksSection = () => {
                           <option value="generic">{t("embed_post_provider_generic")}</option>
                         </select>
                         <p className="text-xs text-muted-foreground">
-                          {editForm.watch("embedProvider") === "x"
+                          {editEmbedProvider === "x"
                             ? t("embed_post_provider_hint_x")
-                            : editForm.watch("embedProvider") === "tiktok"
+                            : editEmbedProvider === "tiktok"
                               ? t("embed_post_provider_hint_tiktok")
-                              : editForm.watch("embedProvider") === "youtube"
+                              : editEmbedProvider === "youtube"
                                 ? t("embed_post_provider_hint_youtube")
-                                : editForm.watch("embedProvider") === "facebook"
+                                : editEmbedProvider === "facebook"
                                   ? t("embed_post_provider_hint_facebook")
                                   : t("embed_post_provider_hint_generic")}
                         </p>
@@ -931,7 +868,7 @@ export const LinksSection = () => {
                           <p className="text-xs text-destructive">{editEmbedModeError}</p>
                         ) : null}
                       </div>
-                      {editForm.watch("embedMode") === "url" ? (
+                      {editEmbedMode === "url" ? (
                         <div className="space-y-2">
                           <Label>{t("embed_post_fields_source_url")}</Label>
                           <Input
@@ -990,7 +927,7 @@ export const LinksSection = () => {
                       </div>
                       <label className="flex items-center gap-2 text-sm">
                         <Switch
-                          checked={Boolean(editForm.watch("embedDismissible"))}
+                          checked={Boolean(editEmbedDismissible)}
                           onCheckedChange={(v) => editForm.setValue("embedDismissible", v)}
                         />
                         {t("embed_post_fields_dismissible")}
@@ -1093,18 +1030,47 @@ export const LinksSection = () => {
                   {editContentType === "discount" ? (
                     <div className="space-y-2">
                       <Label>{t("discount_card_thumbnail_upload")}</Label>
-                      <Input type="file" accept="image/*" onChange={handleEditThumbnailUpload} />
-                      <p className="text-xs text-muted-foreground">{t("links_upload_thumbnail_help")}</p>
+                      <CustomImageUpload
+                        value={editCardThumbnail}
+                        preset="thumbnail_banner"
+                        onValueChange={(nextValue) =>
+                          editForm.setValue("cardThumbnail", nextValue, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                        onError={(message) => setUploadWarning(message)}
+                      />
                     </div>
                   ) : (
                     <>
                       <div className="space-y-2">
                         <Label>{t("embed_post_fields_card_icon")}</Label>
-                        <Input type="file" accept="image/*" onChange={handleEditEmbedIconUpload} />
+                        <CustomImageUpload
+                          value={editEmbedCardIcon}
+                          preset="icon"
+                          onValueChange={(nextValue) =>
+                            editForm.setValue("embedCardIcon", nextValue, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                          onError={(message) => setUploadWarning(message)}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>{t("embed_post_fields_card_thumbnail")}</Label>
-                        <Input type="file" accept="image/*" onChange={handleEditEmbedThumbnailUpload} />
+                        <CustomImageUpload
+                          value={editEmbedCardThumbnail}
+                          preset="thumbnail_banner"
+                          onValueChange={(nextValue) =>
+                            editForm.setValue("embedCardThumbnail", nextValue, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                          onError={(message) => setUploadWarning(message)}
+                        />
                       </div>
                     </>
                   )}
@@ -1147,8 +1113,17 @@ export const LinksSection = () => {
               </div>
               <div className="space-y-2">
                 <Label>{t("links_upload_thumbnail")}</Label>
-                <Input type="file" accept="image/*" onChange={handleThumbnailUpload} />
-                <p className="text-xs text-muted-foreground">{t("links_upload_thumbnail_help")}</p>
+                <CustomImageUpload
+                  value={settingsThumbnailUrl}
+                  preset="thumbnail_banner"
+                  onValueChange={(nextValue) =>
+                    settingsForm.setValue("thumbnailUrl", nextValue, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  onError={(message) => setUploadWarning(message)}
+                />
               </div>
               <label className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
                 {t("links_prioritize")}

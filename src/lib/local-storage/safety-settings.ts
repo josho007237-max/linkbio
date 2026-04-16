@@ -1,5 +1,7 @@
 "use client";
 
+import { safeJsonParse } from "@/lib/json/safe-json-parse";
+
 const SAFETY_SETTINGS_KEY = "linkbio-safety-settings-v1";
 
 export type SafetySettings = {
@@ -22,7 +24,7 @@ export const getSafetySettings = (): SafetySettings => {
     if (!raw) {
       return DEFAULT_SETTINGS;
     }
-    const parsed = JSON.parse(raw) as Partial<SafetySettings>;
+    const parsed = safeJsonParse<Partial<SafetySettings>>(raw, {});
     return {
       enabled: Boolean(parsed.enabled),
       pin: typeof parsed.pin === "string" ? parsed.pin : "",
@@ -36,7 +38,16 @@ export const setSafetySettings = (settings: SafetySettings): void => {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(SAFETY_SETTINGS_KEY, JSON.stringify(settings));
+  try {
+    const serialized = JSON.stringify(settings);
+    if (!serialized.trim()) {
+      window.localStorage.removeItem(SAFETY_SETTINGS_KEY);
+      return;
+    }
+    window.localStorage.setItem(SAFETY_SETTINGS_KEY, serialized);
+  } catch {
+    return;
+  }
   window.dispatchEvent(new Event("storage"));
 };
 
