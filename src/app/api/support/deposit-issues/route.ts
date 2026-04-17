@@ -7,18 +7,32 @@ import {
   SupportSubmissionRecord,
 } from "@/lib/server/support-submissions-store";
 import { submitDepositIssue } from "@/lib/server/support-submission-adapter";
-import { safeJsonParse } from "@/lib/json/safe-json-parse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
+const parseJsonWithFallback = <T>(raw: string | null | undefined, fallback: T): T => {
+  if (typeof raw !== "string") {
+    return fallback;
+  }
+  const normalized = raw.trim();
+  if (!normalized) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(normalized) as T;
+  } catch {
+    return fallback;
+  }
+};
+
 const parseResponses = (raw: FormDataEntryValue | null): SupportSubmissionRecord["fields"] => {
   if (typeof raw !== "string") {
     return [];
   }
-  const parsed = safeJsonParse<unknown>(raw, []);
+  const parsed = parseJsonWithFallback<unknown>(raw, []);
   if (!Array.isArray(parsed)) {
     return [];
   }

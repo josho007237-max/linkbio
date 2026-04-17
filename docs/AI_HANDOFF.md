@@ -100,3 +100,26 @@ Add Google Sheets integration for existing in-site support forms while keeping c
 ### Known issues
 - In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
 - No additional deposit/withdraw flow regressions identified in static checks, but end-to-end browser interaction was not executed in this terminal-only run.
+
+## Update 2026-04-18 (deposit_issue server parse fix)
+
+### Changed files
+- `src/app/api/support/deposit-issues/route.ts`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Removed `safeJsonParse` import from `deposit-issues` route because that utility is client-only (`"use client"`).
+- Added a server-safe inline JSON helper (`parseJsonWithFallback`) and switched `responses` parsing to use it.
+- Preserved existing `FormData` flow, `slip` file validation, upload write, `submitDepositIssue` call, and response shape.
+- No changes made to UI, `withdraw_issue`, save/reset/restore, autosave, or Google Sheets adapter logic.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Known issues
+- In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
+- End-to-end browser submission was not executed in this terminal-only run.
