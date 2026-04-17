@@ -1330,15 +1330,6 @@ export const MobilePreview = ({
                 const validateForm = (): FormSubmissionErrors => {
                   const nextErrors: FormSubmissionErrors = {};
                   form.fields.forEach((field) => {
-                    const rawValue = currentFormValues[field.id];
-                    const stringValue = typeof rawValue === "string" ? rawValue.trim() : "";
-                    const listValue = Array.isArray(rawValue) ? rawValue.filter(Boolean) : [];
-                    const hasValue = Array.isArray(rawValue) ? listValue.length > 0 : Boolean(stringValue);
-
-                    if (field.required && !hasValue) {
-                      nextErrors[field.id] = t("form_error_required");
-                      return;
-                    }
                     if (field.type === "file_image") {
                       const fileSelection = currentFormFiles[field.id];
                       if (field.required && !fileSelection) {
@@ -1356,6 +1347,15 @@ export const MobilePreview = ({
                         nextErrors[field.id] = t("form_error_image_size");
                         return;
                       }
+                      return;
+                    }
+                    const rawValue = currentFormValues[field.id];
+                    const stringValue = typeof rawValue === "string" ? rawValue.trim() : "";
+                    const listValue = Array.isArray(rawValue) ? rawValue.filter(Boolean) : [];
+                    const hasValue = Array.isArray(rawValue) ? listValue.length > 0 : Boolean(stringValue);
+
+                    if (field.required && !hasValue) {
+                      nextErrors[field.id] = t("form_error_required");
                       return;
                     }
                     if (!hasValue) {

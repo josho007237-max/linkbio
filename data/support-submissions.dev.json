@@ -1,0 +1,51 @@
+{
+  "deposit_issue": [],
+  "withdraw_issue": [
+    {
+      "id": "3e3ec414-3a15-4744-9f89-1cf2ff223f20",
+      "kind": "withdraw_issue",
+      "slug": "007",
+      "linkId": "form-dooahhq",
+      "formTitle": "ถอนเงินไม่ได้",
+      "template": "withdraw_issue",
+      "submittedAt": "2026-04-17T22:31:53.286Z",
+      "fields": [
+        {
+          "id": "user",
+          "label": "USER",
+          "value": ".....55555"
+        },
+        {
+          "id": "phone",
+          "label": "เบอร์โทรศัพท์",
+          "value": "0985236526"
+        },
+        {
+          "id": "full_name",
+          "label": "ชื่อ-นามสกุล",
+          "value": "ีเ้ดเ้กดเ้ดเดเ้"
+        },
+        {
+          "id": "bank_account",
+          "label": "เลขที่บัญชี",
+          "value": "1082365623"
+        },
+        {
+          "id": "transaction_time",
+          "label": "เวลาที่ทำรายการ",
+          "value": "11.00"
+        },
+        {
+          "id": "note",
+          "label": "หมายเหตุเพิ่มเติม",
+          "value": "."
+        },
+        {
+          "id": "status",
+          "label": "status",
+          "value": "new"
+        }
+      ]
+    }
+  ]
+}

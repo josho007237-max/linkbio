@@ -75,3 +75,28 @@ Add Google Sheets integration for existing in-site support forms while keeping c
 1. Add rate limiting and bot/abuse checks on support submit routes.
 2. Add a secure signed URL / private object storage strategy for slip files in production.
 3. Add lightweight submission monitoring/alerting for failed Google Sheets writes.
+
+## Update 2026-04-18 (deposit_issue submit flow)
+
+### Changed files
+- `src/components/preview/mobile-preview.tsx`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Fixed `deposit_issue` validation flow so `file_image` required checks now validate against selected file state (`formFilesByLink`) before generic text/choice required checks.
+- This unblocks form submit when slip preview is visible and allows the existing submit branch to run:
+  - append selected file to `FormData` as `slip`
+  - call `POST /api/support/deposit-issues`
+- Preserved existing image-only validation and 5MB max-size validation.
+- No changes made to `withdraw_issue`, save/reset/restore, autosave, Google Sheets adapter, or success/error modal behavior.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Known issues
+- In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
+- No additional deposit/withdraw flow regressions identified in static checks, but end-to-end browser interaction was not executed in this terminal-only run.
