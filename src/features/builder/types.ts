@@ -103,9 +103,16 @@ export type FormFieldType =
   | "single_choice"
   | "checkboxes"
   | "dropdown"
-  | "date";
+  | "date"
+  | "file_image";
 
-export type FormTemplate = "email_signup" | "sms_signup" | "contact_form" | "custom";
+export type FormTemplate =
+  | "email_signup"
+  | "sms_signup"
+  | "contact_form"
+  | "custom"
+  | "deposit_issue"
+  | "withdraw_issue";
 
 export type FormField = {
   id: string;

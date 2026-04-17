@@ -13,6 +13,7 @@ import {
   isIndexedDbImageRef,
   storeImageDataUrlInIndexedDb,
 } from "@/lib/local-storage/image-storage";
+import { cn } from "@/lib/utils";
 
 type CustomImageUploadProps = {
   value?: string | null;
@@ -139,7 +140,7 @@ export const CustomImageUpload = ({
   };
 
   return (
-    <div className={className}>
+    <div className={cn("w-full min-w-0", className)}>
       <input
         ref={inputRef}
         id={inputId}
@@ -148,18 +149,18 @@ export const CustomImageUpload = ({
         onChange={handleFileChange}
         className="hidden"
       />
-      <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+      <div className="overflow-hidden rounded-lg border border-border/70 bg-muted/20 p-3">
         {previewSrc ? (
           <SafeImage
             src={previewSrc}
             alt=""
-            className="h-24 w-full rounded-md border border-border/60 object-cover"
+            className="h-24 w-full max-w-full rounded-md border border-border/60 object-cover"
             width={640}
             height={192}
             unoptimized
           />
         ) : (
-          <div className="flex h-24 items-center justify-center rounded-md border border-dashed border-border/70 bg-background/60">
+          <div className="flex h-24 w-full max-w-full items-center justify-center overflow-hidden rounded-md border border-dashed border-border/70 bg-background/60">
             <SafeImage
               src={uploadIconSrc}
               alt=""
@@ -171,7 +172,7 @@ export const CustomImageUpload = ({
             />
           </div>
         )}
-        <p className="mt-2 truncate text-xs text-muted-foreground">
+        <p className="mt-2 break-all text-xs leading-relaxed text-muted-foreground">
           {displayName || emptyHint}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -179,6 +180,7 @@ export const CustomImageUpload = ({
             type="button"
             size="sm"
             variant="secondary"
+            className="min-h-10"
             onClick={openFilePicker}
             disabled={isProcessing}
           >
@@ -188,6 +190,7 @@ export const CustomImageUpload = ({
             type="button"
             size="sm"
             variant="ghost"
+            className="min-h-10"
             onClick={() => {
               onValueChange("");
               setSelectedFileName("");

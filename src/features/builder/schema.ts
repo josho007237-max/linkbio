@@ -152,7 +152,16 @@ export const linkSchema = z
     embedCtaButtonLabel: z.string().trim().optional(),
     embedCtaUrl: z.string().trim().optional(),
     embedDismissible: z.boolean().optional(),
-    formTemplate: z.enum(["email_signup", "sms_signup", "contact_form", "custom"]).optional(),
+    formTemplate: z
+      .enum([
+        "email_signup",
+        "sms_signup",
+        "contact_form",
+        "custom",
+        "deposit_issue",
+        "withdraw_issue",
+      ])
+      .optional(),
     formLayout: z.enum(["classic", "featured"]).optional(),
     formTitle: z.string().trim().optional(),
     formIntro: z.string().trim().optional(),
@@ -176,6 +185,7 @@ export const linkSchema = z
             "checkboxes",
             "dropdown",
             "date",
+            "file_image",
           ]),
           required: z.boolean(),
           placeholder: z.string().trim().optional(),
@@ -495,7 +505,16 @@ export const builderDataSchema = z.object({
       form: z
         .object({
           type: z.literal("form").optional(),
-          template: z.enum(["email_signup", "sms_signup", "contact_form", "custom"]).optional(),
+          template: z
+            .enum([
+              "email_signup",
+              "sms_signup",
+              "contact_form",
+              "custom",
+              "deposit_issue",
+              "withdraw_issue",
+            ])
+            .optional(),
           layout: z.enum(["classic", "featured"]).optional(),
           formTitle: z.string().optional(),
           intro: z.string().optional(),
@@ -520,6 +539,7 @@ export const builderDataSchema = z.object({
                     "checkboxes",
                     "dropdown",
                     "date",
+                    "file_image",
                   ])
                   .optional(),
                 required: z.boolean().optional(),

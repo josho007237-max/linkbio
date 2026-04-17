@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SafeImage } from "@/components/shared/safe-image";
-import { ComponentType, useEffect, useMemo, useRef, useState } from "react";
+import { ComponentType, FocusEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Globe,
   Link2,
@@ -59,9 +59,16 @@ type XActivityChecklistState = {
 
 type FormSubmissionValues = Record<string, string | string[]>;
 type FormSubmissionErrors = Record<string, string>;
+type FormFileSelection = {
+  file: File;
+  previewUrl: string;
+  fileName: string;
+};
+type FormFilesByLink = Record<string, Record<string, FormFileSelection>>;
 
 const WALLPAPER_FALLBACK_SRC = "/placeholders/wallpaper-default.svg";
 const THUMBNAIL_FALLBACK_SRC = "/placeholders/link-thumbnail-default.svg";
+const MAX_SUPPORT_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
 
 const normalizeImageSrc = (
   value: string | null | undefined,
@@ -217,6 +224,9 @@ const isEmailValid = (value: string): boolean =>
 const isPhoneValid = (value: string): boolean =>
   /^[+]?[0-9\s\-()]{7,20}$/.test(value.trim());
 
+const isSupportTemplate = (template: string): template is "deposit_issue" | "withdraw_issue" =>
+  template === "deposit_issue" || template === "withdraw_issue";
+
 const ensureXWidgetsScript = (): Promise<void> =>
   new Promise((resolve) => {
     if (typeof window === "undefined") {
@@ -310,6 +320,9 @@ export const MobilePreview = ({
   const [formValuesByLink, setFormValuesByLink] = useState<Record<string, FormSubmissionValues>>({});
   const [formErrorsByLink, setFormErrorsByLink] = useState<Record<string, FormSubmissionErrors>>({});
   const [formSubmittedByLink, setFormSubmittedByLink] = useState<Record<string, boolean>>({});
+  const [formSubmittingByLink, setFormSubmittingByLink] = useState<Record<string, boolean>>({});
+  const [formSubmitErrorByLink, setFormSubmitErrorByLink] = useState<Record<string, string>>({});
+  const [formFilesByLink, setFormFilesByLink] = useState<FormFilesByLink>({});
   const [xActivityChecklistByLink, setXActivityChecklistByLink] = useState<
     Record<string, XActivityChecklistState>
   >({});
@@ -429,6 +442,24 @@ export const MobilePreview = ({
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [activeDiscountId, activeEmbedDismissible, activeEmbedId, activeFormId]);
+
+  useEffect(() => {
+    if (activeFormId) {
+      return;
+    }
+    setFormFilesByLink((current) => {
+      const allLinks = Object.values(current);
+      if (allLinks.length === 0) {
+        return current;
+      }
+      allLinks.forEach((perLink) => {
+        Object.values(perLink).forEach((selection) => {
+          URL.revokeObjectURL(selection.previewUrl);
+        });
+      });
+      return {};
+    });
+  }, [activeFormId]);
 
   useEffect(() => {
     if (mode !== "admin" || typeof window === "undefined") {
@@ -1266,7 +1297,36 @@ export const MobilePreview = ({
                 const isFeatured = form.layout === "featured";
                 const currentFormValues = formValuesByLink[link.id] ?? {};
                 const currentFormErrors = formErrorsByLink[link.id] ?? {};
+                const currentFormFiles = formFilesByLink[link.id] ?? {};
                 const isSubmitted = Boolean(formSubmittedByLink[link.id]);
+                const isSubmitting = Boolean(formSubmittingByLink[link.id]);
+                const submitError = formSubmitErrorByLink[link.id] ?? "";
+                const supportTemplate = isSupportTemplate(form.template) ? form.template : null;
+                const clearLinkFormFiles = (targetLinkId: string) => {
+                  setFormFilesByLink((current) => {
+                    const existing = current[targetLinkId];
+                    if (!existing) {
+                      return current;
+                    }
+                    Object.values(existing).forEach((selection) => {
+                      URL.revokeObjectURL(selection.previewUrl);
+                    });
+                    const next = { ...current };
+                    delete next[targetLinkId];
+                    return next;
+                  });
+                };
+                const closeFormModal = () => {
+                  clearLinkFormFiles(link.id);
+                  setActiveFormId(null);
+                };
+                const handleFieldFocus = (event: FocusEvent<HTMLElement>) => {
+                  event.currentTarget.scrollIntoView({
+                    block: "center",
+                    inline: "nearest",
+                    behavior: "smooth",
+                  });
+                };
                 const validateForm = (): FormSubmissionErrors => {
                   const nextErrors: FormSubmissionErrors = {};
                   form.fields.forEach((field) => {
@@ -1277,6 +1337,25 @@ export const MobilePreview = ({
 
                     if (field.required && !hasValue) {
                       nextErrors[field.id] = t("form_error_required");
+                      return;
+                    }
+                    if (field.type === "file_image") {
+                      const fileSelection = currentFormFiles[field.id];
+                      if (field.required && !fileSelection) {
+                        nextErrors[field.id] = t("form_error_required");
+                        return;
+                      }
+                      if (!fileSelection) {
+                        return;
+                      }
+                      if (!fileSelection.file.type.startsWith("image/")) {
+                        nextErrors[field.id] = t("form_error_image_type");
+                        return;
+                      }
+                      if (fileSelection.file.size > MAX_SUPPORT_SLIP_SIZE_BYTES) {
+                        nextErrors[field.id] = t("form_error_image_size");
+                        return;
+                      }
                       return;
                     }
                     if (!hasValue) {
@@ -1315,8 +1394,10 @@ export const MobilePreview = ({
                         setActiveFormId(link.id);
                         setActiveDiscountId(null);
                         setActiveEmbedId(null);
+                        clearLinkFormFiles(link.id);
                         setFormSubmittedByLink((current) => ({ ...current, [link.id]: false }));
                         setFormErrorsByLink((current) => ({ ...current, [link.id]: {} }));
+                        setFormSubmitErrorByLink((current) => ({ ...current, [link.id]: "" }));
                         onPublicLinkClick?.(link.id, "modal_open");
                       }}
                     >
@@ -1329,11 +1410,11 @@ export const MobilePreview = ({
 
                     {activeFormId === link.id ? (
                       <div
-                        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 sm:items-center"
-                        onClick={() => setActiveFormId(null)}
+                        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:p-4 sm:items-center"
+                        onClick={closeFormModal}
                       >
                         <div
-                          className="mx-auto w-[calc(100%-24px)] max-w-[520px] rounded-[28px] overflow-hidden border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5 md:p-6"
+                          className="mx-auto flex w-[calc(100%-16px)] max-w-[520px] flex-col overflow-hidden rounded-[28px] border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:w-[calc(100%-24px)] sm:p-5 md:p-6"
                           onClick={(event) => event.stopPropagation()}
                         >
                           <div className="mb-3 flex items-start justify-between gap-3">
@@ -1343,184 +1424,399 @@ export const MobilePreview = ({
                             <button
                               type="button"
                               className="rounded-md border border-white/25 p-1"
-                              onClick={() => setActiveFormId(null)}
+                              onClick={closeFormModal}
                               aria-label={t("embed_post_action_close")}
                             >
                               <X className="size-4" />
                             </button>
                           </div>
 
-                          {isSubmitted ? (
-                            <div className="space-y-3 rounded-xl border border-white/15 bg-black/25 p-4">
-                              <p className="text-sm sm:text-base">
-                                {form.outro || t("form_submit_success_default")}
-                              </p>
-                              <button
-                                type="button"
-                                className="w-full rounded-md border border-white/30 px-3 py-2 text-sm"
-                                onClick={() => setActiveFormId(null)}
-                              >
-                                {t("embed_post_action_close")}
-                              </button>
-                            </div>
-                          ) : (
-                            <form
-                              className="space-y-3"
-                              onSubmit={(event) => {
-                                event.preventDefault();
-                                const nextErrors = validateForm();
-                                setFormErrorsByLink((current) => ({ ...current, [link.id]: nextErrors }));
-                                if (Object.keys(nextErrors).length > 0) {
-                                  return;
-                                }
-                                setFormSubmittedByLink((current) => ({ ...current, [link.id]: true }));
-                              }}
-                            >
-                              {form.intro ? (
-                                <p className="text-sm text-zinc-200 sm:text-base">{form.intro}</p>
-                              ) : null}
-                              {form.fields.map((field) => {
-                                const fieldValue = currentFormValues[field.id];
-                                const options = field.options ?? [];
-                                const showOptions =
-                                  field.type === "single_choice" ||
-                                  field.type === "checkboxes" ||
-                                  field.type === "dropdown";
+                          <div className="max-h-[calc(88dvh-5.5rem)] overflow-y-auto overflow-x-hidden pr-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                            {isSubmitted ? (
+                              <div className="space-y-3 rounded-xl border border-white/15 bg-black/25 p-4">
+                                <p className="whitespace-pre-line text-sm leading-relaxed sm:text-base">
+                                  {form.outro || t("form_submit_success_default")}
+                                </p>
+                                <button
+                                  type="button"
+                                  className="w-full min-h-12 rounded-md border border-white/30 px-3 py-2 text-sm font-semibold"
+                                  onClick={closeFormModal}
+                                >
+                                  {t("embed_post_action_close")}
+                                </button>
+                              </div>
+                            ) : (
+                              <form
+                                className="space-y-3"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  if (isSubmitting) {
+                                    return;
+                                  }
+                                  const nextErrors = validateForm();
+                                  setFormErrorsByLink((current) => ({ ...current, [link.id]: nextErrors }));
+                                  if (Object.keys(nextErrors).length > 0) {
+                                    return;
+                                  }
+                                  const responses = form.fields.map((field) => {
+                                    const raw = currentFormValues[field.id];
+                                    if (field.type === "checkboxes") {
+                                      return {
+                                        id: field.id,
+                                        label: field.label,
+                                        value: Array.isArray(raw) ? raw : [],
+                                      };
+                                    }
+                                    if (field.type === "file_image") {
+                                      const fileSelection = currentFormFiles[field.id];
+                                      return {
+                                        id: field.id,
+                                        label: field.label,
+                                        value: fileSelection?.fileName ?? "",
+                                      };
+                                    }
+                                    return {
+                                      id: field.id,
+                                      label: field.label,
+                                      value: typeof raw === "string" ? raw : "",
+                                    };
+                                  });
 
-                                return (
-                                  <div key={field.id} className="space-y-1.5">
-                                    <label className="text-xs font-medium uppercase tracking-[0.06em] text-zinc-300">
-                                      {field.label}
-                                      {field.required ? " *" : ""}
-                                    </label>
-                                    {field.type === "paragraph" ? (
-                                      <textarea
-                                        className="min-h-[96px] w-full rounded-md border border-white/20 bg-black/35 px-3 py-2 text-sm text-white outline-none"
-                                        value={typeof fieldValue === "string" ? fieldValue : ""}
-                                        placeholder={field.placeholder ?? ""}
-                                        onChange={(event) =>
-                                          setFormValuesByLink((current) => ({
+                                  if (!supportTemplate) {
+                                    setFormSubmittedByLink((current) => ({ ...current, [link.id]: true }));
+                                    return;
+                                  }
+
+                                  setFormSubmittingByLink((current) => ({ ...current, [link.id]: true }));
+                                  setFormSubmitErrorByLink((current) => ({ ...current, [link.id]: "" }));
+
+                                  const submitSupport = async () => {
+                                    try {
+                                      if (supportTemplate === "deposit_issue") {
+                                        const slipField = form.fields.find((field) => field.type === "file_image");
+                                        const slipFile = slipField ? currentFormFiles[slipField.id]?.file : null;
+                                        if (!slipFile) {
+                                          setFormErrorsByLink((current) => ({
                                             ...current,
                                             [link.id]: {
                                               ...(current[link.id] ?? {}),
-                                              [field.id]: event.target.value,
+                                              [slipField?.id ?? ""]: t("form_error_required"),
                                             },
-                                          }))
+                                          }));
+                                          return;
                                         }
-                                      />
-                                    ) : field.type === "single_choice" && showOptions ? (
-                                      <div className="space-y-2">
-                                        {options.map((option) => (
-                                          <label key={option} className="flex items-center gap-2 text-sm">
-                                            <input
-                                              type="radio"
-                                              name={`${link.id}-${field.id}`}
-                                              checked={fieldValue === option}
-                                              onChange={() =>
-                                                setFormValuesByLink((current) => ({
+
+                                        const payload = new FormData();
+                                        payload.append("slug", data.header.username);
+                                        payload.append("linkId", link.id);
+                                        payload.append("template", supportTemplate);
+                                        payload.append("formTitle", form.formTitle || link.title);
+                                        payload.append("responses", JSON.stringify(responses));
+                                        payload.append("slip", slipFile);
+
+                                        const response = await fetch("/api/support/deposit-issues", {
+                                          method: "POST",
+                                          body: payload,
+                                        });
+                                        if (!response.ok) {
+                                          const body = (await response.json().catch(() => null)) as
+                                            | { error?: string }
+                                            | null;
+                                          throw new Error(body?.error || t("form_submit_failed"));
+                                        }
+                                      } else {
+                                        const response = await fetch("/api/support/withdraw-issues", {
+                                          method: "POST",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                            slug: data.header.username,
+                                            linkId: link.id,
+                                            template: supportTemplate,
+                                            formTitle: form.formTitle || link.title,
+                                            responses,
+                                          }),
+                                        });
+                                        if (!response.ok) {
+                                          const body = (await response.json().catch(() => null)) as
+                                            | { error?: string }
+                                            | null;
+                                          throw new Error(body?.error || t("form_submit_failed"));
+                                        }
+                                      }
+
+                                      setFormSubmittedByLink((current) => ({ ...current, [link.id]: true }));
+                                    } catch (error) {
+                                      const message =
+                                        error instanceof Error && error.message
+                                          ? error.message
+                                          : t("form_submit_failed");
+                                      setFormSubmitErrorByLink((current) => ({
+                                        ...current,
+                                        [link.id]: message,
+                                      }));
+                                    } finally {
+                                      setFormSubmittingByLink((current) => ({
+                                        ...current,
+                                        [link.id]: false,
+                                      }));
+                                    }
+                                  };
+
+                                  void submitSupport();
+                                }}
+                              >
+                                {form.intro ? (
+                                  <p className="text-sm leading-relaxed text-zinc-200 sm:text-base">{form.intro}</p>
+                                ) : null}
+                                {form.fields.map((field) => {
+                                  const fieldValue = currentFormValues[field.id];
+                                  const options = field.options ?? [];
+                                  const showOptions =
+                                    field.type === "single_choice" ||
+                                    field.type === "checkboxes" ||
+                                    field.type === "dropdown";
+
+                                  return (
+                                    <div key={field.id} className="space-y-1.5">
+                                      <label className="text-sm font-medium text-zinc-200">
+                                        {field.label}
+                                        {field.required ? " *" : ""}
+                                      </label>
+                                    {field.type === "paragraph" ? (
+                                      <textarea
+                                        className="min-h-[96px] w-full rounded-md border border-white/20 bg-black/35 px-3 py-2 text-sm text-white outline-none"
+                                          value={typeof fieldValue === "string" ? fieldValue : ""}
+                                          placeholder={field.placeholder ?? ""}
+                                          onFocus={handleFieldFocus}
+                                          onChange={(event) =>
+                                            setFormValuesByLink((current) => ({
+                                              ...current,
+                                              [link.id]: {
+                                                ...(current[link.id] ?? {}),
+                                                [field.id]: event.target.value,
+                                              },
+                                            }))
+                                          }
+                                        />
+                                      ) : field.type === "file_image" ? (
+                                        <div className="space-y-2">
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="block min-h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 py-2 text-sm text-white file:mr-3 file:rounded-md file:border-0 file:bg-white/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+                                            onFocus={handleFieldFocus}
+                                            onChange={(event) => {
+                                              const selected = event.target.files?.[0];
+                                              if (!selected) {
+                                                return;
+                                              }
+                                              if (!selected.type.startsWith("image/")) {
+                                                setFormErrorsByLink((current) => ({
                                                   ...current,
                                                   [link.id]: {
                                                     ...(current[link.id] ?? {}),
-                                                    [field.id]: option,
+                                                    [field.id]: t("form_error_image_type"),
                                                   },
-                                                }))
+                                                }));
+                                                event.target.value = "";
+                                                return;
                                               }
-                                            />
-                                            <span>{option}</span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                    ) : field.type === "checkboxes" && showOptions ? (
-                                      <div className="space-y-2">
-                                        {options.map((option) => {
-                                          const currentValues = Array.isArray(fieldValue) ? fieldValue : [];
-                                          const checked = currentValues.includes(option);
-                                          return (
+                                              if (selected.size > MAX_SUPPORT_SLIP_SIZE_BYTES) {
+                                                setFormErrorsByLink((current) => ({
+                                                  ...current,
+                                                  [link.id]: {
+                                                    ...(current[link.id] ?? {}),
+                                                    [field.id]: t("form_error_image_size"),
+                                                  },
+                                                }));
+                                                event.target.value = "";
+                                                return;
+                                              }
+
+                                              setFormFilesByLink((current) => {
+                                                const previous = current[link.id]?.[field.id];
+                                                if (previous?.previewUrl) {
+                                                  URL.revokeObjectURL(previous.previewUrl);
+                                                }
+                                                const previewUrl = URL.createObjectURL(selected);
+                                                return {
+                                                  ...current,
+                                                  [link.id]: {
+                                                    ...(current[link.id] ?? {}),
+                                                    [field.id]: {
+                                                      file: selected,
+                                                      previewUrl,
+                                                      fileName: selected.name,
+                                                    },
+                                                  },
+                                                };
+                                              });
+                                              setFormErrorsByLink((current) => ({
+                                                ...current,
+                                                [link.id]: {
+                                                  ...(current[link.id] ?? {}),
+                                                  [field.id]: "",
+                                                },
+                                              }));
+                                              event.target.value = "";
+                                            }}
+                                          />
+                                          {currentFormFiles[field.id] ? (
+                                            <div className="space-y-2 overflow-hidden rounded-lg border border-white/20 p-2">
+                                              <SafeImage
+                                                src={currentFormFiles[field.id].previewUrl}
+                                                alt={currentFormFiles[field.id].fileName}
+                                                className="max-h-48 w-full rounded-md object-contain"
+                                                width={640}
+                                                height={360}
+                                                unoptimized
+                                              />
+                                              <p className="break-all text-xs text-zinc-300">
+                                                {currentFormFiles[field.id].fileName}
+                                              </p>
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      ) : field.type === "single_choice" && showOptions ? (
+                                        <div className="space-y-2">
+                                          {options.map((option) => (
                                             <label key={option} className="flex items-center gap-2 text-sm">
                                               <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={(event) => {
-                                                  const nextValues = event.target.checked
-                                                    ? [...currentValues, option]
-                                                    : currentValues.filter((item) => item !== option);
+                                                type="radio"
+                                                name={`${link.id}-${field.id}`}
+                                                checked={fieldValue === option}
+                                                onFocus={handleFieldFocus}
+                                                onChange={() =>
                                                   setFormValuesByLink((current) => ({
                                                     ...current,
                                                     [link.id]: {
                                                       ...(current[link.id] ?? {}),
-                                                      [field.id]: nextValues,
+                                                      [field.id]: option,
                                                     },
-                                                  }));
-                                                }}
+                                                  }))
+                                                }
                                               />
                                               <span>{option}</span>
                                             </label>
-                                          );
-                                        })}
-                                      </div>
-                                    ) : field.type === "dropdown" && showOptions ? (
-                                      <select
-                                        className="h-10 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white"
-                                        value={typeof fieldValue === "string" ? fieldValue : ""}
-                                        onChange={(event) =>
-                                          setFormValuesByLink((current) => ({
-                                            ...current,
-                                            [link.id]: {
-                                              ...(current[link.id] ?? {}),
-                                              [field.id]: event.target.value,
-                                            },
-                                          }))
-                                        }
-                                      >
-                                        <option value="">{t("form_select_option")}</option>
-                                        {options.map((option) => (
-                                          <option key={option} value={option}>
-                                            {option}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      <input
-                                        type={
-                                          field.type === "email"
-                                            ? "email"
-                                            : field.type === "phone"
-                                              ? "tel"
-                                              : field.type === "date" || field.type === "date_of_birth"
-                                                ? "date"
-                                                : "text"
-                                        }
-                                        className="h-10 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white outline-none"
-                                        value={typeof fieldValue === "string" ? fieldValue : ""}
-                                        placeholder={field.placeholder ?? ""}
-                                        onChange={(event) =>
-                                          setFormValuesByLink((current) => ({
-                                            ...current,
-                                            [link.id]: {
-                                              ...(current[link.id] ?? {}),
-                                              [field.id]: event.target.value,
-                                            },
-                                          }))
-                                        }
-                                      />
-                                    )}
-                                    {currentFormErrors[field.id] ? (
-                                      <p className="text-xs text-amber-300">{currentFormErrors[field.id]}</p>
-                                    ) : null}
+                                          ))}
+                                        </div>
+                                      ) : field.type === "checkboxes" && showOptions ? (
+                                        <div className="space-y-2">
+                                          {options.map((option) => {
+                                            const currentValues = Array.isArray(fieldValue) ? fieldValue : [];
+                                            const checked = currentValues.includes(option);
+                                            return (
+                                              <label key={option} className="flex items-center gap-2 text-sm">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={checked}
+                                                  onFocus={handleFieldFocus}
+                                                  onChange={(event) => {
+                                                    const nextValues = event.target.checked
+                                                      ? [...currentValues, option]
+                                                      : currentValues.filter((item) => item !== option);
+                                                    setFormValuesByLink((current) => ({
+                                                      ...current,
+                                                      [link.id]: {
+                                                        ...(current[link.id] ?? {}),
+                                                        [field.id]: nextValues,
+                                                      },
+                                                    }));
+                                                  }}
+                                                />
+                                                <span>{option}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : field.type === "dropdown" && showOptions ? (
+                                        <select
+                                          className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white"
+                                          value={typeof fieldValue === "string" ? fieldValue : ""}
+                                          onFocus={handleFieldFocus}
+                                          onChange={(event) =>
+                                            setFormValuesByLink((current) => ({
+                                              ...current,
+                                              [link.id]: {
+                                                ...(current[link.id] ?? {}),
+                                                [field.id]: event.target.value,
+                                              },
+                                            }))
+                                          }
+                                        >
+                                          <option value="">{t("form_select_option")}</option>
+                                          {options.map((option) => (
+                                            <option key={option} value={option}>
+                                              {option}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type={
+                                            field.type === "email"
+                                              ? "email"
+                                              : field.type === "phone"
+                                                ? "tel"
+                                                : field.type === "date" || field.type === "date_of_birth"
+                                                  ? "date"
+                                                  : "text"
+                                          }
+                                          className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white outline-none"
+                                          value={typeof fieldValue === "string" ? fieldValue : ""}
+                                          placeholder={field.placeholder ?? ""}
+                                          onFocus={handleFieldFocus}
+                                          onChange={(event) =>
+                                            setFormValuesByLink((current) => ({
+                                              ...current,
+                                              [link.id]: {
+                                                ...(current[link.id] ?? {}),
+                                                [field.id]: event.target.value,
+                                              },
+                                            }))
+                                          }
+                                        />
+                                      )}
+                                      {currentFormErrors[field.id] ? (
+                                        <p className="text-xs text-amber-300">{currentFormErrors[field.id]}</p>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                                {form.termsPlaceholder ? (
+                                  <p className="text-xs leading-relaxed text-zinc-300">{form.termsPlaceholder}</p>
+                                ) : null}
+                                {submitError ? (
+                                  <p className="text-xs text-amber-300">{submitError}</p>
+                                ) : null}
+                                <div className="sticky bottom-0 -mx-1 bg-zinc-950/95 px-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    <button
+                                      type="submit"
+                                      disabled={isSubmitting}
+                                      className="w-full min-h-12 rounded-full border border-white/30 px-5 text-sm font-semibold sm:text-base disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      {isSubmitting
+                                        ? t("form_submit_submitting")
+                                        : submitError
+                                          ? t("form_submit_retry")
+                                          : form.submitLabel || t("form_submit")}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="w-full min-h-12 rounded-full border border-white/20 px-5 text-sm font-semibold sm:text-base"
+                                      onClick={closeFormModal}
+                                      disabled={isSubmitting}
+                                    >
+                                      {t("form_submit_cancel")}
+                                    </button>
                                   </div>
-                                );
-                              })}
-                              {form.termsPlaceholder ? (
-                                <p className="text-xs text-zinc-300">{form.termsPlaceholder}</p>
-                              ) : null}
-                              <button
-                                type="submit"
-                                className="w-full min-h-12 rounded-full border border-white/30 px-5 text-sm font-semibold sm:text-base"
-                              >
-                                {form.submitLabel || t("form_submit")}
-                              </button>
-                            </form>
-                          )}
+                                </div>
+                              </form>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ) : null}

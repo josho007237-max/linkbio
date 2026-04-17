@@ -104,6 +104,57 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
   custom: [
     { id: createId("form-field"), label: "Short answer", type: "short_answer", required: false, placeholder: "Type your answer" },
   ],
+  deposit_issue: [
+    { id: createId("form-field"), label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
+    {
+      id: createId("form-field"),
+      label: "เบอร์โทรศัพท์ที่ลงทะเบียน",
+      type: "phone",
+      required: true,
+      placeholder: "08X-XXX-XXXX",
+    },
+    {
+      id: createId("form-field"),
+      label: "แนบสลิปการทำรายการ",
+      type: "file_image",
+      required: true,
+      placeholder: "",
+    },
+    {
+      id: createId("form-field"),
+      label: "เวลาที่ทำรายการ",
+      type: "short_answer",
+      required: true,
+      placeholder: "เช่น 2026-04-18 14:30",
+    },
+    {
+      id: createId("form-field"),
+      label: "หมายเหตุเพิ่มเติม",
+      type: "paragraph",
+      required: false,
+      placeholder: "รายละเอียดเพิ่มเติม (ถ้ามี)",
+    },
+  ],
+  withdraw_issue: [
+    { id: createId("form-field"), label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
+    { id: createId("form-field"), label: "เบอร์โทรศัพท์", type: "phone", required: true, placeholder: "08X-XXX-XXXX" },
+    { id: createId("form-field"), label: "ชื่อ-นามสกุล", type: "name", required: true, placeholder: "ชื่อจริง นามสกุล" },
+    { id: createId("form-field"), label: "เลขที่บัญชี", type: "short_answer", required: true, placeholder: "เลขที่บัญชี" },
+    {
+      id: createId("form-field"),
+      label: "เวลาที่ทำรายการ",
+      type: "short_answer",
+      required: true,
+      placeholder: "เช่น 2026-04-18 14:30",
+    },
+    {
+      id: createId("form-field"),
+      label: "หมายเหตุเพิ่มเติม",
+      type: "paragraph",
+      required: false,
+      placeholder: "รายละเอียดเพิ่มเติม (ถ้ามี)",
+    },
+  ],
 };
 
 export const getFormTemplateFields = (template: FormTemplate): FormField[] =>
@@ -116,18 +167,40 @@ export const getFormTemplateFields = (template: FormTemplate): FormField[] =>
 export const createEmptyFormBlock = (template: FormTemplate = "email_signup"): BioLink => ({
   id: createId("form"),
   contentType: "form",
-  title: "New Form",
+  title:
+    template === "deposit_issue"
+      ? "ฝากเงินไม่เข้า"
+      : template === "withdraw_issue"
+        ? "ถอนเงินไม่ได้"
+        : "New Form",
   url: "https://example.com/form",
-  description: "Tap to open form.",
+  description:
+    template === "deposit_issue" || template === "withdraw_issue"
+      ? "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว"
+      : "Tap to open form.",
   enabled: true,
   form: {
     type: "form",
     template,
     layout: "classic",
-    formTitle: "Join our list",
-    intro: "Fill in the form below.",
-    outro: "Thank you. We received your submission.",
-    submitLabel: "Submit",
+    formTitle:
+      template === "deposit_issue"
+        ? "ฝากเงินไม่เข้า"
+        : template === "withdraw_issue"
+          ? "ถอนเงินไม่ได้"
+          : "Join our list",
+    intro:
+      template === "deposit_issue" || template === "withdraw_issue"
+        ? "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว"
+        : "Fill in the form below.",
+    outro:
+      template === "deposit_issue" || template === "withdraw_issue"
+        ? "ระบบได้รับข้อมูลของท่านเรียบร้อยแล้ว\nเจ้าหน้าที่กำลังดำเนินการตรวจสอบ กรุณารอสักครู่"
+        : "Thank you. We received your submission.",
+    submitLabel:
+      template === "deposit_issue" || template === "withdraw_issue"
+        ? "ส่งข้อมูลเพื่อตรวจสอบ"
+        : "Submit",
     termsPlaceholder: "",
     fields: getFormTemplateFields(template),
   },

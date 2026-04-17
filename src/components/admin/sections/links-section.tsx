@@ -81,6 +81,8 @@ type SortableLinkItemProps = {
     discountType: string;
     embedType: string;
     formType: string;
+    formSupportDepositType: string;
+    formSupportWithdrawType: string;
     layoutClassic: string;
     layoutFeatured: string;
   };
@@ -108,6 +110,12 @@ const LinkItemContent = ({
   const discount = isDiscount ? getDiscountData(link) : null;
   const embedPost = isEmbedPost ? getEmbedPostData(link) : null;
   const form = isForm ? getFormData(link) : null;
+  const formTypeLabel =
+    form?.template === "deposit_issue"
+      ? labels.formSupportDepositType
+      : form?.template === "withdraw_issue"
+        ? labels.formSupportWithdrawType
+        : labels.formType;
   const displayTitle = isDiscount
     ? discount?.cardTitle || link.title
     : isEmbedPost
@@ -132,7 +140,7 @@ const LinkItemContent = ({
           <p className="text-sm font-semibold">{displayTitle}</p>
           {isDiscount || isEmbedPost || isForm ? (
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-amber-700">
-              {isDiscount ? labels.discountType : isEmbedPost ? labels.embedType : labels.formType} ·{" "}
+              {isDiscount ? labels.discountType : isEmbedPost ? labels.embedType : formTypeLabel} ·{" "}
               {(isDiscount ? discount?.layout : isEmbedPost ? embedPost?.layout : form?.layout) === "featured"
                 ? labels.layoutFeatured
                 : labels.layoutClassic}
@@ -415,6 +423,8 @@ export const LinksSection = () => {
       discountType: t("links_type_discount"),
       embedType: t("links_type_embed_post"),
       formType: t("links_type_form"),
+      formSupportDepositType: t("links_type_form_support_deposit"),
+      formSupportWithdrawType: t("links_type_form_support_withdraw"),
       layoutClassic: t("links_layout_classic"),
       layoutFeatured: t("links_layout_featured"),
     }),
@@ -786,6 +796,12 @@ export const LinksSection = () => {
                 <Button type="button" variant="outline" onClick={() => handleAddFormTemplate("custom")}>
                   {t("form_template_custom")}
                 </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddFormTemplate("deposit_issue")}>
+                  {t("form_template_deposit_issue")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddFormTemplate("withdraw_issue")}>
+                  {t("form_template_withdraw_issue")}
+                </Button>
               </div>
             </>
           )}
@@ -844,13 +860,19 @@ export const LinksSection = () => {
           }
         }}
       >
-        <SheetContent side="right" className="overflow-y-auto">
+        <SheetContent
+          side="right"
+          className="overflow-y-auto overflow-x-hidden pb-[max(1rem,env(safe-area-inset-bottom))]"
+        >
           <SheetHeader>
             <SheetTitle>{t("links_edit_title")}</SheetTitle>
             <SheetDescription>{t("links_edit_desc")}</SheetDescription>
           </SheetHeader>
           {editingLink && (
-            <form onSubmit={saveEdit} className="space-y-4 px-4">
+            <form
+              onSubmit={saveEdit}
+              className="space-y-4 overflow-x-hidden px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            >
               {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" ? (
                 <div className="inline-flex rounded-md border bg-muted/35 p-1 text-xs">
                   <button
@@ -1039,6 +1061,8 @@ export const LinksSection = () => {
                           <option value="sms_signup">{t("form_template_sms_signup")}</option>
                           <option value="contact_form">{t("form_template_contact_form")}</option>
                           <option value="custom">{t("form_template_custom")}</option>
+                          <option value="deposit_issue">{t("form_template_deposit_issue")}</option>
+                          <option value="withdraw_issue">{t("form_template_withdraw_issue")}</option>
                         </select>
                       </div>
                       <div className="space-y-2">
@@ -1129,6 +1153,7 @@ export const LinksSection = () => {
                                   <option value="checkboxes">{t("form_field_type_checkboxes")}</option>
                                   <option value="dropdown">{t("form_field_type_dropdown")}</option>
                                   <option value="date">{t("form_field_type_date")}</option>
+                                  <option value="file_image">{t("form_field_type_file_image")}</option>
                                 </select>
                               </div>
                               <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
@@ -1482,7 +1507,7 @@ export const LinksSection = () => {
       </Sheet>
 
       <Drawer open={Boolean(settingsId)} onOpenChange={(open) => !open && setSettingsId(null)}>
-        <DrawerContent className="mx-auto w-full max-w-xl">
+        <DrawerContent className="mx-auto w-full max-w-xl overflow-y-auto overflow-x-hidden">
           <DrawerHeader>
             <DrawerTitle>{t("links_settings_title")}</DrawerTitle>
             <DrawerDescription>
@@ -1490,7 +1515,10 @@ export const LinksSection = () => {
             </DrawerDescription>
           </DrawerHeader>
           {settingsLink && (
-            <form onSubmit={saveSettings} className="space-y-4 px-4 pb-4">
+            <form
+              onSubmit={saveSettings}
+              className="space-y-4 overflow-x-hidden px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+            >
               <div className="space-y-2">
                 <Label>{t("links_thumbnail_url")}</Label>
                 <Input
