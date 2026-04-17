@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { mockBuilderData } from "@/features/builder/mock-data";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
 import { BuilderData } from "@/features/builder/types";
 import { useI18n } from "@/i18n/use-i18n";
@@ -18,7 +19,13 @@ import {
 } from "@/lib/local-storage/profile-storage";
 
 type SavedProfilesManagerCardProps = {
-  username: string;
+  currentSlug: string;
+};
+
+type NewPageCollisionState = {
+  targetSlug: string;
+  pageName: string;
+  existingProfile: BuilderData;
 };
 
 const createUniqueSlug = (baseSlug: string, existingSlugs: Set<string>) => {
@@ -34,9 +41,16 @@ const createUniqueSlug = (baseSlug: string, existingSlugs: Set<string>) => {
   return `${initial}-${index}`;
 };
 
-export const SavedProfilesManagerCard = ({
-  username,
-}: SavedProfilesManagerCardProps) => {
+const createPageWorkspaceData = (slug: string, pageName: string): BuilderData => ({
+  ...mockBuilderData,
+  header: {
+    ...mockBuilderData.header,
+    username: slug,
+    displayName: pageName,
+  },
+});
+
+export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCardProps) => {
   const { t } = useI18n();
   const replaceBuilderData = useBuilderStore((state) => state.replaceBuilderData);
   const [isMounted, setIsMounted] = useState(false);
@@ -48,8 +62,12 @@ export const SavedProfilesManagerCard = ({
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [deleteSlug, setDeleteSlug] = useState<string | null>(null);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [createPageName, setCreatePageName] = useState("");
+  const [createPageSlug, setCreatePageSlug] = useState("");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newPageCollision, setNewPageCollision] = useState<NewPageCollisionState | null>(null);
   const [pendingActionSlug, setPendingActionSlug] = useState<string | null>(null);
-  const activeSlug = useMemo(() => toProfileSlug(username), [username]);
+  const activeSlug = useMemo(() => toProfileSlug(currentSlug), [currentSlug]);
   const statusTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -110,6 +128,20 @@ export const SavedProfilesManagerCard = ({
     });
   };
 
+  const handleCreateWorkspace = (slug: string, pageName: string) => {
+    const normalizedSlug = toProfileSlug(slug);
+    const normalizedPageName = pageName.trim() || normalizedSlug;
+    const pageWorkspace = createPageWorkspaceData(normalizedSlug, normalizedPageName);
+
+    setPendingActionSlug(normalizedSlug);
+    window.requestAnimationFrame(() => {
+      replaceBuilderData(pageWorkspace);
+      setActiveEditorSlug(normalizedSlug);
+      setPendingActionSlug(null);
+      showToast("success", t("saved_manager_toast_created", { slug: normalizedSlug }));
+    });
+  };
+
   const handleDuplicateIntoEditor = (profile: BuilderData, slug: string) => {
     const existingSlugs = new Set(savedProfiles.map((item) => item.slug));
     existingSlugs.add(activeSlug);
@@ -132,13 +164,65 @@ export const SavedProfilesManagerCard = ({
     });
   };
 
+  const handleCreateNewPage = () => {
+    const slug = toProfileSlug(createPageSlug);
+    const pageName = createPageName.trim();
+    if (!slug || !pageName) {
+      showToast("error", t("saved_manager_toast_create_missing"));
+      return;
+    }
+
+    const existingProfile = savedProfiles.find((item) => item.slug === slug);
+    if (existingProfile) {
+      setNewPageCollision({
+        targetSlug: slug,
+        pageName,
+        existingProfile: existingProfile.data,
+      });
+      return;
+    }
+
+    handleCreateWorkspace(slug, pageName);
+    setShowCreateDialog(false);
+    setCreatePageName("");
+    setCreatePageSlug("");
+  };
+
+  const handleDuplicateFromCollision = () => {
+    if (!newPageCollision) {
+      return;
+    }
+
+    const existingSlugs = new Set(savedProfiles.map((item) => item.slug));
+    existingSlugs.add(activeSlug);
+    const duplicateSlug = createUniqueSlug(`${newPageCollision.targetSlug}-copy`, existingSlugs);
+    handleCreateWorkspace(duplicateSlug, newPageCollision.pageName);
+    setShowCreateDialog(false);
+    setCreatePageName("");
+    setCreatePageSlug("");
+    setNewPageCollision(null);
+  };
+
   const handleConfirmDelete = () => {
     if (!deleteSlug) {
       return;
     }
 
+    const previousSavedProfiles = [...savedProfiles];
     removeProfileBySlug(deleteSlug);
     removeAnalyticsForSlug(deleteSlug);
+    if (deleteSlug === activeSlug) {
+      const fallbackPage = previousSavedProfiles.find((item) => item.slug !== deleteSlug);
+      if (fallbackPage) {
+        replaceBuilderData(fallbackPage.data);
+        setActiveEditorSlug(fallbackPage.slug);
+      } else {
+        const nextSlug = createUniqueSlug(`${deleteSlug}-new`, new Set([deleteSlug]));
+        const nextWorkspace = createPageWorkspaceData(nextSlug, t("saved_manager_new_page_default"));
+        replaceBuilderData(nextWorkspace);
+        setActiveEditorSlug(nextSlug);
+      }
+    }
     window.dispatchEvent(new Event("storage"));
     setDeleteSlug(null);
     setDeleteConfirmInput("");
@@ -152,6 +236,21 @@ export const SavedProfilesManagerCard = ({
           <CardTitle className="text-base">{t("saved_manager_title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="rounded-lg border border-border/60 bg-background/70 p-3 text-xs text-muted-foreground">
+            <p>{t("saved_manager_current_page", { slug: activeSlug })}</p>
+            <p className="mt-1">{t("saved_manager_saved_pages")}</p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              setShowCreateDialog(true);
+              setNewPageCollision(null);
+            }}
+          >
+            {t("saved_manager_create")}
+          </Button>
           <p className="text-xs leading-5 text-muted-foreground">
             {t("saved_manager_help_1")}
           </p>
@@ -239,6 +338,95 @@ export const SavedProfilesManagerCard = ({
           )}
         </CardContent>
       </Card>
+      {showCreateDialog ? (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-2xl"
+          >
+            <h3 className="text-base font-semibold">{t("saved_manager_create_title")}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("saved_manager_create_desc")}
+            </p>
+            <div className="mt-4 space-y-1">
+              <label htmlFor="create-page-name" className="text-xs text-muted-foreground">
+                {t("saved_manager_create_name")}
+              </label>
+              <Input
+                id="create-page-name"
+                value={createPageName}
+                onChange={(event) => setCreatePageName(event.target.value)}
+                placeholder={t("saved_manager_create_name_placeholder")}
+              />
+            </div>
+            <div className="mt-3 space-y-1">
+              <label htmlFor="create-page-slug" className="text-xs text-muted-foreground">
+                {t("saved_manager_create_slug")}
+              </label>
+              <Input
+                id="create-page-slug"
+                value={createPageSlug}
+                onChange={(event) => setCreatePageSlug(toProfileSlug(event.target.value))}
+                placeholder="my-page"
+              />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowCreateDialog(false);
+                  setCreatePageName("");
+                  setCreatePageSlug("");
+                  setNewPageCollision(null);
+                }}
+              >
+                {t("saved_manager_cancel")}
+              </Button>
+              <Button onClick={handleCreateNewPage}>{t("saved_manager_create_confirm")}</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {newPageCollision ? (
+        <div className="fixed inset-0 z-[86] flex items-center justify-center bg-black/45 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-2xl border border-border bg-background p-5 shadow-2xl"
+          >
+            <h3 className="text-base font-semibold">{t("saved_manager_collision_title")}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("saved_manager_collision_desc", { slug: newPageCollision.targetSlug })}
+            </p>
+            <div className="mt-4 grid gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  handleLoadIntoEditor(
+                    newPageCollision.existingProfile,
+                    newPageCollision.targetSlug,
+                  );
+                  setShowCreateDialog(false);
+                  setCreatePageName("");
+                  setCreatePageSlug("");
+                  setNewPageCollision(null);
+                }}
+              >
+                {t("saved_manager_collision_load")}
+              </Button>
+              <Button variant="outline" onClick={handleDuplicateFromCollision}>
+                {t("saved_manager_collision_duplicate")}
+              </Button>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button variant="ghost" onClick={() => setNewPageCollision(null)}>
+                {t("saved_manager_cancel")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {deleteSlug ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
           <div

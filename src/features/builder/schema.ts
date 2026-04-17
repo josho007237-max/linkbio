@@ -20,19 +20,33 @@ export const headerSchema = z.object({
   displayName: z.string().trim().min(2, "Display name is required."),
   tagline: z.string().trim().min(2, "Tagline is required."),
   avatarUrl: imageSourceSchema,
+  heroImageUrl: imageSourceSchema.default("/placeholders/wallpaper-default.svg"),
+  layout: z.enum(["classic", "hero"]),
+  titleMode: z.enum(["display_name", "username"]),
+  heroTextAlign: z.enum(["left", "center"]).default("center"),
+  heroOverlay: z.boolean().default(true),
+  heroOverlayStrength: z.number().min(0).max(0.9).default(0.35),
+  matchThemeToHero: z.boolean().default(false),
 });
 
 export const wallpaperSchema = z.object({
   wallpaperUrl: imageSourceSchema,
+  wallpaperVideoUrl: z.string().trim().optional(),
+  wallpaperStyle: z.enum(["fill", "gradient", "blur", "pattern", "image", "video"]),
   pageBackground: z.string().trim().min(4),
   cardBackground: z.string().trim().min(4),
   textColor: z.string().trim().min(4),
   mutedTextColor: z.string().trim().min(4),
+  titleColor: z.string().trim().min(4),
+  titleSize: z.number().min(14).max(72),
+  pageFont: z.enum(["inter", "poppins", "manrope", "space_grotesk"]),
 });
 
 export const textSchema = z.object({
   intro: z.string().trim().min(2, "Intro text is required."),
   body: z.string().trim().min(2, "Body text is required."),
+  footerEnabled: z.boolean(),
+  footerText: z.string().trim(),
 });
 
 export const buttonSchema = z.object({
@@ -41,6 +55,8 @@ export const buttonSchema = z.object({
   buttonRadius: z.number().min(0).max(999),
   uppercase: z.boolean(),
   shadow: z.boolean(),
+  style: z.enum(["solid", "glass", "outline"]),
+  shadowLevel: z.number().int().min(0).max(3),
 });
 
 export const socialSchema = z.object({
@@ -63,7 +79,7 @@ export const socialSchema = z.object({
 
 export const linkSchema = z
   .object({
-    contentType: z.enum(["link", "discount", "embed_post"]),
+    contentType: z.enum(["link", "discount", "embed_post", "form"]),
     title: z.string().trim().min(1, "Title is required."),
     url: z.string().url("Link URL must be valid."),
     description: z.string().trim().optional(),
@@ -136,6 +152,47 @@ export const linkSchema = z
     embedCtaButtonLabel: z.string().trim().optional(),
     embedCtaUrl: z.string().trim().optional(),
     embedDismissible: z.boolean().optional(),
+    formTemplate: z
+      .enum([
+        "email_signup",
+        "sms_signup",
+        "contact_form",
+        "custom",
+        "deposit_issue",
+        "withdraw_issue",
+      ])
+      .optional(),
+    formLayout: z.enum(["classic", "featured"]).optional(),
+    formTitle: z.string().trim().optional(),
+    formIntro: z.string().trim().optional(),
+    formOutro: z.string().trim().optional(),
+    formSubmitLabel: z.string().trim().optional(),
+    formTermsPlaceholder: z.string().trim().optional(),
+    formFields: z
+      .array(
+        z.object({
+          id: z.string().trim().min(1),
+          label: z.string().trim().min(1),
+          type: z.enum([
+            "name",
+            "email",
+            "phone",
+            "country",
+            "date_of_birth",
+            "short_answer",
+            "paragraph",
+            "single_choice",
+            "checkboxes",
+            "dropdown",
+            "date",
+            "file_image",
+          ]),
+          required: z.boolean(),
+          placeholder: z.string().trim().optional(),
+          options: z.array(z.string().trim().min(1)).optional(),
+        }),
+      )
+      .optional(),
   })
   .superRefine((value, ctx) => {
     if (value.contentType === "link") {
@@ -200,6 +257,63 @@ export const linkSchema = z
         message: "Destination URL is invalid",
         path: ["destinationUrl"],
       });
+    }
+
+    if (value.contentType === "form") {
+      if (!value.formLayout) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Form layout is required.",
+          path: ["formLayout"],
+        });
+      }
+      if (!(value.formTitle ?? "").trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Form title is required.",
+          path: ["formTitle"],
+        });
+      }
+      if (!(value.formSubmitLabel ?? "").trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Submit label is required.",
+          path: ["formSubmitLabel"],
+        });
+      }
+
+      const fields = value.formFields ?? [];
+      if (fields.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one form field is required.",
+          path: ["formFields"],
+        });
+      }
+
+      fields.forEach((field, index) => {
+        if (!field.label.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Field label is required.",
+            path: ["formFields", index, "label"],
+          });
+        }
+        if (
+          (field.type === "single_choice" ||
+            field.type === "checkboxes" ||
+            field.type === "dropdown") &&
+          (!field.options || field.options.filter((option) => option.trim().length > 0).length === 0)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Choice fields must include options.",
+            path: ["formFields", index, "options"],
+          });
+        }
+      });
+
+      return;
     }
 
     if (value.contentType !== "embed_post") {
@@ -300,10 +414,17 @@ export const builderDataSchema = z.object({
   theme: z.object({
     name: z.enum(["midnight", "sunset", "forest"]),
     wallpaperUrl: imageSourceSchema,
+    wallpaperVideoUrl: z.string().optional(),
+    wallpaperStyle: z
+      .enum(["fill", "gradient", "blur", "pattern", "image", "video"])
+      .optional(),
     pageBackground: z.string().trim().min(4),
     cardBackground: z.string().trim().min(4),
     textColor: z.string().trim().min(4),
     mutedTextColor: z.string().trim().min(4),
+    titleColor: z.string().trim().min(4).optional(),
+    titleSize: z.number().min(14).max(72).optional(),
+    pageFont: z.enum(["inter", "poppins", "manrope", "space_grotesk"]).optional(),
     buttonBackground: z.string().trim().min(4),
     buttonTextColor: z.string().trim().min(4),
     buttonRadius: z.number().min(0).max(999),
@@ -312,6 +433,8 @@ export const builderDataSchema = z.object({
   buttonStyle: z.object({
     uppercase: z.boolean(),
     shadow: z.boolean(),
+    style: z.enum(["solid", "glass", "outline"]).optional(),
+    shadowLevel: z.number().min(0).max(3).optional(),
   }),
   socials: z.array(
     z.object({
@@ -325,7 +448,7 @@ export const builderDataSchema = z.object({
   links: z.array(
     z.object({
       id: z.string().min(1),
-      contentType: z.enum(["link", "discount", "embed_post"]).default("link"),
+      contentType: z.enum(["link", "discount", "embed_post", "form"]).default("link"),
       title: linkSchema.shape.title,
       url: linkSchema.shape.url,
       description: z.string().optional(),
@@ -377,6 +500,54 @@ export const builderDataSchema = z.object({
           ctaButtonLabel: z.string().optional(),
           ctaUrl: z.string().optional(),
           dismissible: z.boolean().optional(),
+        })
+        .optional(),
+      form: z
+        .object({
+          type: z.literal("form").optional(),
+          template: z
+            .enum([
+              "email_signup",
+              "sms_signup",
+              "contact_form",
+              "custom",
+              "deposit_issue",
+              "withdraw_issue",
+            ])
+            .optional(),
+          layout: z.enum(["classic", "featured"]).optional(),
+          formTitle: z.string().optional(),
+          intro: z.string().optional(),
+          outro: z.string().optional(),
+          submitLabel: z.string().optional(),
+          termsPlaceholder: z.string().optional(),
+          fields: z
+            .array(
+              z.object({
+                id: z.string().optional(),
+                label: z.string().optional(),
+                type: z
+                  .enum([
+                    "name",
+                    "email",
+                    "phone",
+                    "country",
+                    "date_of_birth",
+                    "short_answer",
+                    "paragraph",
+                    "single_choice",
+                    "checkboxes",
+                    "dropdown",
+                    "date",
+                    "file_image",
+                  ])
+                  .optional(),
+                required: z.boolean().optional(),
+                placeholder: z.string().optional(),
+                options: z.array(z.string()).optional(),
+              }),
+            )
+            .optional(),
         })
         .optional(),
       settings: z.object({

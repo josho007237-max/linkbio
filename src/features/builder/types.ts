@@ -3,10 +3,15 @@ export type ThemeName = "midnight" | "sunset" | "forest";
 export type BuilderTheme = {
   name: ThemeName;
   wallpaperUrl: string;
+  wallpaperVideoUrl?: string;
+  wallpaperStyle?: "fill" | "gradient" | "blur" | "pattern" | "image" | "video";
   pageBackground: string;
   cardBackground: string;
   textColor: string;
   mutedTextColor: string;
+  titleColor?: string;
+  titleSize?: number;
+  pageFont?: "inter" | "poppins" | "manrope" | "space_grotesk";
   buttonBackground: string;
   buttonTextColor: string;
   buttonRadius: number;
@@ -41,7 +46,7 @@ export type LinkSettings = {
   lockMessage?: string;
 };
 
-export type ContentType = "link" | "discount" | "embed_post";
+export type ContentType = "link" | "discount" | "embed_post" | "form";
 
 export type EmbedProvider = "x" | "facebook" | "tiktok" | "youtube" | "generic";
 export type EmbedMode = "url" | "code";
@@ -87,6 +92,49 @@ export type EmbedPostData = {
   dismissible: boolean;
 };
 
+export type FormFieldType =
+  | "name"
+  | "email"
+  | "phone"
+  | "country"
+  | "date_of_birth"
+  | "short_answer"
+  | "paragraph"
+  | "single_choice"
+  | "checkboxes"
+  | "dropdown"
+  | "date"
+  | "file_image";
+
+export type FormTemplate =
+  | "email_signup"
+  | "sms_signup"
+  | "contact_form"
+  | "custom"
+  | "deposit_issue"
+  | "withdraw_issue";
+
+export type FormField = {
+  id: string;
+  label: string;
+  type: FormFieldType;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+};
+
+export type FormBlock = {
+  type: "form";
+  template: FormTemplate;
+  layout: "classic" | "featured";
+  formTitle: string;
+  intro: string;
+  outro: string;
+  submitLabel: string;
+  termsPlaceholder?: string;
+  fields: FormField[];
+};
+
 export type BioLink = {
   id: string;
   contentType?: ContentType;
@@ -96,6 +144,7 @@ export type BioLink = {
   description?: string;
   discount?: DiscountCodeData;
   embedPost?: EmbedPostData;
+  form?: FormBlock;
   settings: LinkSettings;
 };
 
@@ -104,16 +153,27 @@ export type ProfileHeader = {
   displayName: string;
   tagline: string;
   avatarUrl: string;
+  heroImageUrl?: string;
+  layout?: "classic" | "hero";
+  titleMode?: "display_name" | "username";
+  heroTextAlign?: "left" | "center";
+  heroOverlay?: boolean;
+  heroOverlayStrength?: number;
+  matchThemeToHero?: boolean;
 };
 
 export type ProfileText = {
   intro: string;
   body: string;
+  footerEnabled?: boolean;
+  footerText?: string;
 };
 
 export type ButtonStyle = {
   uppercase: boolean;
   shadow: boolean;
+  style?: "solid" | "glass" | "outline";
+  shadowLevel?: 0 | 1 | 2 | 3;
 };
 
 export type BuilderData = {

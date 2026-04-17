@@ -1,0 +1,46 @@
+{
+  "deposit_issue": [
+    {
+      "id": "292c93ea-2578-404e-99e6-202da1c56adc",
+      "kind": "deposit_issue",
+      "slug": "011236",
+      "linkId": "form-cjmk4no",
+      "formTitle": "ฝากเงินไม่เข้า",
+      "template": "deposit_issue",
+      "submittedAt": "2026-04-17T23:18:22.033Z",
+      "fields": [
+        {
+          "id": "user",
+          "label": "USER",
+          "value": "00111"
+        },
+        {
+          "id": "registered_phone",
+          "label": "เบอร์โทรศัพท์ที่ลงทะเบียน",
+          "value": "09449858"
+        },
+        {
+          "id": "slip_url",
+          "label": "แนบสลิปการทำรายการ",
+          "value": "http://localhost:3000/api/support/uploads/deposit_issue/1776467902016-photo_____-__-_____-__-__.jpg"
+        },
+        {
+          "id": "transaction_time",
+          "label": "เวลาที่ทำรายการ",
+          "value": "11.00"
+        },
+        {
+          "id": "note",
+          "label": "หมายเหตุเพิ่มเติม",
+          "value": "0"
+        },
+        {
+          "id": "status",
+          "label": "status",
+          "value": "new"
+        }
+      ]
+    }
+  ],
+  "withdraw_issue": []
+}

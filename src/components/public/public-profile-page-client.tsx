@@ -44,16 +44,40 @@ export const PublicProfilePageClient = ({
   useEffect(() => {
     let canceled = false;
     const frameId = window.requestAnimationFrame(() => {
-      if (canceled) {
-        return;
-      }
-      const profileData = getProfileWithFallback(slug);
-      if (profileData) {
-        recordProfileView(slug);
-      }
-      setProfile(profileData);
-      setClickSummary(getClickSummary(slug));
-      setMounted(true);
+      const loadProfile = async () => {
+        if (canceled) {
+          return;
+        }
+
+        let profileData: BuilderData | null = null;
+        try {
+          const response = await fetch(`/api/public-pages/${encodeURIComponent(slug)}`, {
+            method: "GET",
+            cache: "no-store",
+          });
+          if (response.ok) {
+            const payload = (await response.json()) as { data?: BuilderData };
+            profileData = payload?.data ?? null;
+          }
+        } catch {
+          profileData = null;
+        }
+
+        if (!profileData) {
+          profileData = getProfileWithFallback(slug);
+        }
+
+        if (canceled) {
+          return;
+        }
+        if (profileData) {
+          recordProfileView(slug);
+        }
+        setProfile(profileData);
+        setClickSummary(getClickSummary(slug));
+        setMounted(true);
+      };
+      void loadProfile();
     });
 
     return () => {
@@ -78,10 +102,11 @@ export const PublicProfilePageClient = ({
 
   if (!mounted) {
     return (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#e8eefc,_transparent_42%),linear-gradient(to_bottom,_var(--background),_var(--muted))] px-4 py-8 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
-          <div className="h-24 animate-pulse rounded-2xl border bg-card/80" />
-          <div className="mx-auto h-[760px] w-full max-w-[390px] animate-pulse rounded-[40px] border-8 border-zinc-900 bg-zinc-900/60" />
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#e8eefc,_transparent_42%),linear-gradient(to_bottom,_var(--background),_var(--muted))]">
+        <div className="mx-auto w-full max-w-[680px] space-y-4 px-4 py-8 sm:px-5 sm:py-10 md:px-6">
+          <div className="ml-auto h-9 w-36 animate-pulse rounded-md border bg-card/80" />
+          <div className="h-[220px] animate-pulse rounded-3xl border bg-card/65 sm:h-[260px] md:h-[300px]" />
+          <div className="h-[360px] animate-pulse rounded-3xl border bg-card/55 sm:h-[420px]" />
         </div>
       </main>
     );

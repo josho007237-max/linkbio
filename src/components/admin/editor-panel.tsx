@@ -10,7 +10,7 @@ type EditorPanelProps = {
 };
 
 export const EditorPanel = ({ slugCollisionWarning }: EditorPanelProps) => (
-  <section className="space-y-5 rounded-2xl border border-border/60 bg-gradient-to-b from-background/80 to-muted/15 p-3 sm:p-4">
+  <section className="space-y-5 rounded-2xl border border-border/60 bg-gradient-to-b from-background/90 to-muted/20 p-3 sm:p-4 lg:space-y-6">
     <HeaderSection slugCollisionWarning={slugCollisionWarning} />
     <WallpaperSection />
     <TextSection />

@@ -4,6 +4,9 @@ import {
   ContentType,
   DiscountCodeData,
   EmbedPostData,
+  FormBlock,
+  FormField,
+  FormTemplate,
 } from "@/features/builder/types";
 
 export const createId = (prefix: string): string =>
@@ -86,11 +89,134 @@ export const createEmptyEmbedPost = (): BioLink => ({
   },
 });
 
+const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
+  email_signup: [
+    { id: createId("form-field"), label: "Email", type: "email", required: true, placeholder: "you@example.com" },
+  ],
+  sms_signup: [
+    { id: createId("form-field"), label: "Phone", type: "phone", required: true, placeholder: "+66 8X XXX XXXX" },
+  ],
+  contact_form: [
+    { id: createId("form-field"), label: "Name", type: "name", required: true, placeholder: "Your name" },
+    { id: createId("form-field"), label: "Email", type: "email", required: true, placeholder: "you@example.com" },
+    { id: createId("form-field"), label: "Message", type: "paragraph", required: true, placeholder: "How can we help?" },
+  ],
+  custom: [
+    { id: createId("form-field"), label: "Short answer", type: "short_answer", required: false, placeholder: "Type your answer" },
+  ],
+  deposit_issue: [
+    { id: createId("form-field"), label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
+    {
+      id: createId("form-field"),
+      label: "เบอร์โทรศัพท์ที่ลงทะเบียน",
+      type: "phone",
+      required: true,
+      placeholder: "08X-XXX-XXXX",
+    },
+    {
+      id: createId("form-field"),
+      label: "แนบสลิปการทำรายการ",
+      type: "file_image",
+      required: true,
+      placeholder: "",
+    },
+    {
+      id: createId("form-field"),
+      label: "เวลาที่ทำรายการ",
+      type: "short_answer",
+      required: true,
+      placeholder: "เช่น 2026-04-18 14:30",
+    },
+    {
+      id: createId("form-field"),
+      label: "หมายเหตุเพิ่มเติม",
+      type: "paragraph",
+      required: false,
+      placeholder: "รายละเอียดเพิ่มเติม (ถ้ามี)",
+    },
+  ],
+  withdraw_issue: [
+    { id: createId("form-field"), label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
+    { id: createId("form-field"), label: "เบอร์โทรศัพท์", type: "phone", required: true, placeholder: "08X-XXX-XXXX" },
+    { id: createId("form-field"), label: "ชื่อ-นามสกุล", type: "name", required: true, placeholder: "ชื่อจริง นามสกุล" },
+    { id: createId("form-field"), label: "เลขที่บัญชี", type: "short_answer", required: true, placeholder: "เลขที่บัญชี" },
+    {
+      id: createId("form-field"),
+      label: "เวลาที่ทำรายการ",
+      type: "short_answer",
+      required: true,
+      placeholder: "เช่น 2026-04-18 14:30",
+    },
+    {
+      id: createId("form-field"),
+      label: "หมายเหตุเพิ่มเติม",
+      type: "paragraph",
+      required: false,
+      placeholder: "รายละเอียดเพิ่มเติม (ถ้ามี)",
+    },
+  ],
+};
+
+export const getFormTemplateFields = (template: FormTemplate): FormField[] =>
+  (FORM_TEMPLATE_FIELDS[template] ?? FORM_TEMPLATE_FIELDS.custom).map((field) => ({
+    ...field,
+    id: createId("form-field"),
+    options: field.options ? [...field.options] : undefined,
+  }));
+
+export const createEmptyFormBlock = (template: FormTemplate = "email_signup"): BioLink => ({
+  id: createId("form"),
+  contentType: "form",
+  title:
+    template === "deposit_issue"
+      ? "ฝากเงินไม่เข้า"
+      : template === "withdraw_issue"
+        ? "ถอนเงินไม่ได้"
+        : "New Form",
+  url: "https://example.com/form",
+  description:
+    template === "deposit_issue" || template === "withdraw_issue"
+      ? "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว"
+      : "Tap to open form.",
+  enabled: true,
+  form: {
+    type: "form",
+    template,
+    layout: "classic",
+    formTitle:
+      template === "deposit_issue"
+        ? "ฝากเงินไม่เข้า"
+        : template === "withdraw_issue"
+          ? "ถอนเงินไม่ได้"
+          : "Join our list",
+    intro:
+      template === "deposit_issue" || template === "withdraw_issue"
+        ? "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว"
+        : "Fill in the form below.",
+    outro:
+      template === "deposit_issue" || template === "withdraw_issue"
+        ? "ระบบได้รับข้อมูลของท่านเรียบร้อยแล้ว\nเจ้าหน้าที่กำลังดำเนินการตรวจสอบ กรุณารอสักครู่"
+        : "Thank you. We received your submission.",
+    submitLabel:
+      template === "deposit_issue" || template === "withdraw_issue"
+        ? "ส่งข้อมูลเพื่อตรวจสอบ"
+        : "Submit",
+    termsPlaceholder: "",
+    fields: getFormTemplateFields(template),
+  },
+  settings: {
+    prioritize: false,
+    locked: false,
+  },
+});
+
 export const getContentType = (item: BioLink): ContentType =>
   item.contentType === "discount"
     ? "discount"
     : item.contentType === "embed_post"
       ? "embed_post"
+      : item.contentType === "form"
+        ? "form"
       : "link";
 
 export const getDiscountData = (link: BioLink): DiscountCodeData => {
@@ -145,6 +271,24 @@ export const getEmbedPostData = (link: BioLink): EmbedPostData => ({
   dismissible: link.embedPost?.dismissible ?? true,
 });
 
+export const getFormData = (link: BioLink): FormBlock => ({
+  type: "form",
+  template: link.form?.template ?? "custom",
+  layout: link.form?.layout ?? "classic",
+  formTitle: link.form?.formTitle ?? link.title,
+  intro: link.form?.intro ?? link.description ?? "",
+  outro: link.form?.outro ?? "Thank you. We received your submission.",
+  submitLabel: link.form?.submitLabel ?? "Submit",
+  termsPlaceholder: link.form?.termsPlaceholder ?? "",
+  fields:
+    link.form?.fields && link.form.fields.length > 0
+      ? link.form.fields.map((field) => ({
+          ...field,
+          options: field.options ? [...field.options] : undefined,
+        }))
+      : getFormTemplateFields(link.form?.template ?? "custom"),
+});
+
 export const isLinkActiveNow = (link: BioLink): boolean => {
   if (!link.enabled) {
     return false;
@@ -159,6 +303,12 @@ export const isLinkActiveNow = (link: BioLink): boolean => {
       return false;
     }
     if (embed.embedMode === "code" && !embed.embedCode.trim()) {
+      return false;
+    }
+  }
+  if (getContentType(link) === "form") {
+    const form = getFormData(link);
+    if (!form.fields.length) {
       return false;
     }
   }
@@ -223,6 +373,17 @@ export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
         ...link.settings,
         thumbnailUrl: embedPost.cardThumbnail,
       },
+    };
+  }).map((link) => {
+    if (getContentType(link) !== "form") {
+      return link;
+    }
+    const form = getFormData(link);
+    return {
+      ...link,
+      title: form.formTitle,
+      description: form.intro,
+      form,
     };
   }),
 });

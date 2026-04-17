@@ -1,5 +1,7 @@
 "use client";
 
+import { safeJsonParse } from "@/lib/json/safe-json-parse";
+
 const ANALYTICS_KEY = "linkbio-click-analytics-v1";
 
 type AnalyticsEventType = "view" | "modal_open" | "cta_click" | "code_copy";
@@ -26,6 +28,14 @@ export type ClickSummary = {
 };
 
 export type LinkClickCounts = Record<string, number>;
+export type AnalyticsEventSnapshot = {
+  profileSlug: string;
+  linkId?: string;
+  timestamp: string;
+  type: AnalyticsEventType;
+};
+
+const normalizeSlug = (value: string): string => value.trim().toLowerCase();
 
 const readStore = (): AnalyticsStore => {
   if (typeof window === "undefined") {
@@ -38,7 +48,7 @@ const readStore = (): AnalyticsStore => {
       return { events: [] };
     }
 
-    const parsed = JSON.parse(raw) as Partial<AnalyticsStore>;
+    const parsed = safeJsonParse<Partial<AnalyticsStore>>(raw, {});
     if (!Array.isArray(parsed.events)) {
       return { events: [] };
     }
@@ -80,11 +90,20 @@ const writeStore = (store: AnalyticsStore): void => {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(ANALYTICS_KEY, JSON.stringify(store));
+  try {
+    const serialized = JSON.stringify(store);
+    if (!serialized.trim()) {
+      window.localStorage.removeItem(ANALYTICS_KEY);
+      return;
+    }
+    window.localStorage.setItem(ANALYTICS_KEY, serialized);
+  } catch {
+    return;
+  }
 };
 
 export const removeAnalyticsForSlug = (profileSlug: string): void => {
-  const normalizedSlug = profileSlug.trim().toLowerCase();
+  const normalizedSlug = normalizeSlug(profileSlug);
   const store = readStore();
   const nextEvents = store.events.filter(
     (event) => event.profileSlug !== normalizedSlug,
@@ -109,12 +128,70 @@ const recordEvent = (
 ): void => {
   const store = readStore();
   store.events.push({
-    profileSlug: profileSlug.trim().toLowerCase(),
+    profileSlug: normalizeSlug(profileSlug),
     linkId,
     timestamp: new Date().toISOString(),
     type,
   });
   writeStore(store);
+};
+
+export const getAnalyticsEventsForSlug = (
+  profileSlug: string,
+): AnalyticsEventSnapshot[] => {
+  const normalizedSlug = normalizeSlug(profileSlug);
+  return readStore().events
+    .filter((event) => event.profileSlug === normalizedSlug)
+    .map((event) => ({
+      profileSlug: event.profileSlug,
+      linkId: event.linkId,
+      timestamp: event.timestamp,
+      type: event.type,
+    }));
+};
+
+export const replaceAnalyticsEventsForSlug = (
+  profileSlug: string,
+  snapshotEvents: AnalyticsEventSnapshot[],
+): void => {
+  const normalizedSlug = normalizeSlug(profileSlug);
+  const store = readStore();
+  const retainedEvents = store.events.filter(
+    (event) => event.profileSlug !== normalizedSlug,
+  );
+
+  const restoredEvents = snapshotEvents.flatMap((event) => {
+    if (!event || typeof event !== "object") {
+      return [];
+    }
+
+    const timestamp = typeof event.timestamp === "string" ? event.timestamp : "";
+    if (!timestamp) {
+      return [];
+    }
+
+    if (
+      event.type !== "view" &&
+      event.type !== "modal_open" &&
+      event.type !== "cta_click" &&
+      event.type !== "code_copy"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        profileSlug: normalizedSlug,
+        timestamp,
+        type: event.type,
+        linkId: typeof event.linkId === "string" ? event.linkId : undefined,
+      } satisfies AnalyticsEvent,
+    ];
+  });
+
+  writeStore({
+    events: [...retainedEvents, ...restoredEvents],
+  });
 };
 
 export const recordProfileView = (profileSlug: string): void => {

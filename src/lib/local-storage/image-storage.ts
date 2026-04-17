@@ -1,0 +1,173 @@
+"use client";
+
+import { BuilderData } from "@/features/builder/types";
+
+const IMAGE_DB_NAME = "linkbio-image-db-v1";
+const IMAGE_STORE_NAME = "images";
+const IMAGE_REF_PREFIX = "idbimg:";
+
+type ImageRecord = {
+  id: string;
+  dataUrl: string;
+  updatedAt: number;
+};
+
+const openImageDb = (): Promise<IDBDatabase> =>
+  new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.indexedDB) {
+      reject(new Error("IndexedDB is not available."));
+      return;
+    }
+
+    const request = window.indexedDB.open(IMAGE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(IMAGE_STORE_NAME)) {
+        database.createObjectStore(IMAGE_STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Failed to open image database."));
+  });
+
+const withStore = async <T>(
+  mode: IDBTransactionMode,
+  handler: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> => {
+  const database = await openImageDb();
+  return new Promise<T>((resolve, reject) => {
+    const transaction = database.transaction(IMAGE_STORE_NAME, mode);
+    const store = transaction.objectStore(IMAGE_STORE_NAME);
+    const request = handler(store);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("IndexedDB operation failed."));
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => {
+      reject(transaction.error ?? new Error("IndexedDB transaction failed."));
+      database.close();
+    };
+  });
+};
+
+const buildImageRefId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
+export const isIndexedDbImageRef = (value: string | null | undefined): value is string =>
+  typeof value === "string" && value.startsWith(IMAGE_REF_PREFIX);
+
+export const storeImageDataUrlInIndexedDb = async (dataUrl: string): Promise<string> => {
+  const id = buildImageRefId();
+  const record: ImageRecord = {
+    id,
+    dataUrl,
+    updatedAt: Date.now(),
+  };
+  await withStore("readwrite", (store) => store.put(record));
+  return `${IMAGE_REF_PREFIX}${id}`;
+};
+
+export const getImageDataUrlByRef = async (
+  value: string | null | undefined,
+): Promise<string | null> => {
+  if (!isIndexedDbImageRef(value)) {
+    return typeof value === "string" ? value : null;
+  }
+
+  const id = value.slice(IMAGE_REF_PREFIX.length);
+  if (!id) {
+    return null;
+  }
+
+  try {
+    const record = await withStore<ImageRecord | undefined>("readonly", (store) => store.get(id));
+    return record?.dataUrl ?? null;
+  } catch {
+    return null;
+  }
+};
+
+export const collectIndexedDbImageRefsFromBuilderData = (data: BuilderData): string[] => {
+  const refs = new Set<string>();
+  const push = (candidate: string | null | undefined) => {
+    if (isIndexedDbImageRef(candidate)) {
+      refs.add(candidate);
+    }
+  };
+
+  push(data.header.avatarUrl);
+  push(data.header.heroImageUrl);
+  push(data.theme.wallpaperUrl);
+
+  for (const social of data.socials) {
+    push(social.iconUrl);
+  }
+
+  for (const link of data.links) {
+    push(link.settings.thumbnailUrl);
+    push(link.discount?.cardThumbnail);
+    push(link.discount?.modalHeroImage);
+    push(link.embedPost?.cardIcon);
+    push(link.embedPost?.cardThumbnail);
+  }
+
+  return Array.from(refs);
+};
+
+const resolveValueFromMap = (
+  value: string | null | undefined,
+  resolved: Record<string, string>,
+): string | undefined => {
+  if (isIndexedDbImageRef(value)) {
+    return resolved[value];
+  }
+  return typeof value === "string" ? value : undefined;
+};
+
+export const hydrateBuilderDataWithIndexedDbImages = (
+  data: BuilderData,
+  resolved: Record<string, string>,
+): BuilderData => ({
+  ...data,
+  header: {
+    ...data.header,
+    avatarUrl: resolveValueFromMap(data.header.avatarUrl, resolved) ?? data.header.avatarUrl,
+    heroImageUrl: resolveValueFromMap(data.header.heroImageUrl, resolved) ?? data.header.heroImageUrl,
+  },
+  theme: {
+    ...data.theme,
+    wallpaperUrl: resolveValueFromMap(data.theme.wallpaperUrl, resolved) ?? data.theme.wallpaperUrl,
+  },
+  socials: data.socials.map((social) => ({
+    ...social,
+    iconUrl: resolveValueFromMap(social.iconUrl, resolved) ?? social.iconUrl,
+  })),
+  links: data.links.map((link) => ({
+    ...link,
+    settings: {
+      ...link.settings,
+      thumbnailUrl:
+        resolveValueFromMap(link.settings.thumbnailUrl, resolved) ?? link.settings.thumbnailUrl,
+    },
+    discount: link.discount
+      ? {
+          ...link.discount,
+          cardThumbnail:
+            resolveValueFromMap(link.discount.cardThumbnail, resolved) ?? link.discount.cardThumbnail,
+          modalHeroImage:
+            resolveValueFromMap(link.discount.modalHeroImage, resolved) ?? link.discount.modalHeroImage,
+        }
+      : link.discount,
+    embedPost: link.embedPost
+      ? {
+          ...link.embedPost,
+          cardIcon: resolveValueFromMap(link.embedPost.cardIcon, resolved) ?? link.embedPost.cardIcon,
+          cardThumbnail:
+            resolveValueFromMap(link.embedPost.cardThumbnail, resolved) ?? link.embedPost.cardThumbnail,
+        }
+      : link.embedPost,
+  })),
+});
