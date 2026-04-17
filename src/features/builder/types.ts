@@ -46,7 +46,7 @@ export type LinkSettings = {
   lockMessage?: string;
 };
 
-export type ContentType = "link" | "discount" | "embed_post";
+export type ContentType = "link" | "discount" | "embed_post" | "form";
 
 export type EmbedProvider = "x" | "facebook" | "tiktok" | "youtube" | "generic";
 export type EmbedMode = "url" | "code";
@@ -92,6 +92,42 @@ export type EmbedPostData = {
   dismissible: boolean;
 };
 
+export type FormFieldType =
+  | "name"
+  | "email"
+  | "phone"
+  | "country"
+  | "date_of_birth"
+  | "short_answer"
+  | "paragraph"
+  | "single_choice"
+  | "checkboxes"
+  | "dropdown"
+  | "date";
+
+export type FormTemplate = "email_signup" | "sms_signup" | "contact_form" | "custom";
+
+export type FormField = {
+  id: string;
+  label: string;
+  type: FormFieldType;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+};
+
+export type FormBlock = {
+  type: "form";
+  template: FormTemplate;
+  layout: "classic" | "featured";
+  formTitle: string;
+  intro: string;
+  outro: string;
+  submitLabel: string;
+  termsPlaceholder?: string;
+  fields: FormField[];
+};
+
 export type BioLink = {
   id: string;
   contentType?: ContentType;
@@ -101,6 +137,7 @@ export type BioLink = {
   description?: string;
   discount?: DiscountCodeData;
   embedPost?: EmbedPostData;
+  form?: FormBlock;
   settings: LinkSettings;
 };
 

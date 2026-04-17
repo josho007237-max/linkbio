@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
+import { SafeImage } from "@/components/shared/safe-image";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/components/admin/section-card";
@@ -16,6 +16,10 @@ import { Switch } from "@/components/ui/switch";
 import { SocialFormValues, socialSchema } from "@/features/builder/schema";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
 import { useI18n } from "@/i18n/use-i18n";
+import {
+  getImageDataUrlByRef,
+  isIndexedDbImageRef,
+} from "@/lib/local-storage/image-storage";
 
 const PLATFORM_OPTIONS = ["instagram", "tiktok", "youtube", "x", "facebook", "website"] as const;
 
@@ -35,6 +39,7 @@ export const SocialIconsSection = () => {
   const deleteSocial = useBuilderStore((state) => state.deleteSocial);
 
   const [openAdd, setOpenAdd] = useState(false);
+  const [resolvedIcons, setResolvedIcons] = useState<Record<string, string>>({});
 
   const form = useForm<SocialFormValues>({
     resolver: zodResolver(socialSchema),
@@ -48,6 +53,42 @@ export const SocialIconsSection = () => {
   const formPlatform = useWatch({ control: form.control, name: "platform" });
   const formEnabled = useWatch({ control: form.control, name: "enabled" });
   const formIconUrl = useWatch({ control: form.control, name: "iconUrl" });
+
+  useEffect(() => {
+    const refs = socials
+      .map((social) => social.iconUrl)
+      .filter((value): value is string => isIndexedDbImageRef(value) && !resolvedIcons[value]);
+    if (refs.length === 0) {
+      return;
+    }
+
+    let canceled = false;
+    void Promise.all(
+      refs.map(async (ref) => ({ ref, resolved: await getImageDataUrlByRef(ref) })),
+    ).then((results) => {
+      if (canceled) {
+        return;
+      }
+      const nextEntries = results.filter(
+        (item): item is { ref: string; resolved: string } => Boolean(item.resolved),
+      );
+      if (nextEntries.length === 0) {
+        return;
+      }
+
+      setResolvedIcons((current) => {
+        const next = { ...current };
+        for (const item of nextEntries) {
+          next[item.ref] = item.resolved;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [resolvedIcons, socials]);
 
   const handleAdd = form.handleSubmit((values) => {
     addSocial(values);
@@ -109,9 +150,17 @@ export const SocialIconsSection = () => {
                 <div className="grid gap-2 sm:grid-cols-[auto_1fr] sm:items-center">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{t("social_icon_preview")}</span>
-                    {normalizeImageSrc(social.iconUrl) ? (
-                      <Image
-                        src={normalizeImageSrc(social.iconUrl) as string}
+                    {normalizeImageSrc(
+                      isIndexedDbImageRef(social.iconUrl) ? resolvedIcons[social.iconUrl] : social.iconUrl,
+                    ) ? (
+                      <SafeImage
+                        src={
+                          normalizeImageSrc(
+                            isIndexedDbImageRef(social.iconUrl)
+                              ? resolvedIcons[social.iconUrl]
+                              : social.iconUrl,
+                          ) as string
+                        }
                         alt=""
                         width={24}
                         height={24}
@@ -196,3 +245,4 @@ export const SocialIconsSection = () => {
     </SectionCard>
   );
 };
+

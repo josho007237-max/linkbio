@@ -79,7 +79,7 @@ export const socialSchema = z.object({
 
 export const linkSchema = z
   .object({
-    contentType: z.enum(["link", "discount", "embed_post"]),
+    contentType: z.enum(["link", "discount", "embed_post", "form"]),
     title: z.string().trim().min(1, "Title is required."),
     url: z.string().url("Link URL must be valid."),
     description: z.string().trim().optional(),
@@ -152,6 +152,37 @@ export const linkSchema = z
     embedCtaButtonLabel: z.string().trim().optional(),
     embedCtaUrl: z.string().trim().optional(),
     embedDismissible: z.boolean().optional(),
+    formTemplate: z.enum(["email_signup", "sms_signup", "contact_form", "custom"]).optional(),
+    formLayout: z.enum(["classic", "featured"]).optional(),
+    formTitle: z.string().trim().optional(),
+    formIntro: z.string().trim().optional(),
+    formOutro: z.string().trim().optional(),
+    formSubmitLabel: z.string().trim().optional(),
+    formTermsPlaceholder: z.string().trim().optional(),
+    formFields: z
+      .array(
+        z.object({
+          id: z.string().trim().min(1),
+          label: z.string().trim().min(1),
+          type: z.enum([
+            "name",
+            "email",
+            "phone",
+            "country",
+            "date_of_birth",
+            "short_answer",
+            "paragraph",
+            "single_choice",
+            "checkboxes",
+            "dropdown",
+            "date",
+          ]),
+          required: z.boolean(),
+          placeholder: z.string().trim().optional(),
+          options: z.array(z.string().trim().min(1)).optional(),
+        }),
+      )
+      .optional(),
   })
   .superRefine((value, ctx) => {
     if (value.contentType === "link") {
@@ -216,6 +247,63 @@ export const linkSchema = z
         message: "Destination URL is invalid",
         path: ["destinationUrl"],
       });
+    }
+
+    if (value.contentType === "form") {
+      if (!value.formLayout) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Form layout is required.",
+          path: ["formLayout"],
+        });
+      }
+      if (!(value.formTitle ?? "").trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Form title is required.",
+          path: ["formTitle"],
+        });
+      }
+      if (!(value.formSubmitLabel ?? "").trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Submit label is required.",
+          path: ["formSubmitLabel"],
+        });
+      }
+
+      const fields = value.formFields ?? [];
+      if (fields.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one form field is required.",
+          path: ["formFields"],
+        });
+      }
+
+      fields.forEach((field, index) => {
+        if (!field.label.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Field label is required.",
+            path: ["formFields", index, "label"],
+          });
+        }
+        if (
+          (field.type === "single_choice" ||
+            field.type === "checkboxes" ||
+            field.type === "dropdown") &&
+          (!field.options || field.options.filter((option) => option.trim().length > 0).length === 0)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Choice fields must include options.",
+            path: ["formFields", index, "options"],
+          });
+        }
+      });
+
+      return;
     }
 
     if (value.contentType !== "embed_post") {
@@ -350,7 +438,7 @@ export const builderDataSchema = z.object({
   links: z.array(
     z.object({
       id: z.string().min(1),
-      contentType: z.enum(["link", "discount", "embed_post"]).default("link"),
+      contentType: z.enum(["link", "discount", "embed_post", "form"]).default("link"),
       title: linkSchema.shape.title,
       url: linkSchema.shape.url,
       description: z.string().optional(),
@@ -402,6 +490,44 @@ export const builderDataSchema = z.object({
           ctaButtonLabel: z.string().optional(),
           ctaUrl: z.string().optional(),
           dismissible: z.boolean().optional(),
+        })
+        .optional(),
+      form: z
+        .object({
+          type: z.literal("form").optional(),
+          template: z.enum(["email_signup", "sms_signup", "contact_form", "custom"]).optional(),
+          layout: z.enum(["classic", "featured"]).optional(),
+          formTitle: z.string().optional(),
+          intro: z.string().optional(),
+          outro: z.string().optional(),
+          submitLabel: z.string().optional(),
+          termsPlaceholder: z.string().optional(),
+          fields: z
+            .array(
+              z.object({
+                id: z.string().optional(),
+                label: z.string().optional(),
+                type: z
+                  .enum([
+                    "name",
+                    "email",
+                    "phone",
+                    "country",
+                    "date_of_birth",
+                    "short_answer",
+                    "paragraph",
+                    "single_choice",
+                    "checkboxes",
+                    "dropdown",
+                    "date",
+                  ])
+                  .optional(),
+                required: z.boolean().optional(),
+                placeholder: z.string().optional(),
+                options: z.array(z.string()).optional(),
+              }),
+            )
+            .optional(),
         })
         .optional(),
       settings: z.object({

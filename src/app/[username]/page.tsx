@@ -11,10 +11,10 @@ const PublicProfilePageClient = dynamic(
   {
     ssr: false,
     loading: () => (
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#e8eefc,_transparent_42%),linear-gradient(to_bottom,_var(--background),_var(--muted))] px-4 py-8 sm:px-6 sm:py-10">
-        <div className="mx-auto max-w-5xl space-y-6 sm:space-y-8">
-          <div className="h-24 animate-pulse rounded-2xl border bg-card/80" />
-          <div className="mx-auto h-[760px] w-full max-w-[390px] animate-pulse rounded-[40px] border-8 border-zinc-900 bg-zinc-900/60" />
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#e8eefc,_transparent_42%),linear-gradient(to_bottom,_var(--background),_var(--muted))]">
+        <div className="mx-auto w-full max-w-[680px] space-y-4 px-4 py-6 sm:px-5 sm:py-8 md:px-6">
+          <div className="ml-auto h-9 w-36 animate-pulse rounded-md border bg-card/80" />
+          <div className="h-[420px] w-full animate-pulse rounded-[28px] border bg-card/45 sm:h-[520px]" />
         </div>
       </main>
     ),

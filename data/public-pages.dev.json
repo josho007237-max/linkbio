@@ -1,0 +1,69 @@
+{
+  "northfieldstudio": {
+    "header": {
+      "username": "northfieldstudio",
+      "displayName": "Northfield Studio",
+      "tagline": "Creative strategy, digital design, and content systems for growing brands.",
+      "avatarUrl": "/placeholders/avatar-default.svg",
+      "heroImageUrl": "idbimg:18905d0e-4529-45ed-85e2-47e7a3490eaa",
+      "layout": "hero",
+      "titleMode": "display_name",
+      "heroTextAlign": "center",
+      "heroOverlay": true,
+      "heroOverlayStrength": 0.35,
+      "matchThemeToHero": false
+    },
+    "theme": {
+      "name": "midnight",
+      "wallpaperUrl": "/placeholders/wallpaper-default.svg",
+      "wallpaperVideoUrl": "",
+      "wallpaperStyle": "blur",
+      "pageBackground": "#0B1222",
+      "cardBackground": "rgba(17, 25, 40, 0.85)",
+      "textColor": "#F4F7FF",
+      "mutedTextColor": "#B8C2DB",
+      "titleColor": "#F4F7FF",
+      "titleSize": 28,
+      "pageFont": "inter",
+      "buttonBackground": "#2563EB",
+      "buttonTextColor": "#EFF6FF",
+      "buttonRadius": 18
+    },
+    "text": {
+      "intro": "Start with the most important destination for your audience.",
+      "body": "Use this page to guide visitors to your services, booking flow, portfolio, and business updates.",
+      "footerEnabled": false,
+      "footerText": "Powered by Link-in-Bio Builder"
+    },
+    "buttonStyle": {
+      "uppercase": false,
+      "shadow": true,
+      "style": "outline",
+      "shadowLevel": 2
+    },
+    "socials": [
+      {
+        "id": "social-instagram",
+        "platform": "instagram",
+        "url": "https://instagram.com",
+        "enabled": true,
+        "iconUrl": "idbimg:3749510e-e71d-4aaa-a843-090d586ed4bd"
+      },
+      {
+        "id": "social-youtube",
+        "platform": "youtube",
+        "url": "https://youtube.com",
+        "enabled": true,
+        "iconUrl": ""
+      },
+      {
+        "id": "social-x",
+        "platform": "x",
+        "url": "https://x.com",
+        "enabled": true,
+        "iconUrl": ""
+      }
+    ],
+    "links": []
+  }
+}

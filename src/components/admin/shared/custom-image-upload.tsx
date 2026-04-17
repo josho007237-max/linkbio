@@ -1,13 +1,18 @@
 "use client";
 
-import Image from "next/image";
-import { ChangeEvent, useId, useMemo, useRef, useState } from "react";
+import { SafeImage } from "@/components/shared/safe-image";
+import { ChangeEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
   ImagePersistencePreset,
   processImageForLocalPersistence,
 } from "@/lib/media/file-data-url";
+import {
+  getImageDataUrlByRef,
+  isIndexedDbImageRef,
+  storeImageDataUrlInIndexedDb,
+} from "@/lib/local-storage/image-storage";
 
 type CustomImageUploadProps = {
   value?: string | null;
@@ -68,13 +73,40 @@ export const CustomImageUpload = ({
   const [selectedFileName, setSelectedFileName] = useState("");
   const [uploadIconSrc, setUploadIconSrc] = useState(UPLOAD_ICON_PRIMARY_SRC);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [resolvedImageValue, setResolvedImageValue] = useState<string | null>(null);
   const inputId = useId();
 
   const normalizedValue = useMemo(() => normalizeImageSrc(value), [value]);
+  const previewSrc = resolvedImageValue ?? normalizedValue;
   const displayName = useMemo(
     () => getDisplayFileName(normalizedValue, selectedFileName),
     [normalizedValue, selectedFileName],
   );
+
+  useEffect(() => {
+    let canceled = false;
+
+    if (!normalizedValue) {
+      setResolvedImageValue(null);
+      return;
+    }
+
+    if (!isIndexedDbImageRef(normalizedValue)) {
+      setResolvedImageValue(normalizedValue);
+      return;
+    }
+
+    void getImageDataUrlByRef(normalizedValue).then((resolved) => {
+      if (canceled) {
+        return;
+      }
+      setResolvedImageValue(resolved ?? null);
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [normalizedValue]);
 
   const openFilePicker = () => {
     inputRef.current?.click();
@@ -84,7 +116,8 @@ export const CustomImageUpload = ({
     setIsProcessing(true);
     try {
       const processed = await processImageForLocalPersistence(file, preset);
-      onValueChange(processed.dataUrl);
+      const persistedRef = await storeImageDataUrlInIndexedDb(processed.dataUrl);
+      onValueChange(persistedRef);
       setSelectedFileName(file.name);
       onError?.(null);
     } catch {
@@ -116,9 +149,9 @@ export const CustomImageUpload = ({
         className="hidden"
       />
       <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-        {normalizedValue ? (
-          <Image
-            src={normalizedValue}
+        {previewSrc ? (
+          <SafeImage
+            src={previewSrc}
             alt=""
             className="h-24 w-full rounded-md border border-border/60 object-cover"
             width={640}
@@ -127,7 +160,7 @@ export const CustomImageUpload = ({
           />
         ) : (
           <div className="flex h-24 items-center justify-center rounded-md border border-dashed border-border/70 bg-background/60">
-            <Image
+            <SafeImage
               src={uploadIconSrc}
               alt=""
               className="h-8 w-8 object-contain opacity-80"
@@ -169,3 +202,4 @@ export const CustomImageUpload = ({
     </div>
   );
 };
+

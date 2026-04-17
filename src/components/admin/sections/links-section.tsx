@@ -54,14 +54,17 @@ import {
   linkSettingsSchema,
 } from "@/features/builder/schema";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
-import { BioLink } from "@/features/builder/types";
+import { BioLink, FormTemplate } from "@/features/builder/types";
 import {
   createEmptyDiscountCode,
   createEmptyEmbedPost,
+  createEmptyFormBlock,
   createEmptyLink,
   getContentType,
   getDiscountData,
   getEmbedPostData,
+  getFormData,
+  getFormTemplateFields,
 } from "@/features/builder/utils";
 import { useI18n } from "@/i18n/use-i18n";
 import { getPerLinkClickCounts } from "@/lib/local-storage/analytics-storage";
@@ -77,6 +80,7 @@ type SortableLinkItemProps = {
     invalidUrl: string;
     discountType: string;
     embedType: string;
+    formType: string;
     layoutClassic: string;
     layoutFeatured: string;
   };
@@ -100,17 +104,23 @@ const LinkItemContent = ({
 }: StaticLinkItemProps & { dragHandle: ReactNode }) => {
   const isDiscount = getContentType(link) === "discount";
   const isEmbedPost = getContentType(link) === "embed_post";
+  const isForm = getContentType(link) === "form";
   const discount = isDiscount ? getDiscountData(link) : null;
   const embedPost = isEmbedPost ? getEmbedPostData(link) : null;
+  const form = isForm ? getFormData(link) : null;
   const displayTitle = isDiscount
     ? discount?.cardTitle || link.title
     : isEmbedPost
       ? embedPost?.cardTitle || link.title
+      : isForm
+        ? form?.formTitle || link.title
       : link.title;
   const displayUrl = isDiscount
     ? discount?.destinationUrl || link.url
     : isEmbedPost
       ? embedPost?.ctaUrl || link.url
+      : isForm
+        ? link.url
       : link.url;
   const isInvalidUrl = !linkSchema.shape.url.safeParse(displayUrl).success;
 
@@ -120,10 +130,10 @@ const LinkItemContent = ({
         {dragHandle}
         <div>
           <p className="text-sm font-semibold">{displayTitle}</p>
-          {isDiscount || isEmbedPost ? (
+          {isDiscount || isEmbedPost || isForm ? (
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-amber-700">
-              {isDiscount ? labels.discountType : labels.embedType} ·{" "}
-              {(isDiscount ? discount?.layout : embedPost?.layout) === "featured"
+              {isDiscount ? labels.discountType : isEmbedPost ? labels.embedType : labels.formType} ·{" "}
+              {(isDiscount ? discount?.layout : isEmbedPost ? embedPost?.layout : form?.layout) === "featured"
                 ? labels.layoutFeatured
                 : labels.layoutClassic}
             </p>
@@ -236,6 +246,8 @@ export const LinksSection = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [settingsId, setSettingsId] = useState<string | null>(null);
   const [editTab, setEditTab] = useState<"link" | "layout">("link");
+  const [addPickerOpen, setAddPickerOpen] = useState(false);
+  const [addPickerStep, setAddPickerStep] = useState<"types" | "form_templates">("types");
 
   const editingLink = useMemo(
     () => links.find((link) => link.id === editId) ?? null,
@@ -278,6 +290,14 @@ export const LinksSection = () => {
       embedCtaButtonLabel: "",
       embedCtaUrl: "https://example.com",
       embedDismissible: true,
+      formTemplate: "email_signup",
+      formLayout: "classic",
+      formTitle: "",
+      formIntro: "",
+      formOutro: "",
+      formSubmitLabel: "Submit",
+      formTermsPlaceholder: "",
+      formFields: [],
     },
   });
 
@@ -308,6 +328,8 @@ export const LinksSection = () => {
     control: editForm.control,
     name: "embedDismissible",
   });
+  const editFormTemplate = useWatch({ control: editForm.control, name: "formTemplate" });
+  const editFormFields = useWatch({ control: editForm.control, name: "formFields" }) ?? [];
   const settingsThumbnailUrl = useWatch({
     control: settingsForm.control,
     name: "thumbnailUrl",
@@ -336,7 +358,16 @@ export const LinksSection = () => {
   const editEmbedCardThumbError = editForm.formState.errors.embedCardThumbnail?.message;
   const editEmbedCardIconError = editForm.formState.errors.embedCardIcon?.message;
   const editEmbedLayoutError = editForm.formState.errors.embedLayout?.message;
-  const editLayoutErrorText = editContentType === "discount" ? editLayoutError : editEmbedLayoutError;
+  const editFormTitleError = editForm.formState.errors.formTitle?.message;
+  const editFormLayoutError = editForm.formState.errors.formLayout?.message;
+  const editFormSubmitLabelError = editForm.formState.errors.formSubmitLabel?.message;
+  const editFormFieldsError = editForm.formState.errors.formFields?.message as string | undefined;
+  const editLayoutErrorText =
+    editContentType === "discount"
+      ? editLayoutError
+      : editContentType === "embed_post"
+        ? editEmbedLayoutError
+        : editFormLayoutError;
   const settingsThumbnailError =
     settingsForm.formState.errors.thumbnailUrl?.message;
   const discountCodeErrorText = editDiscountCodeError
@@ -383,6 +414,7 @@ export const LinksSection = () => {
       invalidUrl: t("links_invalid_url"),
       discountType: t("links_type_discount"),
       embedType: t("links_type_embed_post"),
+      formType: t("links_type_form"),
       layoutClassic: t("links_layout_classic"),
       layoutFeatured: t("links_layout_featured"),
     }),
@@ -396,16 +428,20 @@ export const LinksSection = () => {
     }
     const discount = getDiscountData(link);
     const embedPost = getEmbedPostData(link);
+    const form = getFormData(link);
     const isDiscount = getContentType(link) === "discount";
     const isEmbedPost = getContentType(link) === "embed_post";
+    const isForm = getContentType(link) === "form";
     editForm.reset({
       contentType: getContentType(link),
-      title: isDiscount ? discount.cardTitle : isEmbedPost ? embedPost.cardTitle : link.title,
+      title: isDiscount ? discount.cardTitle : isEmbedPost ? embedPost.cardTitle : isForm ? form.formTitle : link.title,
       url: isDiscount ? discount.destinationUrl : isEmbedPost ? embedPost.ctaUrl : link.url,
       description: isDiscount
         ? discount.modalDescription
         : isEmbedPost
           ? embedPost.description
+          : isForm
+            ? form.intro
           : link.description ?? "",
       enabled: link.enabled,
       cardTitle: discount.cardTitle,
@@ -432,6 +468,14 @@ export const LinksSection = () => {
       embedCtaButtonLabel: embedPost.ctaButtonLabel,
       embedCtaUrl: embedPost.ctaUrl,
       embedDismissible: embedPost.dismissible,
+      formTemplate: form.template,
+      formLayout: form.layout,
+      formTitle: form.formTitle,
+      formIntro: form.intro,
+      formOutro: form.outro,
+      formSubmitLabel: form.submitLabel,
+      formTermsPlaceholder: form.termsPlaceholder ?? "",
+      formFields: form.fields,
     });
     setEditTab("link");
     setEditId(id);
@@ -464,18 +508,24 @@ export const LinksSection = () => {
           ? values.cardTitle ?? ""
           : values.contentType === "embed_post"
             ? values.embedCardTitle ?? ""
+            : values.contentType === "form"
+              ? values.formTitle ?? ""
             : values.title,
       url:
         values.contentType === "discount"
           ? values.destinationUrl ?? ""
           : values.contentType === "embed_post"
             ? values.embedCtaUrl ?? ""
+            : values.contentType === "form"
+              ? values.url || "https://example.com/form"
             : values.url,
       description:
         values.contentType === "discount"
           ? values.modalDescription
           : values.contentType === "embed_post"
             ? values.embedDescription
+            : values.contentType === "form"
+              ? values.formIntro
             : values.description,
       enabled: values.enabled,
       discount:
@@ -522,6 +572,27 @@ export const LinksSection = () => {
               dismissible: values.embedDismissible ?? true,
             }
           : undefined,
+      form:
+        values.contentType === "form"
+          ? {
+              type: "form",
+              template: values.formTemplate ?? "custom",
+              layout: values.formLayout ?? "classic",
+              formTitle: values.formTitle ?? "",
+              intro: values.formIntro ?? "",
+              outro: values.formOutro ?? "",
+              submitLabel: values.formSubmitLabel ?? "Submit",
+              termsPlaceholder: values.formTermsPlaceholder ?? "",
+              fields: (values.formFields ?? []).map((field) => ({
+                id: field.id,
+                label: field.label,
+                type: field.type,
+                required: field.required,
+                placeholder: field.placeholder ?? "",
+                options: field.options?.map((option) => option.trim()).filter(Boolean) ?? undefined,
+              })),
+            }
+          : undefined,
     });
 
     if (values.contentType === "discount") {
@@ -532,6 +603,11 @@ export const LinksSection = () => {
     if (values.contentType === "embed_post") {
       updateLinkSettings(editId, {
         thumbnailUrl: values.embedCardThumbnail || undefined,
+      });
+    }
+    if (values.contentType === "form") {
+      updateLinkSettings(editId, {
+        thumbnailUrl: undefined,
       });
     }
     setEditId(null);
@@ -558,12 +634,95 @@ export const LinksSection = () => {
     setSettingsId(null);
   });
 
+  const setFormFields = (nextFields: NonNullable<LinkFormValues["formFields"]>) => {
+    editForm.setValue("formFields", nextFields, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const addFormField = () => {
+    setFormFields([
+      ...editFormFields,
+      {
+        id: `form-field-${Math.random().toString(36).slice(2, 9)}`,
+        label: t("form_field_label_default"),
+        type: "short_answer",
+        required: false,
+        placeholder: "",
+        options: [],
+      },
+    ]);
+  };
+
+  const removeFormField = (index: number) => {
+    setFormFields(editFormFields.filter((_, fieldIndex) => fieldIndex !== index));
+  };
+
+  const moveFormField = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= editFormFields.length) {
+      return;
+    }
+    const next = [...editFormFields];
+    const [current] = next.splice(index, 1);
+    next.splice(nextIndex, 0, current);
+    setFormFields(next);
+  };
+
+  const updateFormField = (
+    index: number,
+    payload: Partial<NonNullable<LinkFormValues["formFields"]>[number]>,
+  ) => {
+    setFormFields(
+      editFormFields.map((field, fieldIndex) =>
+        fieldIndex === index ? { ...field, ...payload } : field,
+      ),
+    );
+  };
+
+  const applyFormTemplate = (template: NonNullable<LinkFormValues["formTemplate"]>) => {
+    editForm.setValue("formTemplate", template, { shouldDirty: true, shouldValidate: true });
+    setFormFields(
+      getFormTemplateFields(template).map((field) => ({
+        id: field.id,
+        label: field.label,
+        type: field.type,
+        required: field.required,
+        placeholder: field.placeholder ?? "",
+        options: field.options ?? [],
+      })),
+    );
+  };
+
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
       return;
     }
     reorderLinks(String(active.id), String(over.id));
+  };
+
+  const handleAddType = (type: "link" | "discount" | "embed_post" | "form") => {
+    if (type === "form") {
+      setAddPickerStep("form_templates");
+      return;
+    }
+    if (type === "link") {
+      addLink(createEmptyLink());
+    } else if (type === "discount") {
+      addLink(createEmptyDiscountCode());
+    } else {
+      addLink(createEmptyEmbedPost());
+    }
+    setAddPickerOpen(false);
+    setAddPickerStep("types");
+  };
+
+  const handleAddFormTemplate = (template: FormTemplate) => {
+    addLink(createEmptyFormBlock(template));
+    setAddPickerOpen(false);
+    setAddPickerStep("types");
   };
 
   return (
@@ -574,19 +733,64 @@ export const LinksSection = () => {
     >
       <Button
         variant="secondary"
-        onClick={() => addLink(createEmptyLink())}
+        onClick={() => {
+          setAddPickerOpen((current) => !current);
+          setAddPickerStep("types");
+        }}
       >
         <Plus className="size-4" />
         {t("links_add")}
       </Button>
-      <Button variant="outline" onClick={() => addLink(createEmptyDiscountCode())}>
-        <Plus className="size-4" />
-        {t("links_add_discount")}
-      </Button>
-      <Button variant="outline" onClick={() => addLink(createEmptyEmbedPost())}>
-        <Plus className="size-4" />
-        {t("links_add_embed_post")}
-      </Button>
+      {addPickerOpen ? (
+        <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+          {addPickerStep === "types" ? (
+            <>
+              <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                {t("links_add_choose_type")}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button type="button" variant="outline" onClick={() => handleAddType("link")}>
+                  {t("links_add_type_link")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddType("discount")}>
+                  {t("links_add_type_discount")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddType("embed_post")}>
+                  {t("links_add_type_embed")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddType("form")}>
+                  {t("links_add_type_form")}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  {t("form_template")}
+                </p>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAddPickerStep("types")}>
+                  {t("saved_manager_cancel")}
+                </Button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button type="button" variant="outline" onClick={() => handleAddFormTemplate("contact_form")}>
+                  {t("form_template_contact_form")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddFormTemplate("email_signup")}>
+                  {t("form_template_email_signup")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddFormTemplate("sms_signup")}>
+                  {t("form_template_sms_signup")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddFormTemplate("custom")}>
+                  {t("form_template_custom")}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
       {uploadWarning ? (
         <p className="text-xs text-amber-600">{uploadWarning}</p>
       ) : null}
@@ -647,7 +851,7 @@ export const LinksSection = () => {
           </SheetHeader>
           {editingLink && (
             <form onSubmit={saveEdit} className="space-y-4 px-4">
-              {editContentType === "discount" || editContentType === "embed_post" ? (
+              {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" ? (
                 <div className="inline-flex rounded-md border bg-muted/35 p-1 text-xs">
                   <button
                     type="button"
@@ -659,7 +863,9 @@ export const LinksSection = () => {
                   >
                     {editContentType === "embed_post"
                       ? t("embed_post_tabs_settings")
-                      : t("links_tab_link_settings")}
+                      : editContentType === "form"
+                        ? t("form_tabs_settings")
+                        : t("links_tab_link_settings")}
                   </button>
                   <button
                     type="button"
@@ -671,13 +877,19 @@ export const LinksSection = () => {
                   >
                     {editContentType === "embed_post"
                       ? t("embed_post_tabs_layout")
-                      : t("links_tab_layout")}
+                      : editContentType === "form"
+                        ? t("form_tabs_layout")
+                        : t("links_tab_layout")}
                   </button>
                 </div>
               ) : null}
               {editContentType === "embed_post" ? (
                 <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                   {t("embed_post_helper_block")}
+                </p>
+              ) : editContentType === "form" ? (
+                <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {t("form_helper_block")}
                 </p>
               ) : null}
 
@@ -814,6 +1026,171 @@ export const LinksSection = () => {
                         {t("discount_dismissible")}
                       </label>
                     </>
+                  ) : editContentType === "form" ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>{t("form_template")}</Label>
+                        <select
+                          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                          value={editFormTemplate}
+                          onChange={(event) => applyFormTemplate(event.target.value as NonNullable<LinkFormValues["formTemplate"]>)}
+                        >
+                          <option value="email_signup">{t("form_template_email_signup")}</option>
+                          <option value="sms_signup">{t("form_template_sms_signup")}</option>
+                          <option value="contact_form">{t("form_template_contact_form")}</option>
+                          <option value="custom">{t("form_template_custom")}</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("form_title_label")}</Label>
+                        <Input
+                          aria-invalid={Boolean(editFormTitleError)}
+                          className={editFormTitleError ? "border-destructive" : undefined}
+                          {...editForm.register("formTitle")}
+                        />
+                        {editFormTitleError ? (
+                          <p className="text-xs text-destructive">{editFormTitleError}</p>
+                        ) : null}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("form_intro_label")}</Label>
+                        <Input {...editForm.register("formIntro")} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("form_outro_label")}</Label>
+                        <Input {...editForm.register("formOutro")} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("form_submit_label")}</Label>
+                        <Input
+                          aria-invalid={Boolean(editFormSubmitLabelError)}
+                          className={editFormSubmitLabelError ? "border-destructive" : undefined}
+                          {...editForm.register("formSubmitLabel")}
+                        />
+                        {editFormSubmitLabelError ? (
+                          <p className="text-xs text-destructive">{editFormSubmitLabelError}</p>
+                        ) : null}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("form_terms_placeholder")}</Label>
+                        <Input {...editForm.register("formTermsPlaceholder")} />
+                      </div>
+                      <div className="space-y-3 rounded-xl border p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">{t("form_fields_title")}</p>
+                          <Button type="button" variant="outline" size="sm" onClick={addFormField}>
+                            <Plus className="size-4" />
+                            {t("form_add_field")}
+                          </Button>
+                        </div>
+                        {editFormFields.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">{t("form_fields_empty")}</p>
+                        ) : null}
+                        {editFormFields.map((field, fieldIndex) => {
+                          const needsOptions =
+                            field.type === "single_choice" ||
+                            field.type === "checkboxes" ||
+                            field.type === "dropdown";
+                          return (
+                            <div key={field.id || `form-field-${fieldIndex}`} className="space-y-2 rounded-lg border p-3">
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <Input
+                                  value={field.label}
+                                  onChange={(event) =>
+                                    updateFormField(fieldIndex, { label: event.target.value })
+                                  }
+                                  placeholder={t("form_field_label")}
+                                />
+                                <select
+                                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                                  value={field.type}
+                                  onChange={(event) =>
+                                    updateFormField(fieldIndex, {
+                                      type: event.target.value as NonNullable<LinkFormValues["formFields"]>[number]["type"],
+                                      options:
+                                        event.target.value === "single_choice" ||
+                                        event.target.value === "checkboxes" ||
+                                        event.target.value === "dropdown"
+                                          ? field.options && field.options.length > 0
+                                            ? field.options
+                                            : [t("form_option_default")]
+                                          : [],
+                                    })
+                                  }
+                                >
+                                  <option value="name">{t("form_field_type_name")}</option>
+                                  <option value="email">{t("form_field_type_email")}</option>
+                                  <option value="phone">{t("form_field_type_phone")}</option>
+                                  <option value="country">{t("form_field_type_country")}</option>
+                                  <option value="date_of_birth">{t("form_field_type_date_of_birth")}</option>
+                                  <option value="short_answer">{t("form_field_type_short_answer")}</option>
+                                  <option value="paragraph">{t("form_field_type_paragraph")}</option>
+                                  <option value="single_choice">{t("form_field_type_single_choice")}</option>
+                                  <option value="checkboxes">{t("form_field_type_checkboxes")}</option>
+                                  <option value="dropdown">{t("form_field_type_dropdown")}</option>
+                                  <option value="date">{t("form_field_type_date")}</option>
+                                </select>
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
+                                <Input
+                                  value={field.placeholder ?? ""}
+                                  onChange={(event) =>
+                                    updateFormField(fieldIndex, { placeholder: event.target.value })
+                                  }
+                                  placeholder={t("form_field_placeholder")}
+                                />
+                                <label className="flex items-center gap-2 text-xs">
+                                  <Switch
+                                    checked={Boolean(field.required)}
+                                    onCheckedChange={(nextValue) =>
+                                      updateFormField(fieldIndex, { required: nextValue })
+                                    }
+                                  />
+                                  {t("form_required")}
+                                </label>
+                                <Button type="button" variant="ghost" size="sm" onClick={() => moveFormField(fieldIndex, -1)}>
+                                  {t("form_move_up")}
+                                </Button>
+                                <Button type="button" variant="ghost" size="sm" onClick={() => moveFormField(fieldIndex, 1)}>
+                                  {t("form_move_down")}
+                                </Button>
+                              </div>
+                              {needsOptions ? (
+                                <Input
+                                  value={(field.options ?? []).join(", ")}
+                                  onChange={(event) =>
+                                    updateFormField(fieldIndex, {
+                                      options: event.target.value
+                                        .split(",")
+                                        .map((option) => option.trim())
+                                        .filter(Boolean),
+                                    })
+                                  }
+                                  placeholder={t("form_options_placeholder")}
+                                />
+                              ) : null}
+                              <div className="flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeFormField(fieldIndex)}
+                                >
+                                  {t("form_remove_field")}
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {editFormFieldsError ? (
+                          <p className="text-xs text-destructive">{editFormFieldsError}</p>
+                        ) : null}
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch checked={editEnabled} onCheckedChange={(v) => editForm.setValue("enabled", v)} />
+                        {t("links_enabled")}
+                      </label>
+                    </>
                   ) : (
                     <>
                       <div className="space-y-2">
@@ -937,17 +1314,25 @@ export const LinksSection = () => {
                 </>
               ) : null}
 
-              {(editContentType === "discount" || editContentType === "embed_post") && editTab === "layout" ? (
+              {(editContentType === "discount" || editContentType === "embed_post" || editContentType === "form") && editTab === "layout" ? (
                 <>
                   <div className="space-y-2">
                     <Label>
                       {editContentType === "embed_post"
                         ? t("embed_post_fields_layout")
+                        : editContentType === "form"
+                          ? t("form_layout_label")
                         : t("links_label_layout")}
                     </Label>
                     <select
                       className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                      {...editForm.register(editContentType === "discount" ? "layout" : "embedLayout")}
+                      {...editForm.register(
+                        editContentType === "discount"
+                          ? "layout"
+                          : editContentType === "embed_post"
+                            ? "embedLayout"
+                            : "formLayout",
+                      )}
                     >
                       <option value="classic">{t("links_layout_classic")}</option>
                       <option value="featured">{t("links_layout_featured")}</option>
@@ -983,7 +1368,7 @@ export const LinksSection = () => {
                         ) : null}
                       </div>
                     </>
-                  ) : (
+                  ) : editContentType === "embed_post" ? (
                     <>
                       <div className="space-y-2">
                         <Label>{t("embed_post_fields_card_title")}</Label>
@@ -1026,6 +1411,10 @@ export const LinksSection = () => {
                         ) : null}
                       </div>
                     </>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                      {t("form_layout_helper")}
+                    </div>
                   )}
                   {editContentType === "discount" ? (
                     <div className="space-y-2">
@@ -1042,7 +1431,7 @@ export const LinksSection = () => {
                         onError={(message) => setUploadWarning(message)}
                       />
                     </div>
-                  ) : (
+                  ) : editContentType === "embed_post" ? (
                     <>
                       <div className="space-y-2">
                         <Label>{t("embed_post_fields_card_icon")}</Label>
@@ -1073,6 +1462,10 @@ export const LinksSection = () => {
                         />
                       </div>
                     </>
+                  ) : (
+                    <div className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                      {t("form_layout_helper")}
+                    </div>
                   )}
                   <label className="flex items-center gap-2 text-sm">
                     <Switch checked={editEnabled} onCheckedChange={(v) => editForm.setValue("enabled", v)} />

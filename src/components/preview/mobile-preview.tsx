@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { SafeImage } from "@/components/shared/safe-image";
 import { ComponentType, useEffect, useMemo, useRef, useState } from "react";
 import {
   Globe,
@@ -18,6 +18,7 @@ import {
   getContentType,
   getDiscountData,
   getEmbedPostData,
+  getFormData,
   getSortedVisibleLinks,
 } from "@/features/builder/utils";
 import {
@@ -28,6 +29,11 @@ import {
   getHeroHeaderRequestSrc,
   getHeroHeaderSrc,
 } from "@/features/builder/utils/header-media";
+import {
+  collectIndexedDbImageRefsFromBuilderData,
+  getImageDataUrlByRef,
+  hydrateBuilderDataWithIndexedDbImages,
+} from "@/lib/local-storage/image-storage";
 import { useI18n } from "@/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +56,9 @@ type XActivityChecklistState = {
   reposted: boolean;
   commented: boolean;
 };
+
+type FormSubmissionValues = Record<string, string | string[]>;
+type FormSubmissionErrors = Record<string, string>;
 
 const WALLPAPER_FALLBACK_SRC = "/placeholders/wallpaper-default.svg";
 const THUMBNAIL_FALLBACK_SRC = "/placeholders/link-thumbnail-default.svg";
@@ -79,7 +88,7 @@ const SocialVisual = ({ social }: { social: SocialLink }) => {
   const iconSrc = normalizeImageSrc(social.iconUrl);
   if (iconSrc) {
     return (
-      <Image
+      <SafeImage
         src={iconSrc}
         alt=""
         width={16}
@@ -150,9 +159,9 @@ const getEmbedSrcFromProvider = (provider: string, sourceUrl: string): string | 
 
 const getProviderModalClass = (provider: string): string => {
   if (provider === "x") {
-    return "max-w-4xl";
+    return "max-w-[520px]";
   }
-  return "max-w-2xl";
+  return "max-w-[520px]";
 };
 
 const getXPostUrlFromEmbedCode = (embedCode: string): string | null => {
@@ -201,6 +210,12 @@ const buildProviderEmbedSrcDoc = (
   }
   return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;">${embedCode}</body></html>`;
 };
+
+const isEmailValid = (value: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+const isPhoneValid = (value: string): boolean =>
+  /^[+]?[0-9\s\-()]{7,20}$/.test(value.trim());
 
 const ensureXWidgetsScript = (): Promise<void> =>
   new Promise((resolve) => {
@@ -263,18 +278,25 @@ const XEmbedRenderer = ({ markup }: { markup: string }) => {
   }, [markup]);
 
   return (
-    <div className="mx-auto w-full max-w-[550px] rounded-lg border border-white/10 bg-white p-2 text-black">
+    <div className="mx-auto w-full max-w-full rounded-lg border border-white/10 bg-white p-2 text-black">
       <div ref={containerRef} />
     </div>
   );
 };
 
 export const MobilePreview = ({
-  data,
+  data: rawData,
   mode = "admin",
   onPublicLinkClick,
 }: MobilePreviewProps) => {
+  const isAdminPreview = mode === "admin";
   const { t } = useI18n();
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const [resolvedImageRefs, setResolvedImageRefs] = useState<Record<string, string>>({});
+  const data = useMemo(
+    () => hydrateBuilderDataWithIndexedDbImages(rawData, resolvedImageRefs),
+    [rawData, resolvedImageRefs],
+  );
   const visibleLinks = getSortedVisibleLinks(data);
   const [brokenAvatarSources, setBrokenAvatarSources] = useState<Record<string, true>>({});
   const [brokenWallpaperSources, setBrokenWallpaperSources] = useState<Record<string, true>>({});
@@ -284,6 +306,10 @@ export const MobilePreview = ({
   const [copiedEmbedLinkId, setCopiedEmbedLinkId] = useState<string | null>(null);
   const [activeDiscountId, setActiveDiscountId] = useState<string | null>(null);
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
+  const [activeFormId, setActiveFormId] = useState<string | null>(null);
+  const [formValuesByLink, setFormValuesByLink] = useState<Record<string, FormSubmissionValues>>({});
+  const [formErrorsByLink, setFormErrorsByLink] = useState<Record<string, FormSubmissionErrors>>({});
+  const [formSubmittedByLink, setFormSubmittedByLink] = useState<Record<string, boolean>>({});
   const [xActivityChecklistByLink, setXActivityChecklistByLink] = useState<
     Record<string, XActivityChecklistState>
   >({});
@@ -321,6 +347,46 @@ export const MobilePreview = ({
   }, [activeEmbedId, visibleLinks]);
 
   useEffect(() => {
+    const refs = collectIndexedDbImageRefsFromBuilderData(rawData).filter(
+      (ref) => !resolvedImageRefs[ref],
+    );
+    if (refs.length === 0) {
+      return;
+    }
+
+    let canceled = false;
+    void Promise.all(
+      refs.map(async (ref) => {
+        const resolved = await getImageDataUrlByRef(ref);
+        return { ref, resolved };
+      }),
+    ).then((results) => {
+      if (canceled) {
+        return;
+      }
+
+      const nextEntries = results.filter(
+        (item): item is { ref: string; resolved: string } => Boolean(item.resolved),
+      );
+      if (nextEntries.length === 0) {
+        return;
+      }
+
+      setResolvedImageRefs((current) => {
+        const next = { ...current };
+        for (const item of nextEntries) {
+          next[item.ref] = item.resolved;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [rawData, resolvedImageRefs]);
+
+  useEffect(() => {
     const candidateSrc = wallpaperRequestSrc;
     let canceled = false;
     const image = new window.Image();
@@ -340,7 +406,7 @@ export const MobilePreview = ({
   }, [wallpaperRequestSrc]);
 
   useEffect(() => {
-    if (!activeDiscountId && !activeEmbedId) {
+    if (!activeDiscountId && !activeEmbedId && !activeFormId) {
       return;
     }
 
@@ -352,6 +418,7 @@ export const MobilePreview = ({
         if (activeEmbedDismissible) {
           setActiveEmbedId(null);
         }
+        setActiveFormId(null);
       }
     };
 
@@ -361,7 +428,38 @@ export const MobilePreview = ({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [activeDiscountId, activeEmbedDismissible, activeEmbedId]);
+  }, [activeDiscountId, activeEmbedDismissible, activeEmbedId, activeFormId]);
+
+  useEffect(() => {
+    if (mode !== "admin" || typeof window === "undefined") {
+      return;
+    }
+
+    const resetPreviewScroll = () => {
+      previewScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    };
+
+    const onHashChange = () => {
+      resetPreviewScroll();
+    };
+
+    const onAnchorClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const hashAnchor = target?.closest?.('a[href^="#"]') as HTMLAnchorElement | null;
+      if (!hashAnchor) {
+        return;
+      }
+      window.requestAnimationFrame(resetPreviewScroll);
+    };
+
+    window.addEventListener("hashchange", onHashChange);
+    document.addEventListener("click", onAnchorClick, true);
+
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      document.removeEventListener("click", onAnchorClick, true);
+    };
+  }, [mode]);
 
   const buttonStyleClass =
     data.buttonStyle.style === "glass"
@@ -378,9 +476,21 @@ export const MobilePreview = ({
           ? "shadow-md shadow-black/20"
           : "";
   return (
-    <div className="mx-auto w-full max-w-[390px] rounded-[40px] border-8 border-zinc-900/95 bg-zinc-950 p-2 shadow-[0_18px_60px_rgba(2,6,23,0.5)]">
+    <div
+      className={cn(
+        "mx-auto w-full",
+        isAdminPreview
+          ? "max-w-[390px] rounded-[40px] border-8 border-zinc-900/95 bg-zinc-950 p-2 shadow-[0_18px_60px_rgba(2,6,23,0.5)]"
+          : "max-w-none",
+      )}
+    >
       <div
-        className="relative h-[760px] overflow-hidden rounded-[30px] border border-white/15"
+        className={cn(
+          "relative overflow-hidden",
+          isAdminPreview
+            ? "h-[760px] rounded-[30px] border border-white/15"
+            : "rounded-[28px]",
+        )}
         style={{
           backgroundColor: data.theme.pageBackground,
           color: data.theme.textColor,
@@ -424,11 +534,21 @@ export const MobilePreview = ({
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/35 to-black/65" />
 
-        <div className="relative flex h-full flex-col overflow-y-auto px-5 py-6">
+        <div
+          ref={previewScrollRef}
+          className={cn(
+            "relative flex flex-col pb-6",
+            isAdminPreview
+              ? "h-full overflow-y-scroll overscroll-y-contain px-5 pt-6 [scrollbar-gutter:stable] [scrollbar-color:rgba(255,255,255,0.5)_rgba(255,255,255,0.12)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/45 hover:[&::-webkit-scrollbar-thumb]:bg-white/60"
+              : "px-4 pt-0 sm:px-5 md:px-6",
+          )}
+          style={isAdminPreview ? { scrollbarWidth: "thin" } : undefined}
+        >
           <ProfileHeader
             data={data}
             avatarSrc={avatarSrc}
             heroHeaderSrc={heroHeaderSrc}
+            flushToTop={!isAdminPreview}
             onAvatarError={() => {
               if (avatarSrc === AVATAR_HEADER_FALLBACK_SRC || brokenAvatarSources[avatarRequestSrc]) {
                 return;
@@ -491,7 +611,8 @@ export const MobilePreview = ({
                 ? THUMBNAIL_FALLBACK_SRC
                 : thumbnailSrc;
               const className = cn(
-                "flex items-center gap-3 border px-4 py-3 text-sm font-semibold backdrop-blur-sm transition hover:brightness-105",
+                "w-full flex items-center gap-3 border font-semibold backdrop-blur-sm transition hover:brightness-105",
+                isAdminPreview ? "px-4 py-3 text-sm" : "p-4 text-sm sm:p-5 sm:text-base md:p-6",
                 data.buttonStyle.uppercase && "uppercase tracking-wide",
                 data.buttonStyle.shadow && shadowClass,
                 buttonStyleClass,
@@ -510,8 +631,10 @@ export const MobilePreview = ({
               const parsedHref = parsePreviewHref(link.url);
               const isDiscount = getContentType(link) === "discount";
               const isEmbedPost = getContentType(link) === "embed_post";
+              const isForm = getContentType(link) === "form";
               const discount = getDiscountData(link);
               const embedPost = getEmbedPostData(link);
+              const form = getFormData(link);
               const discountLayout = discount.layout;
 
               const renderDiscountCta = (
@@ -520,7 +643,7 @@ export const MobilePreview = ({
                 const ctaLabel = discount.ctaButtonLabel || t("preview_disabled_cta");
                 if (!parsedDiscountHref.href || parsedDiscountHref.kind === "invalid") {
                   return (
-                    <span className="inline-flex items-center rounded-md border border-white/30 px-3 py-1.5 text-xs opacity-65">
+                    <span className="inline-flex w-full items-center justify-center rounded-full border border-white/30 px-5 text-sm font-semibold opacity-65 min-h-12 sm:w-auto sm:text-base">
                       {t("preview_disabled_cta")}
                     </span>
                   );
@@ -530,7 +653,7 @@ export const MobilePreview = ({
                   return (
                     <Link
                       href={parsedDiscountHref.href}
-                      className="inline-flex items-center rounded-md border border-white/35 px-3 py-1.5 text-xs"
+                      className="inline-flex w-full items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold min-h-12 sm:w-auto sm:text-base"
                       onClick={() => {
                         if (discount.analyticsHooks?.trackCtaClick ?? true) {
                           onPublicLinkClick?.(link.id, "cta");
@@ -547,7 +670,7 @@ export const MobilePreview = ({
                     href={parsedDiscountHref.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center rounded-md border border-white/35 px-3 py-1.5 text-xs"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold min-h-12 sm:w-auto sm:text-base"
                     onClick={() => {
                       if (discount.analyticsHooks?.trackCtaClick ?? true) {
                         onPublicLinkClick?.(link.id, "cta");
@@ -560,7 +683,7 @@ export const MobilePreview = ({
               };
               const content = (
                 <>
-                  <Image
+                  <SafeImage
                     src={safeThumbnailSrc}
                     alt=""
                     className="size-10 rounded-md border border-black/10 object-cover"
@@ -574,9 +697,9 @@ export const MobilePreview = ({
                     }}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate">{link.title}</p>
+                    <p className="truncate text-sm sm:text-base font-semibold">{link.title}</p>
                     {link.description ? (
-                      <p className="truncate text-[11px] opacity-80">{link.description}</p>
+                      <p className="truncate text-xs leading-relaxed opacity-80 sm:text-sm">{link.description}</p>
                     ) : null}
                   </div>
                   {link.settings.locked ? (
@@ -609,8 +732,9 @@ export const MobilePreview = ({
                     <button
                       type="button"
                       className={cn(
-                        "w-full space-y-3 border text-left text-sm font-semibold backdrop-blur-sm transition hover:brightness-105",
-                        isFeatured ? "rounded-2xl px-4 py-4 shadow-xl" : "px-4 py-3",
+                        "w-full space-y-3 border text-left font-semibold backdrop-blur-sm transition hover:brightness-105",
+                        isFeatured ? "rounded-2xl shadow-xl" : "",
+                        isAdminPreview ? "px-4 py-3 text-sm" : "p-4 text-sm sm:p-5 sm:text-base md:p-6",
                       )}
                       style={style}
                       onClick={() => {
@@ -622,7 +746,7 @@ export const MobilePreview = ({
                       }}
                     >
                       <div className={cn("flex items-center gap-3", isFeatured && "items-start")}>
-                        <Image
+                        <SafeImage
                           src={safeCardThumbnailSrc}
                           alt=""
                           className={cn(
@@ -642,21 +766,23 @@ export const MobilePreview = ({
                           }}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate">{discount.cardTitle || link.title}</p>
+                          <p className="truncate text-sm sm:text-base font-semibold">
+                            {discount.cardTitle || link.title}
+                          </p>
                           {isFeatured ? (
                             <p className="mt-1 inline-flex rounded-full border border-white/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em]">
                               {t("preview_layout_featured_badge")}
                             </p>
                           ) : null}
-                          <p className="truncate text-[11px] opacity-80">
+                          <p className="truncate text-xs leading-relaxed opacity-80 sm:text-sm">
                             {t("preview_use_my_code")}
                           </p>
                         </div>
                       </div>
                       {discount.modalDescription ? (
-                        <p className="text-[11px] opacity-80">{discount.modalDescription}</p>
+                        <p className="text-xs leading-relaxed opacity-80 sm:text-sm">{discount.modalDescription}</p>
                       ) : null}
-                      <p className="text-[11px] opacity-85">{t("discount_open_details")}</p>
+                      <p className="text-xs leading-relaxed opacity-85 sm:text-sm">{t("discount_open_details")}</p>
                     </button>
 
                     {activeDiscountId === link.id ? (
@@ -665,11 +791,13 @@ export const MobilePreview = ({
                         onClick={() => setActiveDiscountId(null)}
                       >
                         <div
-                          className="w-full max-w-md rounded-2xl border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl"
+                          className="mx-auto w-[calc(100%-24px)] max-w-[520px] rounded-[28px] overflow-hidden border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5 md:p-6"
                           onClick={(event) => event.stopPropagation()}
                         >
                           <div className="mb-3 flex items-start justify-between gap-3">
-                            <h3 className="text-base font-semibold">{discount.modalTitle}</h3>
+                            <h3 className="text-lg font-bold leading-tight sm:text-xl md:text-2xl">
+                              {discount.modalTitle}
+                            </h3>
                             <button
                               type="button"
                               className="rounded-md border border-white/25 p-1"
@@ -679,10 +807,10 @@ export const MobilePreview = ({
                               <X className="size-4" />
                             </button>
                           </div>
-                          <Image
+                          <SafeImage
                             src={safeHeroSrc}
                             alt=""
-                            className="h-40 w-full rounded-lg border border-white/20 object-cover"
+                            className="w-full rounded-2xl border border-white/20 object-cover max-h-[220px] sm:max-h-[260px] md:max-h-[320px]"
                             width={480}
                             height={320}
                             onError={() => {
@@ -695,11 +823,13 @@ export const MobilePreview = ({
                               setBrokenHeroKeys((current) => ({ ...current, [heroKey]: true }));
                             }}
                           />
-                          <p className="mt-3 text-sm text-zinc-200">{discount.modalDescription}</p>
-                          <div className="mt-4 flex items-center justify-between gap-2">
+                          <p className="mt-3 text-sm leading-relaxed text-zinc-200 sm:text-base">
+                            {discount.modalDescription}
+                          </p>
+                          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
                             <button
                               type="button"
-                              className="rounded-full border border-white/30 px-3 py-1 text-xs"
+                              className="w-full min-h-12 rounded-full border border-white/30 px-5 text-sm font-semibold sm:text-base"
                               onClick={async () => {
                                 if (!code || typeof navigator === "undefined" || !navigator.clipboard) {
                                   return;
@@ -794,7 +924,7 @@ export const MobilePreview = ({
                 const renderEmbedCta = () => {
                   if (!parsedCtaHref.href || parsedCtaHref.kind === "invalid") {
                     return (
-                      <span className="inline-flex items-center rounded-md border border-white/30 px-3 py-1.5 text-xs opacity-65">
+                      <span className="inline-flex w-full min-h-12 items-center justify-center rounded-full border border-white/30 px-5 text-sm font-semibold opacity-65 sm:text-base">
                         {t("preview_disabled_cta")}
                       </span>
                     );
@@ -804,7 +934,7 @@ export const MobilePreview = ({
                     return (
                       <Link
                         href={parsedCtaHref.href}
-                        className="inline-flex items-center rounded-md border border-white/35 px-3 py-1.5 text-xs"
+                        className="inline-flex w-full min-h-12 items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold sm:text-base"
                         onClick={() => onPublicLinkClick?.(link.id, "cta")}
                       >
                         {embedPost.ctaButtonLabel || t("embed_post_action_view_on_platform")}
@@ -817,7 +947,7 @@ export const MobilePreview = ({
                       href={parsedCtaHref.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center rounded-md border border-white/35 px-3 py-1.5 text-xs"
+                      className="inline-flex w-full min-h-12 items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold sm:text-base"
                       onClick={() => onPublicLinkClick?.(link.id, "cta")}
                     >
                       {embedPost.ctaButtonLabel || t("embed_post_action_view_on_platform")}
@@ -830,8 +960,9 @@ export const MobilePreview = ({
                     <button
                       type="button"
                       className={cn(
-                        "w-full space-y-3 border text-left text-sm font-semibold backdrop-blur-sm transition hover:brightness-105",
-                        isFeatured ? "rounded-2xl px-4 py-4 shadow-xl" : "px-4 py-3",
+                        "w-full space-y-3 border text-left font-semibold backdrop-blur-sm transition hover:brightness-105",
+                        isFeatured ? "rounded-2xl shadow-xl" : "",
+                        isAdminPreview ? "px-4 py-3 text-sm" : "p-4 text-sm sm:p-5 sm:text-base md:p-6",
                       )}
                       style={style}
                       onClick={() => {
@@ -841,7 +972,7 @@ export const MobilePreview = ({
                       }}
                     >
                       <div className={cn("flex items-center gap-3", isFeatured && "items-start")}>
-                        <Image
+                        <SafeImage
                           src={safeCardThumbnailSrc}
                           alt=""
                           className={cn(
@@ -861,18 +992,20 @@ export const MobilePreview = ({
                           }}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate">{embedPost.cardTitle || link.title}</p>
+                          <p className="truncate text-sm sm:text-base font-semibold">
+                            {embedPost.cardTitle || link.title}
+                          </p>
                           {isFeatured ? (
                             <p className="mt-1 inline-flex rounded-full border border-white/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em]">
                               {t("links_layout_featured")}
                             </p>
                           ) : null}
-                          <p className="truncate text-[11px] opacity-80">
+                          <p className="truncate text-xs leading-relaxed opacity-80 sm:text-sm">
                             {t("embed_post_public_open_in_modal")}
                           </p>
                         </div>
                         {cardIconSrc ? (
-                          <Image
+                          <SafeImage
                             src={safeCardIconSrc}
                             alt=""
                             className="size-7 rounded-md border border-white/20 object-cover"
@@ -903,13 +1036,15 @@ export const MobilePreview = ({
                       >
                         <div
                           className={cn(
-                            "w-full rounded-2xl border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl",
+                            "mx-auto w-[calc(100%-24px)] max-w-[520px] rounded-[28px] overflow-hidden border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5 md:p-6",
                             providerModalClass,
                           )}
                           onClick={(event) => event.stopPropagation()}
                         >
                           <div className="mb-3 flex items-start justify-between gap-3">
-                            <h3 className="text-base font-semibold">{embedPost.modalTitle || embedPost.cardTitle}</h3>
+                            <h3 className="text-lg font-bold leading-tight sm:text-xl md:text-2xl">
+                              {embedPost.modalTitle || embedPost.cardTitle}
+                            </h3>
                             {embedPost.dismissible ? (
                               <button
                                 type="button"
@@ -924,43 +1059,48 @@ export const MobilePreview = ({
 
                           <div
                             className={cn(
-                              "rounded-xl border border-white/15 bg-black/25 p-2",
-                              isXProvider ? "max-h-[78vh] overflow-y-auto" : "",
+                              "w-full rounded-[24px] overflow-hidden border border-white/15 bg-black/25",
                             )}
                           >
-                            {embedUnavailable ? (
-                              <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200">
-                                {t("embed_post_public_unavailable")}
-                              </div>
-                            ) : isXProvider && xEmbedMarkup ? (
-                              <XEmbedRenderer markup={xEmbedMarkup} />
-                            ) : embedPost.embedMode === "code" ? (
-                              <iframe
-                                title={embedPost.modalTitle || embedPost.cardTitle}
-                                className="h-[300px] w-full rounded-lg border border-white/10 bg-white"
-                                sandbox="allow-scripts allow-same-origin allow-popups"
-                                srcDoc={
-                                  providerEmbedSrcDoc ??
-                                  `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;">${embedPost.embedCode}</body></html>`
-                                }
-                              />
-                            ) : iframeSrc ? (
-                              <iframe
-                                title={embedPost.modalTitle || embedPost.cardTitle}
-                                className="h-[300px] w-full rounded-lg border border-white/10 bg-black"
-                                src={iframeSrc}
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowFullScreen
-                              />
-                            ) : (
-                              <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200">
-                                {t("embed_post_public_unavailable")}
-                              </div>
-                            )}
+                            <div className="w-full max-h-[70vh] overflow-y-auto">
+                              {embedUnavailable ? (
+                                <div className="flex w-full min-h-[420px] items-center justify-center border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200 sm:min-h-[520px] md:min-h-[640px]">
+                                  {t("embed_post_public_unavailable")}
+                                </div>
+                              ) : isXProvider && xEmbedMarkup ? (
+                                <div className="w-full min-h-[420px] sm:min-h-[520px] md:min-h-[640px]">
+                                  <XEmbedRenderer markup={xEmbedMarkup} />
+                                </div>
+                              ) : embedPost.embedMode === "code" ? (
+                                <iframe
+                                  title={embedPost.modalTitle || embedPost.cardTitle}
+                                  className="w-full min-h-[420px] border border-white/10 bg-white sm:min-h-[520px] md:min-h-[640px]"
+                                  sandbox="allow-scripts allow-same-origin allow-popups"
+                                  srcDoc={
+                                    providerEmbedSrcDoc ??
+                                    `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;">${embedPost.embedCode}</body></html>`
+                                  }
+                                />
+                              ) : iframeSrc ? (
+                                <iframe
+                                  title={embedPost.modalTitle || embedPost.cardTitle}
+                                  className="w-full min-h-[420px] border border-white/10 bg-black sm:min-h-[520px] md:min-h-[640px]"
+                                  src={iframeSrc}
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                  allowFullScreen
+                                />
+                              ) : (
+                                <div className="flex w-full min-h-[420px] items-center justify-center border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200 sm:min-h-[520px] md:min-h-[640px]">
+                                  {t("embed_post_public_unavailable")}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {embedPost.description ? (
-                            <p className="mt-3 text-sm text-zinc-200">{embedPost.description}</p>
+                            <p className="px-4 py-3 text-sm text-zinc-200 sm:px-5 sm:py-4 sm:text-base">
+                              {embedPost.description}
+                            </p>
                           ) : null}
                           {isXProvider ? (
                             <>
@@ -1002,26 +1142,26 @@ export const MobilePreview = ({
                                   );
                                 })}
                               </div>
-                              <div className="mt-4 flex flex-wrap items-center gap-2">
+                              <div className="mx-4 mb-4 mt-4 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:grid-cols-2">
                                 {parsedXSourceHref.kind === "external" && parsedXSourceHref.href ? (
                                   <a
                                     href={parsedXSourceHref.href}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="rounded-md border border-white/30 px-3 py-1.5 text-xs"
+                                    className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:text-base"
                                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                                   >
                                     Open on X
                                   </a>
                                 ) : (
-                                  <span className="rounded-md border border-white/30 px-3 py-1.5 text-xs opacity-65">
+                                  <span className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold opacity-65 sm:text-base">
                                     Open on X
                                   </span>
                                 )}
                                 {parsedCtaHref.kind === "internal" && parsedCtaHref.href ? (
                                   <Link
                                     href={parsedCtaHref.href}
-                                    className="rounded-md border border-white/35 px-3 py-1.5 text-xs"
+                                    className="w-full min-h-12 rounded-full border border-white/35 px-5 text-center text-sm font-semibold sm:text-base"
                                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                                   >
                                     {embedPost.ctaButtonLabel || "Continue / Open source"}
@@ -1031,7 +1171,7 @@ export const MobilePreview = ({
                                     href={parsedCtaHref.href}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="rounded-md border border-white/35 px-3 py-1.5 text-xs"
+                                    className="w-full min-h-12 rounded-full border border-white/35 px-5 text-center text-sm font-semibold sm:text-base"
                                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                                   >
                                     {embedPost.ctaButtonLabel || "Continue / Open source"}
@@ -1039,7 +1179,7 @@ export const MobilePreview = ({
                                 ) : (
                                   <button
                                     type="button"
-                                    className="cursor-not-allowed rounded-md border border-white/30 px-3 py-1.5 text-xs opacity-65"
+                                    className="w-full min-h-12 cursor-not-allowed rounded-full border border-white/30 px-5 text-center text-sm font-semibold opacity-65 sm:text-base"
                                     disabled
                                   >
                                     {embedPost.ctaButtonLabel || "Continue / Open source"}
@@ -1047,7 +1187,7 @@ export const MobilePreview = ({
                                 )}
                                 <button
                                   type="button"
-                                  className="rounded-md border border-white/30 px-3 py-1.5 text-xs"
+                                  className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:col-span-2 sm:text-base"
                                   onClick={() => {
                                     if (embedPost.dismissible) {
                                       setActiveEmbedId(null);
@@ -1061,10 +1201,10 @@ export const MobilePreview = ({
                             </>
                           ) : (
                             <>
-                              <div className="mt-4 flex flex-wrap items-center gap-2">
+                              <div className="mx-4 mb-4 mt-4 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:grid-cols-2">
                                 <button
                                   type="button"
-                                  className="rounded-md border border-white/30 px-3 py-1.5 text-xs"
+                                  className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:text-base"
                                   onClick={async () => {
                                     if (
                                       !parsedSourceHref.href ||
@@ -1093,7 +1233,7 @@ export const MobilePreview = ({
                                 {embedPost.dismissible ? (
                                   <button
                                     type="button"
-                                    className="rounded-md border border-white/30 px-3 py-1.5 text-xs"
+                                    className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:col-span-2 sm:text-base"
                                     onClick={() => setActiveEmbedId(null)}
                                   >
                                     {t("embed_post_action_close")}
@@ -1115,6 +1255,272 @@ export const MobilePreview = ({
                           {isXProvider && parsedCtaHref.kind === "invalid" ? (
                             <p className="mt-2 text-[11px] text-amber-300">{t("embed_post_validation_cta_invalid")}</p>
                           ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              }
+
+              if (isForm) {
+                const isFeatured = form.layout === "featured";
+                const currentFormValues = formValuesByLink[link.id] ?? {};
+                const currentFormErrors = formErrorsByLink[link.id] ?? {};
+                const isSubmitted = Boolean(formSubmittedByLink[link.id]);
+                const validateForm = (): FormSubmissionErrors => {
+                  const nextErrors: FormSubmissionErrors = {};
+                  form.fields.forEach((field) => {
+                    const rawValue = currentFormValues[field.id];
+                    const stringValue = typeof rawValue === "string" ? rawValue.trim() : "";
+                    const listValue = Array.isArray(rawValue) ? rawValue.filter(Boolean) : [];
+                    const hasValue = Array.isArray(rawValue) ? listValue.length > 0 : Boolean(stringValue);
+
+                    if (field.required && !hasValue) {
+                      nextErrors[field.id] = t("form_error_required");
+                      return;
+                    }
+                    if (!hasValue) {
+                      return;
+                    }
+                    if (field.type === "email" && !isEmailValid(stringValue)) {
+                      nextErrors[field.id] = t("form_error_email");
+                      return;
+                    }
+                    if (field.type === "phone" && !isPhoneValid(stringValue)) {
+                      nextErrors[field.id] = t("form_error_phone");
+                      return;
+                    }
+                    if (
+                      (field.type === "single_choice" ||
+                        field.type === "checkboxes" ||
+                        field.type === "dropdown") &&
+                      (!field.options || field.options.length === 0)
+                    ) {
+                      nextErrors[field.id] = t("form_error_options");
+                    }
+                  });
+                  return nextErrors;
+                };
+
+                return (
+                  <div key={link.id}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "w-full space-y-2 border text-left font-semibold backdrop-blur-sm transition hover:brightness-105",
+                        isFeatured ? "rounded-2xl p-5 shadow-xl" : "p-4",
+                      )}
+                      style={style}
+                      onClick={() => {
+                        setActiveFormId(link.id);
+                        setActiveDiscountId(null);
+                        setActiveEmbedId(null);
+                        setFormSubmittedByLink((current) => ({ ...current, [link.id]: false }));
+                        setFormErrorsByLink((current) => ({ ...current, [link.id]: {} }));
+                        onPublicLinkClick?.(link.id, "modal_open");
+                      }}
+                    >
+                      <p className="text-sm font-semibold sm:text-base">{form.formTitle || link.title}</p>
+                      {form.intro ? (
+                        <p className="text-xs leading-relaxed opacity-85 sm:text-sm">{form.intro}</p>
+                      ) : null}
+                      <p className="text-[11px] opacity-80">{t("form_open_form")}</p>
+                    </button>
+
+                    {activeFormId === link.id ? (
+                      <div
+                        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 sm:items-center"
+                        onClick={() => setActiveFormId(null)}
+                      >
+                        <div
+                          className="mx-auto w-[calc(100%-24px)] max-w-[520px] rounded-[28px] overflow-hidden border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5 md:p-6"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <h3 className="text-lg font-bold leading-tight sm:text-xl md:text-2xl">
+                              {form.formTitle || link.title}
+                            </h3>
+                            <button
+                              type="button"
+                              className="rounded-md border border-white/25 p-1"
+                              onClick={() => setActiveFormId(null)}
+                              aria-label={t("embed_post_action_close")}
+                            >
+                              <X className="size-4" />
+                            </button>
+                          </div>
+
+                          {isSubmitted ? (
+                            <div className="space-y-3 rounded-xl border border-white/15 bg-black/25 p-4">
+                              <p className="text-sm sm:text-base">
+                                {form.outro || t("form_submit_success_default")}
+                              </p>
+                              <button
+                                type="button"
+                                className="w-full rounded-md border border-white/30 px-3 py-2 text-sm"
+                                onClick={() => setActiveFormId(null)}
+                              >
+                                {t("embed_post_action_close")}
+                              </button>
+                            </div>
+                          ) : (
+                            <form
+                              className="space-y-3"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                const nextErrors = validateForm();
+                                setFormErrorsByLink((current) => ({ ...current, [link.id]: nextErrors }));
+                                if (Object.keys(nextErrors).length > 0) {
+                                  return;
+                                }
+                                setFormSubmittedByLink((current) => ({ ...current, [link.id]: true }));
+                              }}
+                            >
+                              {form.intro ? (
+                                <p className="text-sm text-zinc-200 sm:text-base">{form.intro}</p>
+                              ) : null}
+                              {form.fields.map((field) => {
+                                const fieldValue = currentFormValues[field.id];
+                                const options = field.options ?? [];
+                                const showOptions =
+                                  field.type === "single_choice" ||
+                                  field.type === "checkboxes" ||
+                                  field.type === "dropdown";
+
+                                return (
+                                  <div key={field.id} className="space-y-1.5">
+                                    <label className="text-xs font-medium uppercase tracking-[0.06em] text-zinc-300">
+                                      {field.label}
+                                      {field.required ? " *" : ""}
+                                    </label>
+                                    {field.type === "paragraph" ? (
+                                      <textarea
+                                        className="min-h-[96px] w-full rounded-md border border-white/20 bg-black/35 px-3 py-2 text-sm text-white outline-none"
+                                        value={typeof fieldValue === "string" ? fieldValue : ""}
+                                        placeholder={field.placeholder ?? ""}
+                                        onChange={(event) =>
+                                          setFormValuesByLink((current) => ({
+                                            ...current,
+                                            [link.id]: {
+                                              ...(current[link.id] ?? {}),
+                                              [field.id]: event.target.value,
+                                            },
+                                          }))
+                                        }
+                                      />
+                                    ) : field.type === "single_choice" && showOptions ? (
+                                      <div className="space-y-2">
+                                        {options.map((option) => (
+                                          <label key={option} className="flex items-center gap-2 text-sm">
+                                            <input
+                                              type="radio"
+                                              name={`${link.id}-${field.id}`}
+                                              checked={fieldValue === option}
+                                              onChange={() =>
+                                                setFormValuesByLink((current) => ({
+                                                  ...current,
+                                                  [link.id]: {
+                                                    ...(current[link.id] ?? {}),
+                                                    [field.id]: option,
+                                                  },
+                                                }))
+                                              }
+                                            />
+                                            <span>{option}</span>
+                                          </label>
+                                        ))}
+                                      </div>
+                                    ) : field.type === "checkboxes" && showOptions ? (
+                                      <div className="space-y-2">
+                                        {options.map((option) => {
+                                          const currentValues = Array.isArray(fieldValue) ? fieldValue : [];
+                                          const checked = currentValues.includes(option);
+                                          return (
+                                            <label key={option} className="flex items-center gap-2 text-sm">
+                                              <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={(event) => {
+                                                  const nextValues = event.target.checked
+                                                    ? [...currentValues, option]
+                                                    : currentValues.filter((item) => item !== option);
+                                                  setFormValuesByLink((current) => ({
+                                                    ...current,
+                                                    [link.id]: {
+                                                      ...(current[link.id] ?? {}),
+                                                      [field.id]: nextValues,
+                                                    },
+                                                  }));
+                                                }}
+                                              />
+                                              <span>{option}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : field.type === "dropdown" && showOptions ? (
+                                      <select
+                                        className="h-10 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white"
+                                        value={typeof fieldValue === "string" ? fieldValue : ""}
+                                        onChange={(event) =>
+                                          setFormValuesByLink((current) => ({
+                                            ...current,
+                                            [link.id]: {
+                                              ...(current[link.id] ?? {}),
+                                              [field.id]: event.target.value,
+                                            },
+                                          }))
+                                        }
+                                      >
+                                        <option value="">{t("form_select_option")}</option>
+                                        {options.map((option) => (
+                                          <option key={option} value={option}>
+                                            {option}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <input
+                                        type={
+                                          field.type === "email"
+                                            ? "email"
+                                            : field.type === "phone"
+                                              ? "tel"
+                                              : field.type === "date" || field.type === "date_of_birth"
+                                                ? "date"
+                                                : "text"
+                                        }
+                                        className="h-10 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white outline-none"
+                                        value={typeof fieldValue === "string" ? fieldValue : ""}
+                                        placeholder={field.placeholder ?? ""}
+                                        onChange={(event) =>
+                                          setFormValuesByLink((current) => ({
+                                            ...current,
+                                            [link.id]: {
+                                              ...(current[link.id] ?? {}),
+                                              [field.id]: event.target.value,
+                                            },
+                                          }))
+                                        }
+                                      />
+                                    )}
+                                    {currentFormErrors[field.id] ? (
+                                      <p className="text-xs text-amber-300">{currentFormErrors[field.id]}</p>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                              {form.termsPlaceholder ? (
+                                <p className="text-xs text-zinc-300">{form.termsPlaceholder}</p>
+                              ) : null}
+                              <button
+                                type="submit"
+                                className="w-full min-h-12 rounded-full border border-white/30 px-5 text-sm font-semibold sm:text-base"
+                              >
+                                {form.submitLabel || t("form_submit")}
+                              </button>
+                            </form>
+                          )}
                         </div>
                       </div>
                     ) : null}
@@ -1199,3 +1605,4 @@ export const MobilePreview = ({
     </div>
   );
 };
+
