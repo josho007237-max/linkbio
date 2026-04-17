@@ -3,10 +3,11 @@ import { writeFile } from "node:fs/promises";
 import { NextResponse } from "next/server";
 
 import {
-  appendSupportSubmission,
   getSupportSubmissionUploadPath,
   SupportSubmissionRecord,
 } from "@/lib/server/support-submissions-store";
+import { submitDepositIssue } from "@/lib/server/support-submission-adapter";
+import { safeJsonParse } from "@/lib/json/safe-json-parse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,40 +18,36 @@ const parseResponses = (raw: FormDataEntryValue | null): SupportSubmissionRecord
   if (typeof raw !== "string") {
     return [];
   }
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed
-      .map((item) => {
-        if (!item || typeof item !== "object") {
-          return null;
-        }
-        const candidate = item as {
-          id?: unknown;
-          label?: unknown;
-          value?: unknown;
-        };
-        if (typeof candidate.id !== "string" || typeof candidate.label !== "string") {
-          return null;
-        }
-        const value =
-          typeof candidate.value === "string"
-            ? candidate.value
-            : Array.isArray(candidate.value)
-              ? candidate.value.filter((entry): entry is string => typeof entry === "string")
-              : "";
-        return {
-          id: candidate.id,
-          label: candidate.label,
-          value,
-        };
-      })
-      .filter((entry): entry is SupportSubmissionRecord["fields"][number] => Boolean(entry));
-  } catch {
+  const parsed = safeJsonParse<unknown>(raw, []);
+  if (!Array.isArray(parsed)) {
     return [];
   }
+  return parsed
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const candidate = item as {
+        id?: unknown;
+        label?: unknown;
+        value?: unknown;
+      };
+      if (typeof candidate.id !== "string" || typeof candidate.label !== "string") {
+        return null;
+      }
+      const value =
+        typeof candidate.value === "string"
+          ? candidate.value
+          : Array.isArray(candidate.value)
+            ? candidate.value.filter((entry): entry is string => typeof entry === "string")
+            : "";
+      return {
+        id: candidate.id,
+        label: candidate.label,
+        value,
+      };
+    })
+    .filter((entry): entry is SupportSubmissionRecord["fields"][number] => Boolean(entry));
 };
 
 export async function POST(request: Request) {
@@ -85,24 +82,25 @@ export async function POST(request: Request) {
   const uploadPath = await getSupportSubmissionUploadPath("deposit_issue", slip.name || "slip-image");
   const fileBuffer = Buffer.from(await slip.arrayBuffer());
   await writeFile(uploadPath.absolutePath, fileBuffer);
+  const submittedAt = new Date().toISOString();
 
-  const record: SupportSubmissionRecord = {
-    id: crypto.randomUUID(),
-    kind: "deposit_issue",
-    slug,
-    linkId,
-    formTitle,
-    template,
-    submittedAt: new Date().toISOString(),
-    fields: responses,
-    attachment: {
-      fileName: slip.name || "slip-image",
-      mimeType: slip.type,
-      size: slip.size,
-      relativePath: uploadPath.relativePath,
-    },
-  };
-
-  await appendSupportSubmission("deposit_issue", record);
-  return NextResponse.json({ ok: true, id: record.id });
+  try {
+    const origin = new URL(request.url).origin;
+    await submitDepositIssue({
+      slug,
+      linkId,
+      formTitle,
+      template,
+      submittedAt,
+      fields: responses,
+      slipUrl: `${origin}${uploadPath.apiPath}`,
+    });
+    return NextResponse.json({ ok: true, id: crypto.randomUUID() });
+  } catch (error) {
+    console.error("[support-submission] deposit_issue submission failed", error);
+    return NextResponse.json(
+      { error: "Submission failed. Please try again later." },
+      { status: 500 },
+    );
+  }
 }

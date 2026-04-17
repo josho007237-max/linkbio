@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
-  appendSupportSubmission,
   SupportSubmissionRecord,
 } from "@/lib/server/support-submissions-store";
+import { submitWithdrawIssue } from "@/lib/server/support-submission-adapter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,17 +66,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing required metadata." }, { status: 400 });
   }
 
-  const record: SupportSubmissionRecord = {
-    id: crypto.randomUUID(),
-    kind: "withdraw_issue",
-    slug,
-    linkId,
-    formTitle,
-    template,
-    submittedAt: new Date().toISOString(),
-    fields: responses,
-  };
-
-  await appendSupportSubmission("withdraw_issue", record);
-  return NextResponse.json({ ok: true, id: record.id });
+  try {
+    await submitWithdrawIssue({
+      slug,
+      linkId,
+      formTitle,
+      template,
+      submittedAt: new Date().toISOString(),
+      fields: responses,
+    });
+    return NextResponse.json({ ok: true, id: crypto.randomUUID() });
+  } catch (error) {
+    console.error("[support-submission] withdraw_issue submission failed", error);
+    return NextResponse.json(
+      { error: "Submission failed. Please try again later." },
+      { status: 500 },
+    );
+  }
 }

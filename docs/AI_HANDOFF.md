@@ -1,54 +1,39 @@
 # AI Handoff
 
 ## Current goal
-Build two operational in-site support forms (deposit issue / withdraw issue) using the existing Form block system, with server-side submission handling and mobile-first UX.
+Add Google Sheets integration for existing in-site support forms while keeping current UX/routes unchanged and preserving local-dev fallback.
 
 ## Last completed
-- Added two fixed support templates inside Form flow:
-  - `deposit_issue` (`ฝากเงินไม่เข้า`)
-  - `withdraw_issue` (`ถอนเงินไม่ได้`)
-- Added support defaults in template factory:
-  - Thai title/intro/outro
-  - Thai submit button
-  - sensible preset fields for each support type
-- Extended Form field model with `file_image` type for deposit slip upload.
-- Kept Form inside Links system and add flow:
-  - add-picker now includes support form templates
-  - form template dropdown now includes support templates
-  - form field type dropdown includes image upload
-- Added support-specific labels in Links list:
-  - Support Deposit / Support Withdraw
-- Public form UX updates:
-  - submit inside site (no redirect)
-  - inline validation and submit error state
-  - disable submit while submitting
-  - retry + cancel controls
-  - success state remains in modal with readable mobile layout
-  - deposit form supports image-only slip upload with size/type checks and contained preview
-- Added server-side submission flow (not localStorage):
-  - `POST /api/support/deposit-issues` (multipart + slip upload)
-  - `POST /api/support/withdraw-issues` (JSON)
-  - submissions stored in server-local dev JSON store
-  - uploaded slips stored in server-local dev file path
+- Added submission adapter layer:
+  - `SUPPORT_SUBMISSION_ADAPTER_MODE=auto|local_dev|google_sheets`
+  - Google Sheets adapter selected by env configuration
+  - local-dev JSON store remains fallback in development
+- Kept existing support endpoints and client UX unchanged:
+  - `POST /api/support/deposit-issues`
+  - `POST /api/support/withdraw-issues`
+- Added Google Sheets row writing with service-account JWT auth.
+- Added dedicated sheet/tab target support:
+  - deposit tab (default: `ฝากเงินไม่เข้า`)
+  - withdraw tab (default: `ถอนเงินไม่ได้`)
+- Added server route for uploaded slip file references:
+  - `GET /api/support/uploads/[kind]/[file]`
+  - deposit submissions now store usable `slip_url` references for sheet rows.
 
 ## Changed files
-- `src/features/builder/types.ts`
-- `src/features/builder/schema.ts`
-- `src/features/builder/utils.ts`
-- `src/components/admin/sections/links-section.tsx`
-- `src/components/preview/mobile-preview.tsx`
-- `src/i18n/en.ts`
-- `src/i18n/th.ts`
+- `.env.example`
+- `src/lib/server/support-submission-adapter.ts`
+- `src/lib/server/support-submissions-store.ts`
 - `src/lib/server/support-submissions-store.ts`
 - `src/app/api/support/deposit-issues/route.ts`
 - `src/app/api/support/withdraw-issues/route.ts`
+- `src/app/api/support/uploads/[kind]/[file]/route.ts`
 - `docs/AI_HANDOFF.md`
 
 ## Behavior change
-- Form block now supports two fixed support presets with operational in-site submission.
-- Deposit issue supports required image slip upload; withdraw issue is text-only.
-- Submissions are handled server-side and are no longer just local success simulation for support templates.
-- Builder autosave/save-reset/restore/profile manager/slug no-overwrite flow remains unchanged.
+- Support submissions can now be routed to Google Sheets in production without changing endpoint or UI flow.
+- Local dev file storage remains available as fallback/development target.
+- Deposit sheet rows include: `submitted_at, issue_type, user, registered_phone, slip_url, transaction_time, note, status`.
+- Withdraw sheet rows include: `submitted_at, issue_type, user, phone, full_name, bank_account, transaction_time, note, status`.
 
 ## Lint result
 - `npm run lint`: PASS
@@ -58,13 +43,35 @@ Build two operational in-site support forms (deposit issue / withdraw issue) usi
 
 ## Known issues
 - In this environment, non-escalated production build may fail with `spawn EPERM`; escalated build succeeds.
-- Submission storage is currently local-dev file based:
+- Local-dev storage still writes to:
   - `data/support-submissions.dev.json`
   - `data/support-uploads/...`
-- Browser-local image refs (`idbimg:`) remain browser-scoped and are not cross-device assets.
-- Google Sheets integration is not yet implemented (current code is adapter-ready at API/store layer).
+- For Google Sheets mode, target tabs must already exist in the spreadsheet and match env tab names.
+- Uploaded slip URLs use local app host path (`/api/support/uploads/...`), so external readers need network access to this app host.
+
+## Google Sheets setup
+1. Create one Google Sheet and two tabs:
+   - `ฝากเงินไม่เข้า`
+   - `ถอนเงินไม่ได้`
+2. Add header columns exactly:
+   - Deposit tab:
+     - `submitted_at, issue_type, user, registered_phone, slip_url, transaction_time, note, status`
+   - Withdraw tab:
+     - `submitted_at, issue_type, user, phone, full_name, bank_account, transaction_time, note, status`
+3. Create a Google service account and share the sheet with service account email (Editor).
+4. Configure env:
+   - `SUPPORT_SUBMISSION_ADAPTER_MODE=google_sheets` (or `auto`)
+   - `GOOGLE_SHEETS_SUPPORT_SPREADSHEET_ID=<sheet-id>`
+   - `GOOGLE_SHEETS_SUPPORT_DEPOSIT_TAB=ฝากเงินไม่เข้า`
+   - `GOOGLE_SHEETS_SUPPORT_WITHDRAW_TAB=ถอนเงินไม่ได้`
+   - `GOOGLE_SERVICE_ACCOUNT_EMAIL=<service-account-email>`
+   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY=<private-key-with-\\n>`
+5. Mode behavior:
+   - `auto`: uses Google when configured, otherwise local dev store.
+   - `local_dev`: always local JSON/file store.
+   - `google_sheets`: requires valid config; in development, missing config falls back to local with warning.
 
 ## Next recommended step
-1. Add a submission adapter interface implementation for Google Sheets (or webhook) behind environment-based config.
-2. Add a lightweight admin-only dev viewer endpoint/page for support submissions to verify operations quickly.
-3. Add rate-limit / abuse guard middleware for support submission endpoints before production deployment.
+1. Add rate limiting and bot/abuse checks on support submit routes.
+2. Add a secure signed URL / private object storage strategy for slip files in production.
+3. Add lightweight submission monitoring/alerting for failed Google Sheets writes.

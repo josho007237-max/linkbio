@@ -68,7 +68,7 @@ export const appendSupportSubmission = async (
 export const getSupportSubmissionUploadPath = async (
   kind: SupportSubmissionKind,
   fileName: string,
-): Promise<{ absolutePath: string; relativePath: string }> => {
+): Promise<{ absolutePath: string; relativePath: string; apiPath: string }> => {
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const relativePath = path.join(
     "data",
@@ -78,5 +78,9 @@ export const getSupportSubmissionUploadPath = async (
   );
   const absolutePath = path.join(process.cwd(), relativePath);
   await mkdir(path.dirname(absolutePath), { recursive: true });
-  return { absolutePath, relativePath: relativePath.replaceAll("\\", "/") };
+  return {
+    absolutePath,
+    relativePath: relativePath.replaceAll("\\", "/"),
+    apiPath: `/api/support/uploads/${kind}/${encodeURIComponent(path.basename(relativePath))}`,
+  };
 };
