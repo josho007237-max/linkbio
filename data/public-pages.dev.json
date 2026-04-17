@@ -583,5 +583,200 @@
         }
       }
     ]
+  },
+  "011236": {
+    "header": {
+      "username": "011236",
+      "displayName": "Northfield Studio",
+      "tagline": "Creative strategy, digital design, and content systems for growing brands.",
+      "avatarUrl": "/placeholders/avatar-default.svg",
+      "heroImageUrl": "idbimg:da73a221-4838-4880-b0e6-294a4ff0f053",
+      "layout": "hero",
+      "titleMode": "display_name",
+      "heroTextAlign": "center",
+      "heroOverlay": true,
+      "heroOverlayStrength": 0.35,
+      "matchThemeToHero": false
+    },
+    "theme": {
+      "name": "midnight",
+      "wallpaperUrl": "/placeholders/wallpaper-default.svg",
+      "wallpaperVideoUrl": "",
+      "wallpaperStyle": "blur",
+      "pageBackground": "#0B1222",
+      "cardBackground": "rgba(17, 25, 40, 0.85)",
+      "textColor": "#F4F7FF",
+      "mutedTextColor": "#B8C2DB",
+      "titleColor": "#F4F7FF",
+      "titleSize": 28,
+      "pageFont": "inter",
+      "buttonBackground": "#2563EB",
+      "buttonTextColor": "#EFF6FF",
+      "buttonRadius": 18
+    },
+    "text": {
+      "intro": "Start with the most important destination for your audience.",
+      "body": "Use this page to guide visitors to your services, booking flow, portfolio, and business updates.",
+      "footerEnabled": false,
+      "footerText": "Powered by Link-in-Bio Builder"
+    },
+    "buttonStyle": {
+      "uppercase": false,
+      "shadow": true,
+      "style": "outline",
+      "shadowLevel": 2
+    },
+    "socials": [
+      {
+        "id": "social-instagram",
+        "platform": "instagram",
+        "url": "https://instagram.com",
+        "enabled": true,
+        "iconUrl": "idbimg:3749510e-e71d-4aaa-a843-090d586ed4bd"
+      },
+      {
+        "id": "social-youtube",
+        "platform": "youtube",
+        "url": "https://youtube.com",
+        "enabled": true,
+        "iconUrl": ""
+      },
+      {
+        "id": "social-x",
+        "platform": "x",
+        "url": "https://x.com",
+        "enabled": true,
+        "iconUrl": ""
+      }
+    ],
+    "links": [
+      {
+        "id": "form-tbv6htf",
+        "contentType": "form",
+        "title": "ถอนเงินไม่ได้",
+        "url": "https://example.com/form",
+        "description": "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว",
+        "enabled": true,
+        "form": {
+          "type": "form",
+          "template": "withdraw_issue",
+          "layout": "classic",
+          "formTitle": "ถอนเงินไม่ได้",
+          "intro": "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว",
+          "outro": "ระบบได้รับข้อมูลของท่านเรียบร้อยแล้ว\nเจ้าหน้าที่กำลังดำเนินการตรวจสอบ กรุณารอสักครู่",
+          "submitLabel": "ส่งข้อมูลเพื่อตรวจสอบ",
+          "termsPlaceholder": "",
+          "fields": [
+            {
+              "id": "form-field-0587ik8",
+              "label": "USER",
+              "type": "short_answer",
+              "required": true,
+              "placeholder": "กรอก USER"
+            },
+            {
+              "id": "form-field-alm570t",
+              "label": "เบอร์โทรศัพท์",
+              "type": "phone",
+              "required": true,
+              "placeholder": "08X-XXX-XXXX"
+            },
+            {
+              "id": "form-field-ugmryri",
+              "label": "ชื่อ-นามสกุล",
+              "type": "name",
+              "required": true,
+              "placeholder": "ชื่อจริง นามสกุล"
+            },
+            {
+              "id": "form-field-9o3vs52",
+              "label": "เลขที่บัญชี",
+              "type": "short_answer",
+              "required": true,
+              "placeholder": "เลขที่บัญชี"
+            },
+            {
+              "id": "form-field-ai6lmin",
+              "label": "เวลาที่ทำรายการ",
+              "type": "short_answer",
+              "required": true,
+              "placeholder": "เช่น 2026-04-18 14:30"
+            },
+            {
+              "id": "form-field-irvknd8",
+              "label": "หมายเหตุเพิ่มเติม",
+              "type": "paragraph",
+              "required": false,
+              "placeholder": "รายละเอียดเพิ่มเติม (ถ้ามี)"
+            }
+          ]
+        },
+        "settings": {
+          "thumbnailUrl": "",
+          "prioritize": false,
+          "locked": false
+        }
+      },
+      {
+        "id": "form-cjmk4no",
+        "contentType": "form",
+        "title": "ฝากเงินไม่เข้า",
+        "url": "https://example.com/form",
+        "description": "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว",
+        "enabled": true,
+        "form": {
+          "type": "form",
+          "template": "deposit_issue",
+          "layout": "classic",
+          "formTitle": "ฝากเงินไม่เข้า",
+          "intro": "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อให้เจ้าหน้าที่ดำเนินการตรวจสอบได้อย่างรวดเร็ว",
+          "outro": "ระบบได้รับข้อมูลของท่านเรียบร้อยแล้ว\nเจ้าหน้าที่กำลังดำเนินการตรวจสอบ กรุณารอสักครู่",
+          "submitLabel": "ส่งข้อมูลเพื่อตรวจสอบ",
+          "termsPlaceholder": "",
+          "fields": [
+            {
+              "id": "form-field-jgkuedj",
+              "label": "USER",
+              "type": "short_answer",
+              "required": true,
+              "placeholder": "กรอก USER"
+            },
+            {
+              "id": "form-field-y7wgyh7",
+              "label": "เบอร์โทรศัพท์ที่ลงทะเบียน",
+              "type": "phone",
+              "required": true,
+              "placeholder": "08X-XXX-XXXX"
+            },
+            {
+              "id": "form-field-u2h6dv4",
+              "label": "แนบสลิปการทำรายการ",
+              "type": "file_image",
+              "required": true,
+              "placeholder": ""
+            },
+            {
+              "id": "form-field-kow1v4g",
+              "label": "เวลาที่ทำรายการ",
+              "type": "short_answer",
+              "required": true,
+              "placeholder": "เช่น 2026-04-18 14:30"
+            },
+            {
+              "id": "form-field-qc7jlri",
+              "label": "หมายเหตุเพิ่มเติม",
+              "type": "paragraph",
+              "required": false,
+              "placeholder": "รายละเอียดเพิ่มเติม (ถ้ามี)"
+            }
+          ]
+        },
+        "settings": {
+          "thumbnailUrl": "",
+          "prioritize": false,
+          "locked": false
+        }
+      }
+    ]
   }
 }
