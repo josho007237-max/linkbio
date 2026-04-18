@@ -56,8 +56,8 @@ export const wallpaperSchema = z.object({
 });
 
 export const textSchema = z.object({
-  intro: z.string().trim(),
-  body: z.string().trim(),
+  intro: z.string().trim().min(2, "Intro text is required."),
+  body: z.string().trim().min(2, "Body text is required."),
   footerEnabled: z.boolean(),
   footerText: z.string().trim(),
 });
@@ -597,4 +597,3 @@ export type SocialFormValues = z.infer<typeof socialSchema>;
 export type LinkFormValues = z.infer<typeof linkSchema>;
 export type LinkSettingsFormValues = z.infer<typeof linkSettingsSchema>;
 export type BuilderDataFormValues = z.infer<typeof builderDataSchema>;
-
