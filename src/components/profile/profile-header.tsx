@@ -26,12 +26,14 @@ export const ProfileHeader = ({
     data.header.publicHandle?.trim() ||
     data.header.publicUsername?.trim() ||
     data.header.username;
+
   const titleColor = data.theme.titleColor ?? data.theme.textColor;
   const titleSize = data.theme.titleSize ?? 28;
   const displayTitle =
     data.header.titleMode === "username"
       ? `@${publicHandle}`
       : data.header.displayName;
+
   const heroTextAlign = data.header.heroTextAlign ?? "center";
   const heroOverlay = data.header.heroOverlay ?? true;
   const heroOverlayStrength = data.header.heroOverlayStrength ?? 0.35;
@@ -39,11 +41,15 @@ export const ProfileHeader = ({
   const pageBackground = data.theme.pageBackground || "#111827";
   const heroFallbackGradient = `linear-gradient(135deg, ${data.theme.buttonBackground || "#334155"} 0%, ${pageBackground} 100%)`;
 
+  const tagline = data.header.tagline?.trim() ?? "";
+  const intro = data.text.intro?.trim() ?? "";
+  const body = data.text.body?.trim() ?? "";
+
   if (data.header.layout === "hero") {
     return (
       <section className={cn("-mx-5 mb-2", flushToTop ? "mt-0" : "-mt-6")}>
         <div
-          className="relative w-full overflow-hidden rounded-t-[28px] h-[220px] sm:h-[260px] md:h-[320px]"
+          className="relative h-[220px] w-full overflow-hidden rounded-t-[28px] sm:h-[260px] md:h-[320px]"
           style={{ ["--page-bg" as string]: pageBackground }}
         >
           {hasHeroImage ? (
@@ -62,6 +68,7 @@ export const ProfileHeader = ({
               aria-hidden="true"
             />
           )}
+
           {heroOverlay ? (
             <div
               className="absolute inset-0"
@@ -70,41 +77,54 @@ export const ProfileHeader = ({
               }}
             />
           ) : null}
+
           <div className="pointer-events-none absolute inset-0 bg-black/25" />
           <div
             className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent via-black/25 to-[var(--page-bg)]"
             aria-hidden="true"
           />
+
           <div
             className={cn(
               "relative z-10 flex h-full flex-col justify-end px-4 pb-5 sm:px-5 sm:pb-6 md:px-6 md:pb-7",
               heroTextAlign === "left" ? "text-left" : "text-center",
             )}
           >
-            <h2
-              className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
-            >
+            <h2 className="text-2xl font-bold leading-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)] sm:text-3xl md:text-4xl">
               {displayTitle}
             </h2>
+
             <p className="mt-1 text-sm text-white/85 drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] sm:text-base">
               @{publicHandle}
             </p>
-            <p className="mt-1 text-sm font-medium text-white/85 drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] sm:text-base">
-              {data.header.tagline}
-            </p>
+
+            {tagline ? (
+              <p className="mt-1 text-sm font-medium text-white/85 drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] sm:text-base">
+                {tagline}
+              </p>
+            ) : null}
           </div>
         </div>
-        <div
-          className={cn(
-            "space-y-2 px-5 pt-3",
-            heroTextAlign === "left" ? "text-left" : "text-center",
-          )}
-        >
-          <p className="text-sm font-medium">{data.text.intro}</p>
-          <p className="text-xs leading-5" style={{ color: data.theme.mutedTextColor }}>
-            {data.text.body}
-          </p>
-        </div>
+
+        {(intro || body) ? (
+          <div
+            className={cn(
+              "space-y-2 px-5 pt-3",
+              heroTextAlign === "left" ? "text-left" : "text-center",
+            )}
+          >
+            {intro ? <p className="text-sm font-medium">{intro}</p> : null}
+
+            {body ? (
+              <p
+                className="text-xs leading-5"
+                style={{ color: data.theme.mutedTextColor }}
+              >
+                {body}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -124,22 +144,34 @@ export const ProfileHeader = ({
           onError={onAvatarError}
         />
       </div>
+
       <h2
         className="text-center font-bold"
         style={{ color: titleColor, fontSize: `${titleSize}px`, lineHeight: 1.15 }}
       >
         {displayTitle}
       </h2>
+
       <p className="mt-1 text-center text-sm" style={{ color: data.theme.mutedTextColor }}>
         @{publicHandle}
       </p>
-      <p className="mt-2 text-center text-xs font-medium opacity-90">{data.header.tagline}</p>
-      <p className="mt-4 text-center text-sm font-medium">{data.text.intro}</p>
-      <p className="mt-2 text-center text-xs leading-5" style={{ color: data.theme.mutedTextColor }}>
-        {data.text.body}
-      </p>
+
+      {tagline ? (
+        <p className="mt-2 text-center text-xs font-medium opacity-90">{tagline}</p>
+      ) : null}
+
+      {intro ? (
+        <p className="mt-4 text-center text-sm font-medium">{intro}</p>
+      ) : null}
+
+      {body ? (
+        <p
+          className="mt-2 text-center text-xs leading-5"
+          style={{ color: data.theme.mutedTextColor }}
+        >
+          {body}
+        </p>
+      ) : null}
     </div>
   );
 };
-
-
