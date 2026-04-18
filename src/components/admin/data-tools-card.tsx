@@ -72,7 +72,7 @@ const createPageWorkspaceData = (slug: string, pageName: string): BuilderData =>
   header: {
     ...mockBuilderData.header,
     username: slug,
-    publicUsername: slug,
+    publicHandle: slug,
     displayName: pageName,
   },
 });

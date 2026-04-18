@@ -63,17 +63,19 @@ const selectBuilderDataSnapshot = (): BuilderData => {
 
 const normalizeWorkspaceData = (slug: string, payload: BuilderData): BuilderData => {
   const normalizedSlug = toProfileSlug(slug);
-  const fallbackPublicUsername =
-    typeof payload.header.publicUsername === "string" && payload.header.publicUsername.trim()
-      ? payload.header.publicUsername.trim()
-      : payload.header.username;
+  const fallbackPublicHandle =
+    typeof payload.header.publicHandle === "string" && payload.header.publicHandle.trim()
+      ? payload.header.publicHandle.trim()
+      : typeof payload.header.publicUsername === "string" && payload.header.publicUsername.trim()
+        ? payload.header.publicUsername.trim()
+        : payload.header.username;
 
   return {
     ...payload,
     header: {
       ...payload.header,
       username: normalizedSlug,
-      publicUsername: fallbackPublicUsername,
+      publicHandle: fallbackPublicHandle,
     },
   };
 };
@@ -235,8 +237,10 @@ export const AdminShell = () => {
               header: {
                 ...payload.header,
                 username: targetSlug,
-                publicUsername:
-                  payload.header.publicUsername?.trim() || payload.header.username,
+                publicHandle:
+                  payload.header.publicHandle?.trim() ||
+                  payload.header.publicUsername?.trim() ||
+                  payload.header.username,
               },
             };
             await upsertPublicPageBySlug(targetSlug, payloadForSave);
@@ -420,7 +424,8 @@ export const AdminShell = () => {
       header: {
         ...collisionDialog.pendingPayload.header,
         username: duplicateSlug,
-        publicUsername:
+        publicHandle:
+          collisionDialog.pendingPayload.header.publicHandle?.trim() ||
           collisionDialog.pendingPayload.header.publicUsername?.trim() ||
           collisionDialog.pendingPayload.header.username,
       },

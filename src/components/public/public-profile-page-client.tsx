@@ -34,10 +34,12 @@ const normalizeHeaderForSlug = (slug: string, profile: BuilderData): BuilderData
   header: {
     ...profile.header,
     username: slug,
-    publicUsername:
-      typeof profile.header.publicUsername === "string" && profile.header.publicUsername.trim()
-        ? profile.header.publicUsername.trim()
-        : profile.header.username,
+    publicHandle:
+      typeof profile.header.publicHandle === "string" && profile.header.publicHandle.trim()
+        ? profile.header.publicHandle.trim()
+        : typeof profile.header.publicUsername === "string" && profile.header.publicUsername.trim()
+          ? profile.header.publicUsername.trim()
+          : profile.header.username,
   },
 });
 

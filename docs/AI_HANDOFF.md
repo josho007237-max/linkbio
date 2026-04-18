@@ -461,3 +461,41 @@ create index if not exists public_pages_updated_at_idx
 ### Build result
 - `npm run build`: PASS (after escalated rerun)
 - Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+## Update 2026-04-18 (data model alignment: publicHandle)
+
+### Changed files
+- `src/features/builder/types.ts`
+- `src/features/builder/schema.ts`
+- `src/features/builder/mock-data.ts`
+- `src/features/builder/utils.ts`
+- `src/components/admin/admin-shell.tsx`
+- `src/components/admin/sections/header-section.tsx`
+- `src/components/admin/saved-profiles-manager-card.tsx`
+- `src/components/admin/data-tools-card.tsx`
+- `src/components/profile/profile-header.tsx`
+- `src/components/public/public-profile-page-client.tsx`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Normalized header display identity to `publicHandle` while keeping route identity on `username` (slug).
+- Editor header field now writes to `publicHandle`; slug remains read-only in editor and controlled by create/duplicate/load workspace flows.
+- Public/profile rendering now uses `@publicHandle` (with compatibility fallback chain):
+  - `publicHandle`
+  - legacy `publicUsername`
+  - legacy `username`
+- Save/hydration normalization now preserves slug in `header.username` and maps display-handle to `header.publicHandle`.
+- Backward compatibility retained for old saved payloads containing `publicUsername` or only `username`.
+
+### Unchanged
+- Support forms flow unchanged.
+- Google Sheets flow unchanged.
+- Supabase public page persistence unchanged.
+- Admin login guard/proxy unchanged.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.

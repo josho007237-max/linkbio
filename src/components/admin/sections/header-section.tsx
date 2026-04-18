@@ -30,7 +30,7 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
     mode: "onChange",
     defaultValues: {
       username: header.username,
-      publicUsername: header.publicUsername ?? header.username,
+      publicHandle: header.publicHandle ?? header.publicUsername ?? header.username,
       displayName: header.displayName,
       tagline: header.tagline,
       avatarUrl: header.avatarUrl,
@@ -160,8 +160,8 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
         <input type="hidden" {...form.register("username")} />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="publicUsername">{t("header_username")}</Label>
-        <Input id="publicUsername" {...form.register("publicUsername")} />
+        <Label htmlFor="publicHandle">{t("header_username")}</Label>
+        <Input id="publicHandle" {...form.register("publicHandle")} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="displayName">{t("header_display_name")}</Label>

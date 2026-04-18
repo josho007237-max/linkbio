@@ -150,6 +150,8 @@ export type BioLink = {
 
 export type ProfileHeader = {
   username: string;
+  publicHandle?: string;
+  // Backward-compat fallback for older saved payloads.
   publicUsername?: string;
   displayName: string;
   tagline: string;

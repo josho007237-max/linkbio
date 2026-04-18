@@ -342,10 +342,12 @@ export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
   ...data,
   header: {
     ...data.header,
-    publicUsername:
-      typeof data.header.publicUsername === "string" && data.header.publicUsername.trim()
-        ? data.header.publicUsername.trim()
-        : data.header.username,
+    publicHandle:
+      typeof data.header.publicHandle === "string" && data.header.publicHandle.trim()
+        ? data.header.publicHandle.trim()
+        : typeof data.header.publicUsername === "string" && data.header.publicUsername.trim()
+          ? data.header.publicUsername.trim()
+          : data.header.username,
   },
   links: data.links.map((link) => {
     if (getContentType(link) !== "discount") {

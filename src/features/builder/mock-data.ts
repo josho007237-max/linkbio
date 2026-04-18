@@ -4,7 +4,7 @@ import { defaultBrandPreset } from "@/features/builder/default-brand-preset";
 export const mockBuilderData: BuilderData = {
   header: {
     username: defaultBrandPreset.username,
-    publicUsername: defaultBrandPreset.username,
+    publicHandle: defaultBrandPreset.username,
     displayName: defaultBrandPreset.brandName,
     tagline: defaultBrandPreset.tagline,
     avatarUrl: defaultBrandPreset.avatarUrl,

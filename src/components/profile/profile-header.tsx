@@ -22,7 +22,10 @@ export const ProfileHeader = ({
   onHeroImageError,
   flushToTop = false,
 }: ProfileHeaderProps) => {
-  const publicHandle = data.header.publicUsername?.trim() || data.header.username;
+  const publicHandle =
+    data.header.publicHandle?.trim() ||
+    data.header.publicUsername?.trim() ||
+    data.header.username;
   const titleColor = data.theme.titleColor ?? data.theme.textColor;
   const titleSize = data.theme.titleSize ?? 28;
   const displayTitle =
