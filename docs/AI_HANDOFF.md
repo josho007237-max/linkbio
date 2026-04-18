@@ -304,3 +304,26 @@ create index if not exists public_pages_updated_at_idx
 ### Known issues
 - In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
 - If Supabase table/schema is missing, public page API will fail until the SQL setup is applied.
+
+## Update 2026-04-18 (dedicated admin route)
+
+### Changed files
+- `src/app/admin/page.tsx`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Added dedicated production editor route at `/admin`.
+- `/admin` now renders existing `AdminShell` directly.
+- Root route `/` remains unchanged and still redirects to `/110`.
+- No changes made to support form logic, Google Sheets deposit/withdraw flow, public page Supabase persistence, save/reset/restore behavior, or autosave logic.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Known issues
+- In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
+- Public page `/110` still requires a published row in Supabase (`public.public_pages`) to render content.
