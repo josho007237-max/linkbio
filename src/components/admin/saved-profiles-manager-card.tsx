@@ -1,7 +1,7 @@
 "use client";
 
 import { LoaderCircle } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,15 +11,17 @@ import { useBuilderStore } from "@/features/builder/store/use-builder-store";
 import { BuilderData } from "@/features/builder/types";
 import { useI18n } from "@/i18n/use-i18n";
 import { removeAnalyticsForSlug } from "@/lib/local-storage/analytics-storage";
+import { setActiveEditorSlug, toProfileSlug } from "@/lib/local-storage/profile-storage";
 import {
-  getSavedProfilesFromLocal,
-  removeProfileBySlug,
-  setActiveEditorSlug,
-  toProfileSlug,
-} from "@/lib/local-storage/profile-storage";
+  deletePublicPageBySlug,
+  listPublicPages,
+  type PublicPageListItem,
+} from "@/lib/public-pages/public-pages-client";
 
 type SavedProfilesManagerCardProps = {
   currentSlug: string;
+  isSwitchingWorkspace?: boolean;
+  onSwitchWorkspace?: (slug: string, options?: { fallbackData?: BuilderData; markUnsaved?: boolean }) => Promise<"remote" | "fallback">;
 };
 
 type NewPageCollisionState = {
@@ -50,11 +52,15 @@ const createPageWorkspaceData = (slug: string, pageName: string): BuilderData =>
   },
 });
 
-export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCardProps) => {
+export const SavedProfilesManagerCard = ({
+  currentSlug,
+  isSwitchingWorkspace = false,
+  onSwitchWorkspace,
+}: SavedProfilesManagerCardProps) => {
   const { t } = useI18n();
   const replaceBuilderData = useBuilderStore((state) => state.replaceBuilderData);
   const [isMounted, setIsMounted] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [savedProfiles, setSavedProfiles] = useState<PublicPageListItem[]>([]);
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -70,11 +76,51 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
   const activeSlug = useMemo(() => toProfileSlug(currentSlug), [currentSlug]);
   const statusTimerRef = useRef<number | null>(null);
 
+  const showToast = useCallback((type: "success" | "error", text: string) => {
+    if (statusTimerRef.current) {
+      window.clearTimeout(statusTimerRef.current);
+    }
+    setStatusMessage({ type, text });
+    statusTimerRef.current = window.setTimeout(() => {
+      setStatusMessage(null);
+      statusTimerRef.current = null;
+    }, 2200);
+  }, []);
+
+  const switchWorkspace = useCallback(
+    async (slug: string, options?: { fallbackData?: BuilderData; markUnsaved?: boolean }) => {
+      if (onSwitchWorkspace) {
+        return onSwitchWorkspace(slug, options);
+      }
+      if (options?.fallbackData) {
+        replaceBuilderData(options.fallbackData);
+      }
+      setActiveEditorSlug(slug);
+      return options?.fallbackData ? "fallback" : "remote";
+    },
+    [onSwitchWorkspace, replaceBuilderData],
+  );
+
+  const refreshSavedPages = useCallback(async () => {
+    try {
+      const pages = await listPublicPages();
+      setSavedProfiles(pages);
+      return pages;
+    } catch {
+      showToast("error", t("saved_manager_toast_load_error"));
+      return null;
+    }
+  }, [showToast, t]);
+
   useEffect(() => {
     const mountFrameId = window.requestAnimationFrame(() => {
       setIsMounted(true);
+      void refreshSavedPages();
     });
-    const onStorage = () => setRefreshKey((value) => value + 1);
+
+    const onStorage = () => {
+      void refreshSavedPages();
+    };
     window.addEventListener("storage", onStorage);
     const intervalId = window.setInterval(onStorage, 3000);
 
@@ -86,26 +132,7 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
       window.removeEventListener("storage", onStorage);
       window.clearInterval(intervalId);
     };
-  }, []);
-
-  const showToast = (type: "success" | "error", text: string) => {
-    if (statusTimerRef.current) {
-      window.clearTimeout(statusTimerRef.current);
-    }
-    setStatusMessage({ type, text });
-    statusTimerRef.current = window.setTimeout(() => {
-      setStatusMessage(null);
-      statusTimerRef.current = null;
-    }, 2200);
-  };
-
-  const savedProfiles = useMemo(() => {
-    if (!isMounted) {
-      return [];
-    }
-    void refreshKey;
-    return getSavedProfilesFromLocal();
-  }, [isMounted, refreshKey]);
+  }, [refreshSavedPages]);
 
   const handleCopyLink = async (slug: string) => {
     if (typeof navigator === "undefined" || !navigator.clipboard) {
@@ -118,31 +145,48 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
     window.setTimeout(() => setCopiedSlug(null), 1800);
   };
 
-  const handleLoadIntoEditor = (profile: BuilderData, slug: string) => {
+  const handleLoadIntoEditor = async (slug: string) => {
+    if (isSwitchingWorkspace) {
+      return;
+    }
     setPendingActionSlug(slug);
-    window.requestAnimationFrame(() => {
-      replaceBuilderData(profile);
-      setActiveEditorSlug(slug);
-      setPendingActionSlug(null);
+    try {
+      const result = await switchWorkspace(slug);
+      if (result === "fallback") {
+        showToast("error", t("saved_manager_toast_load_missing", { slug }));
+        return;
+      }
       showToast("success", t("saved_manager_toast_loaded", { slug }));
-    });
+    } catch {
+      showToast("error", t("saved_manager_toast_load_error"));
+    } finally {
+      setPendingActionSlug(null);
+    }
   };
 
   const handleCreateWorkspace = (slug: string, pageName: string) => {
+    if (isSwitchingWorkspace) {
+      return;
+    }
     const normalizedSlug = toProfileSlug(slug);
     const normalizedPageName = pageName.trim() || normalizedSlug;
     const pageWorkspace = createPageWorkspaceData(normalizedSlug, normalizedPageName);
 
     setPendingActionSlug(normalizedSlug);
-    window.requestAnimationFrame(() => {
-      replaceBuilderData(pageWorkspace);
-      setActiveEditorSlug(normalizedSlug);
-      setPendingActionSlug(null);
-      showToast("success", t("saved_manager_toast_created", { slug: normalizedSlug }));
-    });
+    void (async () => {
+      try {
+        await switchWorkspace(normalizedSlug, { fallbackData: pageWorkspace, markUnsaved: true });
+        showToast("success", t("saved_manager_toast_created", { slug: normalizedSlug }));
+      } finally {
+        setPendingActionSlug(null);
+      }
+    })();
   };
 
   const handleDuplicateIntoEditor = (profile: BuilderData, slug: string) => {
+    if (isSwitchingWorkspace) {
+      return;
+    }
     const existingSlugs = new Set(savedProfiles.map((item) => item.slug));
     existingSlugs.add(activeSlug);
     const duplicateSlug = createUniqueSlug(`${slug}-copy`, existingSlugs);
@@ -156,12 +200,17 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
     };
 
     setPendingActionSlug(slug);
-    window.requestAnimationFrame(() => {
-      replaceBuilderData(duplicateProfile);
-      setActiveEditorSlug(duplicateSlug);
-      setPendingActionSlug(null);
-      showToast("success", t("saved_manager_toast_duplicated", { slug: duplicateSlug }));
-    });
+    void (async () => {
+      try {
+        await switchWorkspace(duplicateSlug, {
+          fallbackData: duplicateProfile,
+          markUnsaved: true,
+        });
+        showToast("success", t("saved_manager_toast_duplicated", { slug: duplicateSlug }));
+      } finally {
+        setPendingActionSlug(null);
+      }
+    })();
   };
 
   const handleCreateNewPage = () => {
@@ -203,30 +252,39 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
     setNewPageCollision(null);
   };
 
-  const handleConfirmDelete = () => {
-    if (!deleteSlug) {
+  const handleConfirmDelete = async () => {
+    if (!deleteSlug || isSwitchingWorkspace) {
       return;
     }
 
-    const previousSavedProfiles = [...savedProfiles];
-    removeProfileBySlug(deleteSlug);
-    removeAnalyticsForSlug(deleteSlug);
-    if (deleteSlug === activeSlug) {
-      const fallbackPage = previousSavedProfiles.find((item) => item.slug !== deleteSlug);
-      if (fallbackPage) {
-        replaceBuilderData(fallbackPage.data);
-        setActiveEditorSlug(fallbackPage.slug);
-      } else {
-        const nextSlug = createUniqueSlug(`${deleteSlug}-new`, new Set([deleteSlug]));
-        const nextWorkspace = createPageWorkspaceData(nextSlug, t("saved_manager_new_page_default"));
-        replaceBuilderData(nextWorkspace);
-        setActiveEditorSlug(nextSlug);
+    const targetSlug = deleteSlug;
+    setPendingActionSlug(targetSlug);
+
+    try {
+      await deletePublicPageBySlug(targetSlug);
+      removeAnalyticsForSlug(targetSlug);
+
+      const pages = (await refreshSavedPages()) ?? [];
+      if (targetSlug === activeSlug) {
+        const fallbackPage = pages.find((item) => item.slug !== targetSlug) ?? null;
+        if (fallbackPage) {
+          await switchWorkspace(fallbackPage.slug);
+        } else {
+          const nextSlug = createUniqueSlug(`${targetSlug}-new`, new Set([targetSlug]));
+          const nextWorkspace = createPageWorkspaceData(nextSlug, t("saved_manager_new_page_default"));
+          await switchWorkspace(nextSlug, { fallbackData: nextWorkspace, markUnsaved: true });
+        }
       }
+
+      setDeleteSlug(null);
+      setDeleteConfirmInput("");
+      showToast("success", t("saved_manager_toast_deleted", { slug: targetSlug }));
+      window.dispatchEvent(new Event("storage"));
+    } catch {
+      showToast("error", t("saved_manager_toast_delete_error"));
+    } finally {
+      setPendingActionSlug(null);
     }
-    window.dispatchEvent(new Event("storage"));
-    setDeleteSlug(null);
-    setDeleteConfirmInput("");
-    showToast("success", t("saved_manager_toast_deleted", { slug: deleteSlug }));
   };
 
   return (
@@ -244,6 +302,7 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
             variant="secondary"
             size="sm"
             className="w-full"
+            disabled={isSwitchingWorkspace}
             onClick={() => {
               setShowCreateDialog(true);
               setNewPageCollision(null);
@@ -257,7 +316,7 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
           <p className="text-xs leading-5 text-muted-foreground">
             {t("saved_manager_help_2")}
           </p>
-          {savedProfiles.length === 0 ? (
+          {!isMounted || savedProfiles.length === 0 ? (
             <div className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
               {t("saved_manager_empty")}
             </div>
@@ -284,8 +343,10 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
                         variant="secondary"
                         size="sm"
                         className="w-full"
-                        disabled={isBusy}
-                        onClick={() => handleLoadIntoEditor(item.data, item.slug)}
+                        disabled={isBusy || isSwitchingWorkspace}
+                        onClick={() => {
+                          void handleLoadIntoEditor(item.slug);
+                        }}
                       >
                         {isBusy ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
                         {t("saved_manager_load")}
@@ -306,7 +367,9 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
                         variant="outline"
                         size="sm"
                         className="w-full"
-                        onClick={() => handleCopyLink(item.slug)}
+                        onClick={() => {
+                          void handleCopyLink(item.slug);
+                        }}
                       >
                         {copiedSlug === item.slug ? t("saved_manager_copied") : t("saved_manager_copy")}
                       </Button>
@@ -314,7 +377,7 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
                         variant="outline"
                         size="sm"
                         className="w-full"
-                        disabled={isBusy}
+                        disabled={isBusy || isSwitchingWorkspace}
                         onClick={() => handleDuplicateIntoEditor(item.data, item.slug)}
                       >
                         {t("saved_manager_duplicate")}
@@ -324,6 +387,7 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
                       variant="destructive"
                       size="sm"
                       className="mt-2 w-full"
+                      disabled={isSwitchingWorkspace}
                       onClick={() => {
                         setDeleteSlug(item.slug);
                         setDeleteConfirmInput("");
@@ -383,7 +447,9 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
               >
                 {t("saved_manager_cancel")}
               </Button>
-              <Button onClick={handleCreateNewPage}>{t("saved_manager_create_confirm")}</Button>
+              <Button onClick={handleCreateNewPage} disabled={isSwitchingWorkspace}>
+                {t("saved_manager_create_confirm")}
+              </Button>
             </div>
           </div>
         </div>
@@ -402,11 +468,9 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
             <div className="mt-4 grid gap-2">
               <Button
                 variant="secondary"
+                disabled={isSwitchingWorkspace}
                 onClick={() => {
-                  handleLoadIntoEditor(
-                    newPageCollision.existingProfile,
-                    newPageCollision.targetSlug,
-                  );
+                  void handleLoadIntoEditor(newPageCollision.targetSlug);
                   setShowCreateDialog(false);
                   setCreatePageName("");
                   setCreatePageSlug("");
@@ -415,7 +479,7 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
               >
                 {t("saved_manager_collision_load")}
               </Button>
-              <Button variant="outline" onClick={handleDuplicateFromCollision}>
+              <Button variant="outline" onClick={handleDuplicateFromCollision} disabled={isSwitchingWorkspace}>
                 {t("saved_manager_collision_duplicate")}
               </Button>
             </div>
@@ -461,8 +525,10 @@ export const SavedProfilesManagerCard = ({ currentSlug }: SavedProfilesManagerCa
               </Button>
               <Button
                 variant="destructive"
-                onClick={handleConfirmDelete}
-                disabled={deleteConfirmInput !== `/${deleteSlug}`}
+                onClick={() => {
+                  void handleConfirmDelete();
+                }}
+                disabled={deleteConfirmInput !== `/${deleteSlug}` || isSwitchingWorkspace}
               >
                 {t("saved_manager_confirm_delete")}
               </Button>

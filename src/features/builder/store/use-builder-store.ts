@@ -26,103 +26,7 @@ type BuilderStore = BuilderData & {
   resetBuilderData: () => void;
 };
 
-const MAX_PERSISTED_DATA_URL_LENGTH = 180_000;
-
-const sanitizeMaybePersistedDataUrl = (value: unknown): string => {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  const normalized = value.trim();
-  if (!normalized) {
-    return "";
-  }
-
-  if (!normalized.startsWith("data:image/")) {
-    return normalized;
-  }
-  if (!normalized.includes(",")) {
-    return "";
-  }
-  return normalized.length > MAX_PERSISTED_DATA_URL_LENGTH ? "" : normalized;
-};
-
-const sanitizePersistedState = (state: BuilderStore) => {
-  const socials = Array.isArray(state.socials) ? state.socials : [];
-  const links = Array.isArray(state.links) ? state.links : [];
-
-  return {
-    header: {
-      ...state.header,
-      avatarUrl: sanitizeMaybePersistedDataUrl(state.header?.avatarUrl),
-      heroImageUrl: sanitizeMaybePersistedDataUrl(state.header?.heroImageUrl),
-    },
-    theme: {
-      ...state.theme,
-      wallpaperUrl: sanitizeMaybePersistedDataUrl(state.theme?.wallpaperUrl),
-    },
-    text: state.text,
-    buttonStyle: state.buttonStyle,
-    socials: socials.map((social) => ({
-      ...social,
-      iconUrl: sanitizeMaybePersistedDataUrl(social?.iconUrl),
-    })),
-    links: links.map((link) => ({
-      ...link,
-      settings: {
-        ...link.settings,
-        thumbnailUrl: sanitizeMaybePersistedDataUrl(link.settings?.thumbnailUrl),
-      },
-      discount: link.discount
-        ? {
-            ...link.discount,
-            cardThumbnail: sanitizeMaybePersistedDataUrl(link.discount?.cardThumbnail),
-            modalHeroImage: sanitizeMaybePersistedDataUrl(link.discount?.modalHeroImage),
-          }
-        : link.discount,
-      embedPost: link.embedPost
-        ? {
-            ...link.embedPost,
-            cardIcon: sanitizeMaybePersistedDataUrl(link.embedPost?.cardIcon),
-            cardThumbnail: sanitizeMaybePersistedDataUrl(link.embedPost?.cardThumbnail),
-          }
-        : link.embedPost,
-    })),
-  };
-};
-
-const buildMinimalPersistedState = (state: BuilderStore) => ({
-  ...mockBuilderData,
-  header: {
-    ...mockBuilderData.header,
-    username:
-      typeof state.header?.username === "string" && state.header.username.trim()
-        ? state.header.username.trim()
-        : mockBuilderData.header.username,
-    displayName:
-      typeof state.header?.displayName === "string" && state.header.displayName.trim()
-        ? state.header.displayName.trim()
-        : mockBuilderData.header.displayName,
-  },
-});
-
-const safePersistPartialize = (state: BuilderStore) => {
-  try {
-    return sanitizePersistedState(state);
-  } catch {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new CustomEvent("linkbio-storage-warning", {
-          detail: {
-            reason: "sanitize_persist_error",
-            key: BUILDER_STORE_KEY,
-          },
-        }),
-      );
-    }
-    return buildMinimalPersistedState(state);
-  }
-};
+const safePersistPartialize = (): Partial<BuilderStore> => ({});
 
 const guardedLocalStorage = {
   getItem: (name: string): string | null => {
@@ -293,6 +197,7 @@ export const useBuilderStore = create<BuilderStore>()(
       name: BUILDER_STORE_KEY,
       storage: createJSONStorage(() => guardedLocalStorage),
       partialize: safePersistPartialize,
+      merge: (_persistedState, currentState) => currentState,
     },
   ),
 );

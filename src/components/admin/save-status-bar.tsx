@@ -13,12 +13,14 @@ type SaveStatusBarProps = {
   status: SaveStatus;
   lastSavedAt: Date | null;
   onSaveNow: () => void;
+  isSwitchingWorkspace?: boolean;
 };
 
 export const SaveStatusBar = ({
   status,
   lastSavedAt,
   onSaveNow,
+  isSwitchingWorkspace = false,
 }: SaveStatusBarProps) => {
   const { language, setLanguage, t } = useI18n();
   const formattedLastSaved = useMemo(() => {
@@ -96,7 +98,7 @@ export const SaveStatusBar = ({
               {t("lang_th")}
             </button>
           </div>
-          <Button variant="secondary" onClick={onSaveNow}>
+          <Button variant="secondary" onClick={onSaveNow} disabled={isSwitchingWorkspace}>
             <Save className="size-4" />
             {t("save_status_save_now")}
           </Button>

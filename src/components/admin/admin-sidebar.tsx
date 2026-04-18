@@ -10,18 +10,25 @@ import { SavedProfilesManagerCard } from "@/components/admin/saved-profiles-mana
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { BuilderData } from "@/features/builder/types";
 import { useI18n } from "@/i18n/use-i18n";
 import { cn } from "@/lib/utils";
 
 type AdminSidebarProps = {
   currentSlug: string;
+  isSwitchingWorkspace?: boolean;
+  onSwitchWorkspace?: (slug: string, options?: { fallbackData?: BuilderData; markUnsaved?: boolean }) => Promise<"remote" | "fallback">;
 };
 
-export const AdminSidebar = ({ currentSlug }: AdminSidebarProps) => (
-  <AdminSidebarContent currentSlug={currentSlug} />
+export const AdminSidebar = ({ currentSlug, isSwitchingWorkspace = false, onSwitchWorkspace }: AdminSidebarProps) => (
+  <AdminSidebarContent
+    currentSlug={currentSlug}
+    isSwitchingWorkspace={isSwitchingWorkspace}
+    onSwitchWorkspace={onSwitchWorkspace}
+  />
 );
 
-const AdminSidebarContent = ({ currentSlug }: AdminSidebarProps) => {
+const AdminSidebarContent = ({ currentSlug, isSwitchingWorkspace = false, onSwitchWorkspace }: AdminSidebarProps) => {
   const { t } = useI18n();
   const SECTION_ITEMS = useMemo(
     () => [
@@ -153,7 +160,11 @@ const AdminSidebarContent = ({ currentSlug }: AdminSidebarProps) => {
       </div>
 
       <div className="mt-4 space-y-3">
-        <SavedProfilesManagerCard currentSlug={currentSlug} />
+        <SavedProfilesManagerCard
+          currentSlug={currentSlug}
+          isSwitchingWorkspace={isSwitchingWorkspace}
+          onSwitchWorkspace={onSwitchWorkspace}
+        />
         <AnalyticsSummaryCard currentSlug={currentSlug} />
         <DataToolsCard currentSlug={currentSlug} />
       </div>

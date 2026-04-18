@@ -22,14 +22,15 @@ import {
 } from "@/lib/local-storage/analytics-storage";
 import {
   BUILDER_STORE_KEY,
-  clearProfileIndex,
-  getSavedProfileBySlug,
-  getSavedProfilesFromLocal,
-  removeProfileBySlug,
   setActiveEditorSlug,
   toProfileSlug,
-  upsertProfileIndex,
 } from "@/lib/local-storage/profile-storage";
+import {
+  deletePublicPageBySlug,
+  getPublicPageBySlug,
+  listPublicPages,
+  upsertPublicPageBySlug,
+} from "@/lib/public-pages/public-pages-client";
 import {
   getSafetySettings,
   setSafetySettings,
@@ -233,16 +234,17 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
     }
   };
 
-  const createBackupSnapshot = () => {
+  const createBackupSnapshot = async () => {
     if (typeof window === "undefined") {
       return;
     }
 
+    const savedProfile = await getPublicPageBySlug(activeSlug);
     const backup: ResetBackupEnvelope = {
       createdAt: new Date().toISOString(),
       slug: activeSlug,
       data,
-      savedProfile: getSavedProfileBySlug(activeSlug),
+      savedProfile,
       analyticsEvents: getAnalyticsEventsForSlug(activeSlug),
     };
     try {
@@ -257,8 +259,8 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
     }
   };
 
-  const handleConfirmResetEditor = () => {
-    createBackupSnapshot();
+  const handleConfirmResetEditor = async () => {
+    await createBackupSnapshot();
 
     replaceBuilderData(
       createPageWorkspaceData(activeSlug, header.displayName || t("saved_manager_new_page_default")),
@@ -272,33 +274,44 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
     showToast("success", t("data_tools_toast_reset_done"));
   };
 
-  const handleConfirmClearCurrentRoute = () => {
+  const handleConfirmClearCurrentRoute = async () => {
     if (typeof window === "undefined") {
       return;
     }
 
-    createBackupSnapshot();
-    removeProfileBySlug(activeSlug);
-    removeAnalyticsForSlug(activeSlug);
+    try {
+      await createBackupSnapshot();
+      await deletePublicPageBySlug(activeSlug);
+      removeAnalyticsForSlug(activeSlug);
 
-    const fallbackPages = getSavedProfilesFromLocal().filter((item) => item.slug !== activeSlug);
-    const fallbackPage = fallbackPages[0];
-    if (fallbackPage) {
-      replaceBuilderData(fallbackPage.data);
-      setActiveEditorSlug(fallbackPage.slug);
-    } else {
-      const nextSlug = createUniqueSlug(`${activeSlug}-new`, new Set([activeSlug]));
-      replaceBuilderData(createPageWorkspaceData(nextSlug, t("saved_manager_new_page_default")));
-      setActiveEditorSlug(nextSlug);
+      const fallbackPages = await listPublicPages();
+      const fallbackPage = fallbackPages.find((item) => item.slug !== activeSlug) ?? null;
+      if (fallbackPage) {
+        const fallbackData = await getPublicPageBySlug(fallbackPage.slug);
+        if (fallbackData) {
+          replaceBuilderData(fallbackData);
+          setActiveEditorSlug(fallbackPage.slug);
+        } else {
+          const nextSlug = createUniqueSlug(`${activeSlug}-new`, new Set([activeSlug]));
+          replaceBuilderData(createPageWorkspaceData(nextSlug, t("saved_manager_new_page_default")));
+          setActiveEditorSlug(nextSlug);
+        }
+      } else {
+        const nextSlug = createUniqueSlug(`${activeSlug}-new`, new Set([activeSlug]));
+        replaceBuilderData(createPageWorkspaceData(nextSlug, t("saved_manager_new_page_default")));
+        setActiveEditorSlug(nextSlug);
+      }
+
+      setConfirmAction(null);
+      setStrongConfirmText("");
+      setClearCurrentConfirmText("");
+      setConfirmPinInput("");
+      setBackupRefreshKey((value) => value + 1);
+      window.dispatchEvent(new Event("storage"));
+      showToast("success", t("data_tools_toast_clear_current_done"));
+    } catch {
+      showToast("error", t("data_tools_toast_action_failed"));
     }
-
-    setConfirmAction(null);
-    setStrongConfirmText("");
-    setClearCurrentConfirmText("");
-    setConfirmPinInput("");
-    setBackupRefreshKey((value) => value + 1);
-    window.dispatchEvent(new Event("storage"));
-    showToast("success", t("data_tools_toast_clear_current_done"));
   };
 
   const handleConfirmClearAllData = () => {
@@ -306,8 +319,7 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
       return;
     }
 
-    createBackupSnapshot();
-    clearProfileIndex();
+    void createBackupSnapshot();
     clearAnalyticsStore();
     window.localStorage.removeItem(BUILDER_STORE_KEY);
     replaceBuilderData(createPageWorkspaceData(activeSlug, t("saved_manager_new_page_default")));
@@ -322,24 +334,28 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
     showToast("success", t("data_tools_toast_clear_all_done"));
   };
 
-  const handleRestoreBackup = () => {
+  const handleRestoreBackup = async () => {
     if (!backupSnapshot) {
       showToast("error", t("data_tools_toast_restore_missing"));
       return;
     }
 
-    replaceBuilderData(backupSnapshot.data);
-    if (backupSnapshot.savedProfile) {
-      upsertProfileIndex(backupSnapshot.savedProfile, activeSlug);
-    } else {
-      removeProfileBySlug(activeSlug);
-    }
-    replaceAnalyticsEventsForSlug(activeSlug, backupSnapshot.analyticsEvents);
-    setActiveEditorSlug(activeSlug);
+    try {
+      replaceBuilderData(backupSnapshot.data);
+      if (backupSnapshot.savedProfile) {
+        await upsertPublicPageBySlug(activeSlug, backupSnapshot.savedProfile);
+      } else {
+        await deletePublicPageBySlug(activeSlug);
+      }
+      replaceAnalyticsEventsForSlug(activeSlug, backupSnapshot.analyticsEvents);
+      setActiveEditorSlug(activeSlug);
 
-    window.dispatchEvent(new Event("storage"));
-    setBackupRefreshKey((value) => value + 1);
-    showToast("success", t("data_tools_toast_restore_done"));
+      window.dispatchEvent(new Event("storage"));
+      setBackupRefreshKey((value) => value + 1);
+      showToast("success", t("data_tools_toast_restore_done"));
+    } catch {
+      showToast("error", t("data_tools_toast_action_failed"));
+    }
   };
 
   const isPinRequiredForConfirm =
@@ -416,7 +432,9 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
           <Button
             variant="ghost"
             className="w-full justify-start"
-            onClick={handleRestoreBackup}
+            onClick={() => {
+              void handleRestoreBackup();
+            }}
             disabled={!backupSnapshot}
           >
             <RotateCcw className="size-4" />
@@ -528,14 +546,21 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
                 {t("data_tools_cancel")}
               </Button>
               {confirmAction === "resetEditor" ? (
-                <Button variant="destructive" onClick={handleConfirmResetEditor}>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    void handleConfirmResetEditor();
+                  }}
+                >
                   {t("data_tools_confirm_reset")}
                 </Button>
               ) : null}
               {confirmAction === "clearCurrentRoute" ? (
                 <Button
                   variant="destructive"
-                  onClick={handleConfirmClearCurrentRoute}
+                  onClick={() => {
+                    void handleConfirmClearCurrentRoute();
+                  }}
                   disabled={clearCurrentConfirmText !== clearCurrentExpectedText || !isPinValid}
                 >
                   {t("data_tools_confirm_current")}

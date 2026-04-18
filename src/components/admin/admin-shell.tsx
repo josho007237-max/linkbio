@@ -7,18 +7,22 @@ import { EditorPanel } from "@/components/admin/editor-panel";
 import { SaveStatus, SaveStatusBar } from "@/components/admin/save-status-bar";
 import { MobilePreview } from "@/components/preview/mobile-preview";
 import { Button } from "@/components/ui/button";
-import { useI18n } from "@/i18n/use-i18n";
+import { mockBuilderData } from "@/features/builder/mock-data";
 import { BuilderData } from "@/features/builder/types";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
+import { useI18n } from "@/i18n/use-i18n";
 import {
   clearStaleLocalStorageKeysOnce,
   getActiveEditorSlug,
-  getSavedProfileBySlug,
-  getSavedProfilesFromLocal,
   setActiveEditorSlug,
   toProfileSlug,
-  upsertProfileIndex,
 } from "@/lib/local-storage/profile-storage";
+import {
+  getPublicPageBySlug,
+  listPublicPages,
+  upsertPublicPageBySlug,
+  type PublicPageListItem,
+} from "@/lib/public-pages/public-pages-client";
 
 type CollisionDialogState = {
   targetSlug: string;
@@ -26,6 +30,13 @@ type CollisionDialogState = {
   pendingPayload: BuilderData;
   pendingSnapshot: string;
 };
+
+type WorkspaceSwitchOptions = {
+  fallbackData?: BuilderData;
+  markUnsaved?: boolean;
+};
+
+type WorkspaceSwitchResult = "remote" | "fallback";
 
 const getUniqueSlug = (baseSlug: string, existingSlugs: Set<string>) => {
   if (!existingSlugs.has(baseSlug)) {
@@ -36,6 +47,18 @@ const getUniqueSlug = (baseSlug: string, existingSlugs: Set<string>) => {
     index += 1;
   }
   return `${baseSlug}-${index}`;
+};
+
+const selectBuilderDataSnapshot = (): BuilderData => {
+  const state = useBuilderStore.getState();
+  return {
+    header: state.header,
+    theme: state.theme,
+    text: state.text,
+    buttonStyle: state.buttonStyle,
+    socials: state.socials,
+    links: state.links,
+  };
 };
 
 export const AdminShell = () => {
@@ -51,70 +74,185 @@ export const AdminShell = () => {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [profileRefreshKey, setProfileRefreshKey] = useState(0);
+  const [savedProfiles, setSavedProfiles] = useState<PublicPageListItem[]>([]);
   const [collisionDialog, setCollisionDialog] = useState<CollisionDialogState | null>(null);
   const [currentEditorSlug, setCurrentEditorSlug] = useState(toProfileSlug(header.username));
   const [isWorkspaceReady, setIsWorkspaceReady] = useState(false);
+  const [isSwitchingWorkspace, setIsSwitchingWorkspace] = useState(false);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
-  const previousSlugRef = useRef<string>(toProfileSlug(header.username));
+  const workspaceSlugRef = useRef<string>(toProfileSlug(header.username));
   const lastSavedSnapshotRef = useRef<string>("");
   const hasInitializedRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
   const saveOperationTimerRef = useRef<number | null>(null);
+  const workspaceLoadTokenRef = useRef(0);
+  const isSwitchingWorkspaceRef = useRef(false);
 
   const builderData = useMemo<BuilderData>(
     () => ({ header, theme, text, buttonStyle, socials, links }),
     [buttonStyle, header, links, socials, text, theme],
   );
 
-  const persistProfile = useCallback((payload: BuilderData, snapshot: string) => {
-    if (saveOperationTimerRef.current) {
-      window.clearTimeout(saveOperationTimerRef.current);
+  const refreshSavedPages = useCallback(async () => {
+    try {
+      const pages = await listPublicPages();
+      setSavedProfiles(pages);
+      return pages;
+    } catch {
+      return null;
     }
-
-    const nextSlug = toProfileSlug(payload.header.username);
-    const previousSlug = previousSlugRef.current;
-    const existingProfile = getSavedProfileBySlug(nextSlug);
-    const hasCollision = Boolean(existingProfile && nextSlug !== previousSlug);
-
-    if (hasCollision && existingProfile) {
-      setCollisionDialog((current) => {
-        if (current && current.targetSlug === nextSlug) {
-          return {
-            ...current,
-            existingProfile,
-            pendingPayload: payload,
-            pendingSnapshot: snapshot,
-          };
-        }
-        return {
-          targetSlug: nextSlug,
-          existingProfile,
-          pendingPayload: payload,
-          pendingSnapshot: snapshot,
-        };
-      });
-      setSaveStatus("unsaved");
-      return;
-    }
-
-    setCollisionDialog(null);
-    setSaveStatus("saving");
-    saveOperationTimerRef.current = window.setTimeout(() => {
-      upsertProfileIndex(payload, previousSlug);
-      previousSlugRef.current = nextSlug;
-      setCurrentEditorSlug(nextSlug);
-      setActiveEditorSlug(nextSlug);
-      lastSavedSnapshotRef.current = snapshot;
-      setLastSavedAt(new Date());
-      setSaveStatus("saved");
-      window.dispatchEvent(new Event("storage"));
-      setProfileRefreshKey((value) => value + 1);
-      saveOperationTimerRef.current = null;
-    }, 180);
   }, []);
 
+  const clearPendingSaves = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    if (saveOperationTimerRef.current) {
+      window.clearTimeout(saveOperationTimerRef.current);
+      saveOperationTimerRef.current = null;
+    }
+  }, []);
+
+  const applyWorkspaceIdentity = useCallback(
+    (slug: string, baselineData?: BuilderData) => {
+      const normalized = toProfileSlug(slug);
+      clearPendingSaves();
+      workspaceSlugRef.current = normalized;
+      setCurrentEditorSlug(normalized);
+      setActiveEditorSlug(normalized);
+      const snapshot = JSON.stringify(baselineData ?? selectBuilderDataSnapshot());
+      lastSavedSnapshotRef.current = snapshot;
+      setSaveStatus("saved");
+      setCollisionDialog(null);
+    },
+    [clearPendingSaves],
+  );
+
+  const loadWorkspaceFromSlug = useCallback(
+    async (
+      slug: string,
+      options: WorkspaceSwitchOptions = {},
+    ): Promise<WorkspaceSwitchResult> => {
+      const normalized = toProfileSlug(slug);
+      const loadToken = workspaceLoadTokenRef.current + 1;
+      workspaceLoadTokenRef.current = loadToken;
+
+      clearPendingSaves();
+      isSwitchingWorkspaceRef.current = true;
+      setIsSwitchingWorkspace(true);
+      workspaceSlugRef.current = normalized;
+      setCurrentEditorSlug(normalized);
+      setActiveEditorSlug(normalized);
+
+      let remoteData: BuilderData | null = null;
+      try {
+        remoteData = await getPublicPageBySlug(normalized);
+      } catch (error) {
+        console.error("[admin-shell] load workspace failed", error);
+      }
+
+      if (workspaceLoadTokenRef.current !== loadToken) {
+        return "fallback";
+      }
+
+      if (remoteData) {
+        const hydratedRemote: BuilderData = {
+          ...remoteData,
+          header: {
+            ...remoteData.header,
+            username: normalized,
+          },
+        };
+        replaceBuilderData(hydratedRemote);
+        applyWorkspaceIdentity(normalized, hydratedRemote);
+        setLastSavedAt(new Date());
+        isSwitchingWorkspaceRef.current = false;
+        setIsSwitchingWorkspace(false);
+        return "remote";
+      }
+
+      const fallbackSource = options.fallbackData ?? mockBuilderData;
+      const fallbackHydrated: BuilderData = {
+        ...fallbackSource,
+        header: {
+          ...fallbackSource.header,
+          username: normalized,
+        },
+      };
+      replaceBuilderData(fallbackHydrated);
+      applyWorkspaceIdentity(normalized, fallbackHydrated);
+      setLastSavedAt(null);
+      if (options.markUnsaved) {
+        setSaveStatus("unsaved");
+      }
+      isSwitchingWorkspaceRef.current = false;
+      setIsSwitchingWorkspace(false);
+      return "fallback";
+    },
+    [applyWorkspaceIdentity, clearPendingSaves, replaceBuilderData],
+  );
+
+  const handleWorkspaceSwitchRequest = useCallback(
+    async (slug: string, options?: WorkspaceSwitchOptions) =>
+      loadWorkspaceFromSlug(slug, options),
+    [loadWorkspaceFromSlug],
+  );
+
+  const persistProfile = useCallback(
+    (payload: BuilderData, snapshot: string) => {
+      if (isSwitchingWorkspaceRef.current) {
+        return;
+      }
+      if (saveOperationTimerRef.current) {
+        window.clearTimeout(saveOperationTimerRef.current);
+      }
+
+      const targetSlug = workspaceSlugRef.current;
+      setCollisionDialog(null);
+      setSaveStatus("saving");
+      saveOperationTimerRef.current = window.setTimeout(() => {
+        void (async () => {
+          if (isSwitchingWorkspaceRef.current || targetSlug !== workspaceSlugRef.current) {
+            setSaveStatus("saved");
+            saveOperationTimerRef.current = null;
+            return;
+          }
+          try {
+            const payloadForSave: BuilderData = {
+              ...payload,
+              header: {
+                ...payload.header,
+                username: targetSlug,
+              },
+            };
+            await upsertPublicPageBySlug(targetSlug, payloadForSave);
+            workspaceSlugRef.current = targetSlug;
+            setCurrentEditorSlug(targetSlug);
+            setActiveEditorSlug(targetSlug);
+            lastSavedSnapshotRef.current = snapshot;
+            setLastSavedAt(new Date());
+            setSaveStatus("saved");
+            window.dispatchEvent(new Event("storage"));
+            setProfileRefreshKey((value) => value + 1);
+            void refreshSavedPages();
+          } catch (error) {
+            console.error("[admin-shell] save failed", error);
+            setSaveStatus("unsaved");
+          } finally {
+            saveOperationTimerRef.current = null;
+          }
+        })();
+      }, 180);
+    },
+    [refreshSavedPages],
+  );
+
   const handleSaveNow = useCallback(() => {
+    if (isSwitchingWorkspaceRef.current) {
+      return;
+    }
     if (autosaveTimerRef.current) {
       window.clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
@@ -126,32 +264,32 @@ export const AdminShell = () => {
 
   useEffect(() => {
     let syncFrameId: number | null = null;
+    let canceled = false;
+
     clearStaleLocalStorageKeysOnce();
-    const activeSlug = getActiveEditorSlug();
-    const resolvedSlug = activeSlug ?? previousSlugRef.current;
-    const savedWorkspace = getSavedProfileBySlug(resolvedSlug);
 
-    if (savedWorkspace) {
-      previousSlugRef.current = resolvedSlug;
-      const savedSnapshot = JSON.stringify(savedWorkspace);
-      lastSavedSnapshotRef.current = savedSnapshot;
-      useBuilderStore.getState().replaceBuilderData(savedWorkspace);
+    const initialize = async () => {
+      const activeSlug = getActiveEditorSlug();
+      const resolvedSlug = activeSlug ?? workspaceSlugRef.current;
+      await refreshSavedPages();
+      if (canceled) {
+        return;
+      }
+      await loadWorkspaceFromSlug(resolvedSlug);
+      if (canceled) {
+        return;
+      }
       syncFrameId = window.requestAnimationFrame(() => {
-        setCurrentEditorSlug(resolvedSlug);
-        setSaveStatus("saved");
-        setLastSavedAt(new Date());
         setIsWorkspaceReady(true);
       });
-    } else {
-      previousSlugRef.current = resolvedSlug;
-      setActiveEditorSlug(resolvedSlug);
-      syncFrameId = window.requestAnimationFrame(() => {
-        setCurrentEditorSlug(resolvedSlug);
-        setIsWorkspaceReady(true);
-      });
-    }
+    };
 
-    const onStorage = () => setProfileRefreshKey((value) => value + 1);
+    void initialize();
+
+    const onStorage = () => {
+      setProfileRefreshKey((value) => value + 1);
+      void refreshSavedPages();
+    };
     const onStorageWarning = () => {
       setStorageWarning(storageWarningMessage);
       window.setTimeout(() => {
@@ -165,34 +303,30 @@ export const AdminShell = () => {
     const intervalId = window.setInterval(onStorage, 2500);
 
     return () => {
+      canceled = true;
       if (syncFrameId) {
         window.cancelAnimationFrame(syncFrameId);
       }
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("linkbio-storage-warning", onStorageWarning);
       window.clearInterval(intervalId);
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-      }
-      if (saveOperationTimerRef.current) {
-        window.clearTimeout(saveOperationTimerRef.current);
-      }
+      clearPendingSaves();
     };
-  }, [storageWarningMessage]);
+  }, [clearPendingSaves, loadWorkspaceFromSlug, refreshSavedPages, storageWarningMessage]);
 
   useEffect(() => {
     const activeSlug = getActiveEditorSlug();
-    if (activeSlug) {
-      previousSlugRef.current = activeSlug;
+    const normalized = activeSlug ? toProfileSlug(activeSlug) : null;
+    if (normalized && normalized !== workspaceSlugRef.current && !isSwitchingWorkspaceRef.current) {
       const frameId = window.requestAnimationFrame(() => {
-        setCurrentEditorSlug(activeSlug);
+        void loadWorkspaceFromSlug(normalized);
       });
       return () => window.cancelAnimationFrame(frameId);
     }
-  }, [profileRefreshKey]);
+  }, [loadWorkspaceFromSlug, profileRefreshKey]);
 
   useEffect(() => {
-    if (!isWorkspaceReady) {
+    if (!isWorkspaceReady || isSwitchingWorkspace) {
       return;
     }
 
@@ -236,7 +370,7 @@ export const AdminShell = () => {
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [builderData, isWorkspaceReady, persistProfile]);
+  }, [builderData, isSwitchingWorkspace, isWorkspaceReady, persistProfile]);
 
   const slugCollisionWarning = useMemo(() => {
     void profileRefreshKey;
@@ -244,8 +378,8 @@ export const AdminShell = () => {
     if (!candidate || candidate === currentEditorSlug) {
       return null;
     }
-    return getSavedProfileBySlug(candidate) ? candidate : null;
-  }, [currentEditorSlug, header.username, profileRefreshKey]);
+    return savedProfiles.some((item) => item.slug === candidate) ? candidate : null;
+  }, [currentEditorSlug, header.username, profileRefreshKey, savedProfiles]);
 
   const handleLoadExistingRoute = () => {
     if (!collisionDialog) {
@@ -254,13 +388,8 @@ export const AdminShell = () => {
     const loaded = collisionDialog.existingProfile;
     replaceBuilderData(loaded);
     const nextSlug = toProfileSlug(loaded.header.username);
-    previousSlugRef.current = nextSlug;
-    setCurrentEditorSlug(nextSlug);
-    setActiveEditorSlug(nextSlug);
-    const snapshot = JSON.stringify(loaded);
-    lastSavedSnapshotRef.current = snapshot;
+    applyWorkspaceIdentity(nextSlug, loaded);
     setLastSavedAt(new Date());
-    setSaveStatus("saved");
     setCollisionDialog(null);
   };
 
@@ -268,7 +397,7 @@ export const AdminShell = () => {
     if (!collisionDialog) {
       return;
     }
-    const existingSlugs = new Set(getSavedProfilesFromLocal().map((item) => item.slug));
+    const existingSlugs = new Set(savedProfiles.map((item) => item.slug));
     const duplicateSlug = getUniqueSlug(`${collisionDialog.targetSlug}-copy`, existingSlugs);
     const duplicated: BuilderData = {
       ...collisionDialog.pendingPayload,
@@ -278,8 +407,7 @@ export const AdminShell = () => {
       },
     };
     replaceBuilderData(duplicated);
-    setCurrentEditorSlug(duplicateSlug);
-    setActiveEditorSlug(duplicateSlug);
+    applyWorkspaceIdentity(duplicateSlug, duplicated);
     setSaveStatus("unsaved");
     setCollisionDialog(null);
   };
@@ -290,7 +418,11 @@ export const AdminShell = () => {
       <div className="mx-auto grid max-w-[1700px] gap-4 lg:grid-cols-12">
         <div className="lg:col-span-3 xl:col-span-2">
           <div className="lg:sticky lg:top-4 rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/35 p-2 shadow-sm backdrop-blur">
-            <AdminSidebar currentSlug={currentEditorSlug} />
+            <AdminSidebar
+              currentSlug={currentEditorSlug}
+              isSwitchingWorkspace={isSwitchingWorkspace}
+              onSwitchWorkspace={handleWorkspaceSwitchRequest}
+            />
           </div>
         </div>
 
@@ -300,14 +432,17 @@ export const AdminShell = () => {
               status={saveStatus}
               lastSavedAt={lastSavedAt}
               onSaveNow={handleSaveNow}
+              isSwitchingWorkspace={isSwitchingWorkspace}
             />
-            <EditorPanel slugCollisionWarning={slugCollisionWarning} />
+            <div className={isSwitchingWorkspace ? "pointer-events-none opacity-65" : ""}>
+              <EditorPanel key={currentEditorSlug} slugCollisionWarning={slugCollisionWarning} />
+            </div>
           </div>
         </div>
 
         <div className="lg:col-span-3 xl:col-span-4">
           <div className="lg:sticky lg:top-4 rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/20 p-2 shadow-sm">
-            <MobilePreview data={builderData} mode="admin" />
+            <MobilePreview key={currentEditorSlug} data={builderData} mode="admin" />
           </div>
         </div>
       </div>
