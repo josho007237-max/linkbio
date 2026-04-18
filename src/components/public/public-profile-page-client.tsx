@@ -13,10 +13,7 @@ import {
   recordLinkClick,
   type ClickSummary,
 } from "@/lib/local-storage/analytics-storage";
-import {
-  getProfileWithFallback,
-  toProfileSlug,
-} from "@/lib/local-storage/profile-storage";
+import { toProfileSlug } from "@/lib/local-storage/profile-storage";
 
 type PublicProfilePageClientProps = {
   username: string;
@@ -61,10 +58,6 @@ export const PublicProfilePageClient = ({
           }
         } catch {
           profileData = null;
-        }
-
-        if (!profileData) {
-          profileData = getProfileWithFallback(slug);
         }
 
         if (canceled) {

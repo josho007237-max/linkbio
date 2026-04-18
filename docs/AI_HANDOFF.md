@@ -123,3 +123,184 @@ Add Google Sheets integration for existing in-site support forms while keeping c
 ### Known issues
 - In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
 - End-to-end browser submission was not executed in this terminal-only run.
+
+## Update 2026-04-18 (production root route safety default)
+
+### Changed files
+- `src/app/page.tsx`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Root route `/` no longer renders `AdminShell`.
+- Root route now redirects to `/110` as a temporary production-safe default.
+- Public slug routes such as `/<username>` remain unchanged (including `/110`).
+- No changes made to support form logic, save/reset/restore behavior, autosave, or Google Sheets adapter.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Known issues
+- In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
+- No separate internal editor route currently exists in `src/app`; editor code remains in the codebase but is no longer exposed via `/`.
+
+## Update 2026-04-18 (production public page persistence via Supabase)
+
+### Changed files
+- `src/lib/server/public-pages-store.ts`
+- `src/app/api/public-pages/[slug]/route.ts`
+- `src/components/public/public-profile-page-client.tsx`
+- `.env.example`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Replaced production public-page persistence backend with Supabase-backed storage (server-side) while preserving API endpoints:
+  - `GET /api/public-pages/[slug]`
+  - `PUT /api/public-pages/[slug]`
+  - `DELETE /api/public-pages/[slug]`
+- Superseded by the stricter update below: public-page persistence is now Supabase-only (no public localStorage fallback).
+- Admin autosave/publish flow remains the same and continues publishing via `PUT /api/public-pages/[slug]`.
+
+### Env setup
+- Added required server env:
+  - `SUPABASE_SERVICE_ROLE_KEY`
+- Existing env still required:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (unchanged; still used by client-side Supabase code paths)
+- Recommended Supabase table schema:
+  - table name: `public_pages`
+  - columns:
+    - `slug text primary key`
+    - `data jsonb not null`
+    - `updated_at timestamptz not null default now()`
+  - optional index:
+    - `create index if not exists public_pages_updated_at_idx on public_pages (updated_at desc);`
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Known issues
+- In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
+- Supabase table must exist and service role key must be present in production env, or public page API will return server errors by design.
+
+## Update 2026-04-18 (strict Supabase public-page persistence)
+
+### Changed files
+- `src/lib/server/public-pages-store.ts`
+- `src/components/public/public-profile-page-client.tsx`
+- `.env.example`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Public page persistence now uses Supabase only for API-backed public data:
+  - `GET /api/public-pages/[slug]`
+  - `PUT /api/public-pages/[slug]`
+  - `DELETE /api/public-pages/[slug]`
+- Removed public page fallback to localStorage in `PublicProfilePageClient`; public slug pages now depend on API/Supabase data for cross-device consistency.
+- Admin save/autosave flow remains unchanged and still publishes to `/api/public-pages/[slug]`, which persists to Supabase.
+- Support form logic and Google Sheets deposit/withdraw flow are unchanged.
+
+### Env setup (required)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+### SQL / schema setup
+Run in Supabase SQL editor:
+
+```sql
+create table if not exists public.public_pages (
+  slug text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists public_pages_updated_at_idx
+  on public.public_pages (updated_at desc);
+```
+
+Optional but recommended trigger to keep `updated_at` fresh on updates:
+
+```sql
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists set_public_pages_updated_at on public.public_pages;
+create trigger set_public_pages_updated_at
+before update on public.public_pages
+for each row
+execute function public.set_updated_at();
+```
+
+RLS note:
+- If RLS is enabled on `public.public_pages`, add policies that allow the service role to read/write rows. The API uses `SUPABASE_SERVICE_ROLE_KEY`.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Known issues
+- In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
+- Missing Supabase env or missing `public.public_pages` table will cause public page API requests to fail.
+
+## Update 2026-04-18 (Supabase envs from .env.local active)
+
+### Changed files
+- `src/lib/server/public-pages-store.ts`
+- `src/app/api/public-pages/[slug]/route.ts`
+- `src/components/public/public-profile-page-client.tsx`
+- `.env.example`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Public page API persistence is Supabase-backed using configured envs:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+- Public API shape is preserved:
+  - `GET /api/public-pages/[slug]`
+  - `PUT /api/public-pages/[slug]`
+  - `DELETE /api/public-pages/[slug]`
+- Admin save/autosave continues publishing through `PUT /api/public-pages/[slug]`, now persisting to Supabase.
+- Public slug rendering no longer depends on localStorage fallback; cross-device reads come from API/Supabase.
+- Support form logic and Google Sheets deposit/withdraw flow remain unchanged.
+
+### SQL / schema setup
+```sql
+create table if not exists public.public_pages (
+  slug text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists public_pages_updated_at_idx
+  on public.public_pages (updated_at desc);
+```
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Known issues
+- In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
+- If Supabase table/schema is missing, public page API will fail until the SQL setup is applied.
