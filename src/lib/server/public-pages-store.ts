@@ -5,6 +5,7 @@ import { BuilderData } from "@/features/builder/types";
 type PublicPageRow = {
   slug: string;
   data: BuilderData;
+  updated_at?: string | null;
 };
 
 const PUBLIC_PAGES_TABLE = "public_pages";
@@ -48,6 +49,21 @@ export const getPublicPageBySlug = async (slug: string): Promise<BuilderData | n
     throw error;
   }
   return data?.data ?? null;
+};
+
+export const listPublicPages = async (): Promise<PublicPageRow[]> => {
+  const client = getSupabaseAdminClient();
+  const { data, error } = await client
+    .from(PUBLIC_PAGES_TABLE)
+    .select("slug,data,updated_at")
+    .order("updated_at", { ascending: false })
+    .returns<PublicPageRow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
 };
 
 export const upsertPublicPage = async (slug: string, data: BuilderData): Promise<void> => {

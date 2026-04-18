@@ -327,3 +327,22 @@ create index if not exists public_pages_updated_at_idx
 ### Known issues
 - In this environment, non-escalated production build can fail with `spawn EPERM`; escalated build succeeds.
 - Public page `/110` still requires a published row in Supabase (`public.public_pages`) to render content.
+
+## Update 2026-04-18 (public pages list export fix)
+
+### Changed files
+- `src/lib/server/public-pages-store.ts`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Added and exported `listPublicPages` in server store.
+- `listPublicPages` now reads from Supabase `public.public_pages` via admin client and returns rows for API list responses.
+- Returned fields include at least:
+  - `slug`
+  - `updated_at` (when present)
+  - `data` (kept for existing My Pages UI compatibility)
+- Existing exports remain unchanged:
+  - `getPublicPageBySlug`
+  - `upsertPublicPage`
+  - `removePublicPageBySlug`
+- No changes made to support form logic, Google Sheets flow, `/` redirect behavior, or `/admin` route.
