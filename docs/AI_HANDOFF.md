@@ -346,3 +346,47 @@ create index if not exists public_pages_updated_at_idx
   - `upsertPublicPage`
   - `removePublicPageBySlug`
 - No changes made to support form logic, Google Sheets flow, `/` redirect behavior, or `/admin` route.
+
+## Update 2026-04-18 (atomic admin load + simple admin login guard)
+
+### Changed files
+- `src/components/admin/admin-shell.tsx`
+- `src/components/admin/save-status-bar.tsx`
+- `src/lib/server/admin-auth.ts`
+- `src/proxy.ts`
+- `src/app/admin/login/page.tsx`
+- `src/app/api/admin/login/route.ts`
+- `src/app/api/admin/logout/route.ts`
+- `.env.example`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Improved admin page switching hydration to avoid stale editor form values:
+  - Added `workspaceHydrationKey` and remount keyed editor/preview only after hydration completes.
+  - Ensures full form subtree reset after page switch so section-local form state does not leak across pages.
+  - Keeps autosave/save blocked during switching and resumes after completion.
+- Added simple `/admin` protection with password login:
+  - Added `src/proxy.ts` (Next.js Proxy) to protect `/admin` and `/admin/*`.
+  - Unauthenticated users are redirected to `/admin/login`.
+  - Added `/admin/login` page and POST login/logout APIs.
+  - Session uses httpOnly cookie (`linkbio_admin_session`) set server-side.
+  - Password validation uses env `ADMIN_PASSWORD` (no hardcoded password in repo).
+  - Added logout button in admin save/status bar.
+- No changes to support forms, Google Sheets submission flow, or Supabase public page persistence.
+- `/` redirect behavior and `/admin` editor route remain unchanged.
+
+### Env setup
+- Added:
+  - `ADMIN_PASSWORD=...`
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+### Notes on the stale-field bug
+- Root cause matched section-local form state (`react-hook-form` default values and local component state) surviving the wrong render timing during slug switch.
+- Current fix forces full section subtree remount after final hydration commit, which resets local/uncontrolled states per loaded page.
+- Terminal run cannot perform browser click-through E2E, but the load mechanism is now keyed to hydration completion (`workspaceHydrationKey`) to support A -> B -> A transitions without stale fields.

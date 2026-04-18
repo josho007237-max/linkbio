@@ -79,6 +79,7 @@ export const AdminShell = () => {
   const [currentEditorSlug, setCurrentEditorSlug] = useState(toProfileSlug(header.username));
   const [isWorkspaceReady, setIsWorkspaceReady] = useState(false);
   const [isSwitchingWorkspace, setIsSwitchingWorkspace] = useState(false);
+  const [workspaceHydrationKey, setWorkspaceHydrationKey] = useState(0);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
 
   const workspaceSlugRef = useRef<string>(toProfileSlug(header.username));
@@ -126,6 +127,7 @@ export const AdminShell = () => {
       lastSavedSnapshotRef.current = snapshot;
       setSaveStatus("saved");
       setCollisionDialog(null);
+      setWorkspaceHydrationKey((value) => value + 1);
     },
     [clearPendingSaves],
   );
@@ -138,6 +140,10 @@ export const AdminShell = () => {
       const normalized = toProfileSlug(slug);
       const loadToken = workspaceLoadTokenRef.current + 1;
       workspaceLoadTokenRef.current = loadToken;
+      const completeSwitch = () => {
+        isSwitchingWorkspaceRef.current = false;
+        setIsSwitchingWorkspace(false);
+      };
 
       clearPendingSaves();
       isSwitchingWorkspaceRef.current = true;
@@ -154,6 +160,7 @@ export const AdminShell = () => {
       }
 
       if (workspaceLoadTokenRef.current !== loadToken) {
+        completeSwitch();
         return "fallback";
       }
 
@@ -168,8 +175,7 @@ export const AdminShell = () => {
         replaceBuilderData(hydratedRemote);
         applyWorkspaceIdentity(normalized, hydratedRemote);
         setLastSavedAt(new Date());
-        isSwitchingWorkspaceRef.current = false;
-        setIsSwitchingWorkspace(false);
+        completeSwitch();
         return "remote";
       }
 
@@ -187,8 +193,7 @@ export const AdminShell = () => {
       if (options.markUnsaved) {
         setSaveStatus("unsaved");
       }
-      isSwitchingWorkspaceRef.current = false;
-      setIsSwitchingWorkspace(false);
+      completeSwitch();
       return "fallback";
     },
     [applyWorkspaceIdentity, clearPendingSaves, replaceBuilderData],
@@ -261,6 +266,12 @@ export const AdminShell = () => {
     const snapshot = JSON.stringify(builderData);
     persistProfile(builderData, snapshot);
   }, [builderData, persistProfile]);
+
+  const handleLogout = useCallback(() => {
+    void fetch("/api/admin/logout", { method: "POST" }).finally(() => {
+      window.location.href = "/admin/login";
+    });
+  }, []);
 
   useEffect(() => {
     let syncFrameId: number | null = null;
@@ -432,17 +443,18 @@ export const AdminShell = () => {
               status={saveStatus}
               lastSavedAt={lastSavedAt}
               onSaveNow={handleSaveNow}
+              onLogout={handleLogout}
               isSwitchingWorkspace={isSwitchingWorkspace}
             />
             <div className={isSwitchingWorkspace ? "pointer-events-none opacity-65" : ""}>
-              <EditorPanel key={currentEditorSlug} slugCollisionWarning={slugCollisionWarning} />
+              <EditorPanel key={workspaceHydrationKey} slugCollisionWarning={slugCollisionWarning} />
             </div>
           </div>
         </div>
 
         <div className="lg:col-span-3 xl:col-span-4">
           <div className="lg:sticky lg:top-4 rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/20 p-2 shadow-sm">
-            <MobilePreview key={currentEditorSlug} data={builderData} mode="admin" />
+            <MobilePreview key={workspaceHydrationKey} data={builderData} mode="admin" />
           </div>
         </div>
       </div>

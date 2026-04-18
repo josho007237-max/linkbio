@@ -13,6 +13,7 @@ type SaveStatusBarProps = {
   status: SaveStatus;
   lastSavedAt: Date | null;
   onSaveNow: () => void;
+  onLogout?: () => void;
   isSwitchingWorkspace?: boolean;
 };
 
@@ -20,6 +21,7 @@ export const SaveStatusBar = ({
   status,
   lastSavedAt,
   onSaveNow,
+  onLogout,
   isSwitchingWorkspace = false,
 }: SaveStatusBarProps) => {
   const { language, setLanguage, t } = useI18n();
@@ -102,6 +104,11 @@ export const SaveStatusBar = ({
             <Save className="size-4" />
             {t("save_status_save_now")}
           </Button>
+          {onLogout ? (
+            <Button variant="outline" onClick={onLogout}>
+              Logout
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>
