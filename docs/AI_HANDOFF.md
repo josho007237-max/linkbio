@@ -390,3 +390,74 @@ create index if not exists public_pages_updated_at_idx
 - Root cause matched section-local form state (`react-hook-form` default values and local component state) surviving the wrong render timing during slug switch.
 - Current fix forces full section subtree remount after final hydration commit, which resets local/uncontrolled states per loaded page.
 - Terminal run cannot perform browser click-through E2E, but the load mechanism is now keyed to hydration completion (`workspaceHydrationKey`) to support A -> B -> A transitions without stale fields.
+
+## Update 2026-04-18 (separate route slug from public handle)
+
+### Changed files
+- `src/features/builder/types.ts`
+- `src/features/builder/schema.ts`
+- `src/features/builder/mock-data.ts`
+- `src/features/builder/utils.ts`
+- `src/components/admin/admin-shell.tsx`
+- `src/components/admin/sections/header-section.tsx`
+- `src/components/admin/saved-profiles-manager-card.tsx`
+- `src/components/admin/data-tools-card.tsx`
+- `src/components/profile/profile-header.tsx`
+- `src/components/preview/mobile-preview.tsx`
+- `src/components/public/public-profile.tsx`
+- `src/components/public/public-profile-page-client.tsx`
+- `src/i18n/en.ts`
+- `src/i18n/th.ts`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Separated route slug from profile display handle:
+  - Route/workspace slug remains `header.username` and is controlled by workspace actions (create/duplicate/load/switch).
+  - New display handle field is `header.publicUsername` (fallback to `header.username` for legacy data).
+- Header form behavior:
+  - Slug shown as read-only in editor.
+  - Editable field now targets Public Username / Handle.
+  - Display name remains the large title as before.
+- Public/admin preview behavior:
+  - `@handle` now renders from `publicUsername` with fallback to legacy `username`.
+  - Title mode `username` now means public handle.
+- Support form submit slug source:
+  - Uses route slug passed from page/workspace context, not mutable profile handle.
+  - Prevents handle edits from changing support submit route identity.
+- Added migration-safe normalization:
+  - Legacy pages missing `publicUsername` are normalized to `publicUsername = username` during load/hydration paths.
+  - Existing saved pages remain readable without schema-breaking changes.
+
+### Unchanged
+- Support forms logic/behavior remains unchanged.
+- Google Sheets flow remains unchanged.
+- Supabase public page persistence remains unchanged.
+- Admin login guard/proxy remains unchanged.
+- `/` redirect and `/admin` route behavior remain unchanged.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+## Update 2026-04-18 (terminology alignment: Public Handle)
+
+### Changed files
+- `src/i18n/en.ts`
+- `src/i18n/th.ts`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Editor terminology aligned to match slug/handle separation requirements:
+  - Header field label updated from mixed username wording to `Public Handle`.
+  - Slug remains shown separately as route/workspace identity (read-only flow unchanged).
+- No logic changes to support forms, Google Sheets flow, Supabase persistence, or admin login guard.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.

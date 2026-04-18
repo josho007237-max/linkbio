@@ -29,6 +29,18 @@ const EMPTY_SUMMARY: ClickSummary = {
   totalCodeCopies: 0,
 };
 
+const normalizeHeaderForSlug = (slug: string, profile: BuilderData): BuilderData => ({
+  ...profile,
+  header: {
+    ...profile.header,
+    username: slug,
+    publicUsername:
+      typeof profile.header.publicUsername === "string" && profile.header.publicUsername.trim()
+        ? profile.header.publicUsername.trim()
+        : profile.header.username,
+  },
+});
+
 export const PublicProfilePageClient = ({
   username,
 }: PublicProfilePageClientProps) => {
@@ -64,6 +76,7 @@ export const PublicProfilePageClient = ({
           return;
         }
         if (profileData) {
+          profileData = normalizeHeaderForSlug(slug, profileData);
           recordProfileView(slug);
         }
         setProfile(profileData);
@@ -147,6 +160,7 @@ export const PublicProfilePageClient = ({
   return (
     <PublicProfile
       profile={profile}
+      slug={slug}
       clickSummary={clickSummary}
       onPublicLinkClick={handlePublicLinkClick}
     />

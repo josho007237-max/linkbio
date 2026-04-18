@@ -150,6 +150,7 @@ export type BioLink = {
 
 export type ProfileHeader = {
   username: string;
+  publicUsername?: string;
   displayName: string;
   tagline: string;
   avatarUrl: string;

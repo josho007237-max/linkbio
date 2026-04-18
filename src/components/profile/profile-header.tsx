@@ -22,11 +22,12 @@ export const ProfileHeader = ({
   onHeroImageError,
   flushToTop = false,
 }: ProfileHeaderProps) => {
+  const publicHandle = data.header.publicUsername?.trim() || data.header.username;
   const titleColor = data.theme.titleColor ?? data.theme.textColor;
   const titleSize = data.theme.titleSize ?? 28;
   const displayTitle =
     data.header.titleMode === "username"
-      ? `@${data.header.username}`
+      ? `@${publicHandle}`
       : data.header.displayName;
   const heroTextAlign = data.header.heroTextAlign ?? "center";
   const heroOverlay = data.header.heroOverlay ?? true;
@@ -83,7 +84,7 @@ export const ProfileHeader = ({
               {displayTitle}
             </h2>
             <p className="mt-1 text-sm text-white/85 drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] sm:text-base">
-              @{data.header.username}
+              @{publicHandle}
             </p>
             <p className="mt-1 text-sm font-medium text-white/85 drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)] sm:text-base">
               {data.header.tagline}
@@ -127,7 +128,7 @@ export const ProfileHeader = ({
         {displayTitle}
       </h2>
       <p className="mt-1 text-center text-sm" style={{ color: data.theme.mutedTextColor }}>
-        @{data.header.username}
+        @{publicHandle}
       </p>
       <p className="mt-2 text-center text-xs font-medium opacity-90">{data.header.tagline}</p>
       <p className="mt-4 text-center text-sm font-medium">{data.text.intro}</p>

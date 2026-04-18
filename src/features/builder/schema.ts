@@ -17,6 +17,12 @@ export const headerSchema = z.object({
     .trim()
     .min(3, "Username must be at least 3 characters.")
     .regex(/^[a-z0-9._-]+$/i, "Use letters, numbers, dots, dashes, or underscores."),
+  publicUsername: z
+    .string()
+    .trim()
+    .min(3, "Public username must be at least 3 characters.")
+    .regex(/^[a-z0-9._-]+$/i, "Use letters, numbers, dots, dashes, or underscores.")
+    .optional(),
   displayName: z.string().trim().min(2, "Display name is required."),
   tagline: z.string().trim().min(2, "Tagline is required."),
   avatarUrl: imageSourceSchema,

@@ -9,6 +9,7 @@ import { useI18n } from "@/i18n/use-i18n";
 
 type PublicProfileProps = {
   profile: BuilderData;
+  slug: string;
   clickSummary: ClickSummary;
   onPublicLinkClick: (
     linkId: string,
@@ -29,6 +30,7 @@ const normalizeImageSrc = (
 
 export const PublicProfile = ({
   profile,
+  slug,
   clickSummary: _clickSummary,
   onPublicLinkClick,
 }: PublicProfileProps) => {
@@ -114,6 +116,7 @@ export const PublicProfile = ({
       <div className="relative z-10 mx-auto w-full max-w-[680px] px-4 pt-12 sm:px-5 sm:pt-14 md:px-6">
         <MobilePreview
           data={profile}
+          routeSlug={slug}
           mode="public"
           onPublicLinkClick={onPublicLinkClick}
         />

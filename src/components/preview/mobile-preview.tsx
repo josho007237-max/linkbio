@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 
 type MobilePreviewProps = {
   data: BuilderData;
+  routeSlug?: string;
   mode?: "admin" | "public";
   onPublicLinkClick?: (
     linkId: string,
@@ -296,6 +297,7 @@ const XEmbedRenderer = ({ markup }: { markup: string }) => {
 
 export const MobilePreview = ({
   data: rawData,
+  routeSlug,
   mode = "admin",
   onPublicLinkClick,
 }: MobilePreviewProps) => {
@@ -306,6 +308,10 @@ export const MobilePreview = ({
   const data = useMemo(
     () => hydrateBuilderDataWithIndexedDbImages(rawData, resolvedImageRefs),
     [rawData, resolvedImageRefs],
+  );
+  const targetRouteSlug = useMemo(
+    () => (routeSlug?.trim() ? routeSlug.trim().toLowerCase() : data.header.username),
+    [data.header.username, routeSlug],
   );
   const visibleLinks = getSortedVisibleLinks(data);
   const [brokenAvatarSources, setBrokenAvatarSources] = useState<Record<string, true>>({});
@@ -1507,7 +1513,7 @@ export const MobilePreview = ({
                                         }
 
                                         const payload = new FormData();
-                                        payload.append("slug", data.header.username);
+                                        payload.append("slug", targetRouteSlug);
                                         payload.append("linkId", link.id);
                                         payload.append("template", supportTemplate);
                                         payload.append("formTitle", form.formTitle || link.title);
@@ -1531,7 +1537,7 @@ export const MobilePreview = ({
                                             "Content-Type": "application/json",
                                           },
                                           body: JSON.stringify({
-                                            slug: data.header.username,
+                                            slug: targetRouteSlug,
                                             linkId: link.id,
                                             template: supportTemplate,
                                             formTitle: form.formTitle || link.title,

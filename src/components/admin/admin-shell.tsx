@@ -61,6 +61,23 @@ const selectBuilderDataSnapshot = (): BuilderData => {
   };
 };
 
+const normalizeWorkspaceData = (slug: string, payload: BuilderData): BuilderData => {
+  const normalizedSlug = toProfileSlug(slug);
+  const fallbackPublicUsername =
+    typeof payload.header.publicUsername === "string" && payload.header.publicUsername.trim()
+      ? payload.header.publicUsername.trim()
+      : payload.header.username;
+
+  return {
+    ...payload,
+    header: {
+      ...payload.header,
+      username: normalizedSlug,
+      publicUsername: fallbackPublicUsername,
+    },
+  };
+};
+
 export const AdminShell = () => {
   const { t } = useI18n();
   const storageWarningMessage = t("storage_warning_quota");
@@ -165,13 +182,7 @@ export const AdminShell = () => {
       }
 
       if (remoteData) {
-        const hydratedRemote: BuilderData = {
-          ...remoteData,
-          header: {
-            ...remoteData.header,
-            username: normalized,
-          },
-        };
+        const hydratedRemote = normalizeWorkspaceData(normalized, remoteData);
         replaceBuilderData(hydratedRemote);
         applyWorkspaceIdentity(normalized, hydratedRemote);
         setLastSavedAt(new Date());
@@ -180,13 +191,7 @@ export const AdminShell = () => {
       }
 
       const fallbackSource = options.fallbackData ?? mockBuilderData;
-      const fallbackHydrated: BuilderData = {
-        ...fallbackSource,
-        header: {
-          ...fallbackSource.header,
-          username: normalized,
-        },
-      };
+      const fallbackHydrated = normalizeWorkspaceData(normalized, fallbackSource);
       replaceBuilderData(fallbackHydrated);
       applyWorkspaceIdentity(normalized, fallbackHydrated);
       setLastSavedAt(null);
@@ -230,6 +235,8 @@ export const AdminShell = () => {
               header: {
                 ...payload.header,
                 username: targetSlug,
+                publicUsername:
+                  payload.header.publicUsername?.trim() || payload.header.username,
               },
             };
             await upsertPublicPageBySlug(targetSlug, payloadForSave);
@@ -385,21 +392,19 @@ export const AdminShell = () => {
 
   const slugCollisionWarning = useMemo(() => {
     void profileRefreshKey;
-    const candidate = toProfileSlug(header.username);
-    if (!candidate || candidate === currentEditorSlug) {
-      return null;
-    }
-    return savedProfiles.some((item) => item.slug === candidate) ? candidate : null;
-  }, [currentEditorSlug, header.username, profileRefreshKey, savedProfiles]);
+    void savedProfiles;
+    return null;
+  }, [profileRefreshKey, savedProfiles]);
 
   const handleLoadExistingRoute = () => {
     if (!collisionDialog) {
       return;
     }
     const loaded = collisionDialog.existingProfile;
-    replaceBuilderData(loaded);
+    const normalizedLoaded = normalizeWorkspaceData(loaded.header.username, loaded);
+    replaceBuilderData(normalizedLoaded);
     const nextSlug = toProfileSlug(loaded.header.username);
-    applyWorkspaceIdentity(nextSlug, loaded);
+    applyWorkspaceIdentity(nextSlug, normalizedLoaded);
     setLastSavedAt(new Date());
     setCollisionDialog(null);
   };
@@ -415,6 +420,9 @@ export const AdminShell = () => {
       header: {
         ...collisionDialog.pendingPayload.header,
         username: duplicateSlug,
+        publicUsername:
+          collisionDialog.pendingPayload.header.publicUsername?.trim() ||
+          collisionDialog.pendingPayload.header.username,
       },
     };
     replaceBuilderData(duplicated);
@@ -454,7 +462,12 @@ export const AdminShell = () => {
 
         <div className="lg:col-span-3 xl:col-span-4">
           <div className="lg:sticky lg:top-4 rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/20 p-2 shadow-sm">
-            <MobilePreview key={workspaceHydrationKey} data={builderData} mode="admin" />
+            <MobilePreview
+              key={workspaceHydrationKey}
+              data={builderData}
+              routeSlug={currentEditorSlug}
+              mode="admin"
+            />
           </div>
         </div>
       </div>

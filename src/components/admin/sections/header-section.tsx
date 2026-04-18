@@ -30,6 +30,7 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
     mode: "onChange",
     defaultValues: {
       username: header.username,
+      publicUsername: header.publicUsername ?? header.username,
       displayName: header.displayName,
       tagline: header.tagline,
       avatarUrl: header.avatarUrl,
@@ -54,6 +55,7 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
     name: "heroOverlayStrength",
   });
   const matchThemeToHero = useWatch({ control: form.control, name: "matchThemeToHero" });
+  void slugCollisionWarning;
   const avatarError = form.formState.errors.avatarUrl?.message;
   const heroImageError = form.formState.errors.heroImageUrl?.message;
 
@@ -149,18 +151,17 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
       description={t("header_desc")}
     >
       <div className="space-y-2">
-        <Label htmlFor="username">{t("header_username")}</Label>
+        <Label htmlFor="workspaceSlug">{t("saved_manager_create_slug")}</Label>
         <Input
-          id="username"
-          aria-invalid={Boolean(slugCollisionWarning)}
-          className={slugCollisionWarning ? "border-amber-500 ring-amber-500/30" : undefined}
-          {...form.register("username")}
+          id="workspaceSlug"
+          value={header.username}
+          readOnly
         />
-        {slugCollisionWarning ? (
-          <p className="text-xs text-amber-600">
-            {t("header_slug_collision")}
-          </p>
-        ) : null}
+        <input type="hidden" {...form.register("username")} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="publicUsername">{t("header_username")}</Label>
+        <Input id="publicUsername" {...form.register("publicUsername")} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="displayName">{t("header_display_name")}</Label>

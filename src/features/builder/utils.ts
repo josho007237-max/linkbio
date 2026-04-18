@@ -340,6 +340,13 @@ export const getSortedVisibleLinks = (data: BuilderData): BioLink[] =>
 
 export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
   ...data,
+  header: {
+    ...data.header,
+    publicUsername:
+      typeof data.header.publicUsername === "string" && data.header.publicUsername.trim()
+        ? data.header.publicUsername.trim()
+        : data.header.username,
+  },
   links: data.links.map((link) => {
     if (getContentType(link) !== "discount") {
       return link;
