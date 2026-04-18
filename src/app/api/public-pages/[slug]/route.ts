@@ -3,10 +3,10 @@ import { NextResponse } from "next/server";
 import { builderDataSchema } from "@/features/builder/schema";
 import { BuilderData } from "@/features/builder/types";
 import {
-  getDevPublicPageBySlug,
-  removeDevPublicPageBySlug,
-  upsertDevPublicPage,
-} from "@/lib/server/dev-public-pages-store";
+  getPublicPageBySlug,
+  removePublicPageBySlug,
+  upsertPublicPage,
+} from "@/lib/server/public-pages-store";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,13 @@ export async function GET(
     return NextResponse.json({ error: "Invalid slug." }, { status: 400 });
   }
 
-  const data = await getDevPublicPageBySlug(slug);
+  let data: BuilderData | null;
+  try {
+    data = await getPublicPageBySlug(slug);
+  } catch (error) {
+    console.error("[public-pages] GET failed", error);
+    return NextResponse.json({ error: "Failed to load public page." }, { status: 500 });
+  }
   if (!data) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
@@ -60,7 +66,12 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid profile payload." }, { status: 400 });
   }
 
-  await upsertDevPublicPage(slug, parsed.data as BuilderData);
+  try {
+    await upsertPublicPage(slug, parsed.data as BuilderData);
+  } catch (error) {
+    console.error("[public-pages] PUT failed", error);
+    return NextResponse.json({ error: "Failed to save public page." }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }
 
@@ -73,6 +84,11 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid slug." }, { status: 400 });
   }
 
-  await removeDevPublicPageBySlug(slug);
+  try {
+    await removePublicPageBySlug(slug);
+  } catch (error) {
+    console.error("[public-pages] DELETE failed", error);
+    return NextResponse.json({ error: "Failed to delete public page." }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,5 @@
-import { AdminShell } from "@/components/admin/admin-shell";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  return <AdminShell />;
+  redirect("/110");
 }
-
