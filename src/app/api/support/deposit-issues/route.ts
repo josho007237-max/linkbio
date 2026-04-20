@@ -13,7 +13,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-const DEFAULT_SUPPORT_UPLOADS_BUCKET = "support-uploads";
+const SUPPORT_UPLOADS_PREFIX = "support-uploads";
+
+class SupportUploadConfigError extends Error {
+  public readonly publicMessage: string;
+
+  constructor(message: string, publicMessage: string) {
+    super(message);
+    this.name = "SupportUploadConfigError";
+    this.publicMessage = publicMessage;
+  }
+}
 
 const sanitizeFileName = (fileName: string): string => {
   const parsed = path.parse(fileName || "slip-image");
@@ -30,12 +40,15 @@ const sanitizePathSegment = (value: string, fallback: string): string => {
 const getSupabaseStorageConfig = () => {
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
   const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
-  const bucket = (process.env.SUPPORT_UPLOADS_BUCKET ?? DEFAULT_SUPPORT_UPLOADS_BUCKET).trim();
+  const bucket = (process.env.SUPPORT_UPLOADS_BUCKET ?? "").trim();
 
   return {
     url,
     serviceRoleKey,
     bucket,
+    hasUrl: Boolean(url),
+    hasServiceRoleKey: Boolean(serviceRoleKey),
+    hasBucket: Boolean(bucket),
     isReady: Boolean(url && serviceRoleKey && bucket),
   };
 };
@@ -61,13 +74,23 @@ const uploadSlipToSupabaseStorage = async (params: {
   const config = getSupabaseStorageConfig();
   console.info("[support-submission] deposit_issue storage config", {
     bucket: config.bucket,
-    hasSupabaseUrl: Boolean(config.url),
-    hasServiceRoleKey: Boolean(config.serviceRoleKey),
+    hasSupabaseUrl: config.hasUrl,
+    hasServiceRoleKey: config.hasServiceRoleKey,
+    hasSupportUploadsBucket: config.hasBucket,
     serviceRoleKeyPrefix: config.serviceRoleKey.slice(0, 12),
   });
 
-  if (!config.isReady) {
-    throw new Error("Supabase storage env is incomplete for support uploads.");
+  if (!config.hasBucket) {
+    throw new SupportUploadConfigError(
+      "SUPPORT_UPLOADS_BUCKET is missing.",
+      "Server misconfiguration: SUPPORT_UPLOADS_BUCKET is not set.",
+    );
+  }
+  if (!config.hasUrl || !config.hasServiceRoleKey) {
+    throw new SupportUploadConfigError(
+      "Supabase storage env is incomplete for support uploads.",
+      "Server misconfiguration: Supabase storage credentials are missing.",
+    );
   }
 
   const client = createClient(config.url, config.serviceRoleKey, {
@@ -95,7 +118,7 @@ const uploadSlipToSupabaseStorage = async (params: {
   const safeSlug = sanitizePathSegment(params.slug, "unknown-slug");
   const safeLinkId = sanitizePathSegment(params.linkId, "unknown-link");
   const objectPath = [
-    "support-uploads",
+    SUPPORT_UPLOADS_PREFIX,
     "deposit_issue",
     safeSlug,
     safeLinkId,
@@ -176,7 +199,12 @@ const parseResponses = (raw: FormDataEntryValue | null): SupportSubmissionRecord
 };
 
 export async function POST(request: Request) {
+  const runtimeBucket = (process.env.SUPPORT_UPLOADS_BUCKET ?? "").trim();
   console.info("[support-submission] deposit_issue route hit");
+  console.info("[support-submission] deposit_issue runtime bucket", {
+    bucket: runtimeBucket || null,
+    source: runtimeBucket ? "env.SUPPORT_UPLOADS_BUCKET" : "missing",
+  });
 
   let formData: FormData;
   try {
@@ -226,6 +254,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[support-submission] deposit_issue storage upload failed", error);
+    if (error instanceof SupportUploadConfigError) {
+      return NextResponse.json({ error: error.publicMessage }, { status: 500 });
+    }
     return NextResponse.json(
       { error: "Image upload failed. Please try again later." },
       { status: 500 },

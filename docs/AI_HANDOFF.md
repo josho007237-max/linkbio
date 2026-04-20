@@ -3,6 +3,43 @@
 ## Current goal
 Add Google Sheets integration for existing in-site support forms while keeping current UX/routes unchanged and preserving local-dev fallback.
 
+## Update 2026-04-20 (bucket mismatch hardening for deposit slip uploads)
+
+### Changed files
+- `src/app/api/support/deposit-issues/route.ts`
+- `.env.example`
+- `docs/AI_HANDOFF.md`
+
+### Root cause addressed
+- `POST /api/support/deposit-issues` was using fallback bucket name `support-uploads` when `SUPPORT_UPLOADS_BUCKET` was missing.
+- On production, this can point to a non-existent bucket and fail with `StorageApiError: Bucket not found`.
+
+### Behavior change
+- Removed hardcoded/fallback bucket resolution in deposit upload route.
+- Bucket is now **explicitly required** from `SUPPORT_UPLOADS_BUCKET`.
+- Added defensive runtime logging of bucket source/value for each request:
+  - route-level runtime bucket log
+  - storage config presence flags
+- If `SUPPORT_UPLOADS_BUCKET` is missing, route now returns a clear server error:
+  - `Server misconfiguration: SUPPORT_UPLOADS_BUCKET is not set.`
+- If Supabase URL/service-role key is missing, route now returns:
+  - `Server misconfiguration: Supabase storage credentials are missing.`
+- Support submit flow contract is otherwise unchanged:
+  - still uploads slip to Supabase Storage
+  - still forwards `slipUrl` into existing `submitDepositIssue` flow
+  - Google Sheets mapping/flow unchanged
+
+### Env setup
+- `SUPPORT_UPLOADS_BUCKET` must match an existing bucket in the target Supabase project.
+- `.env.example` updated to require explicit value (no default fallback).
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
 ## Update 2026-04-20 (deposit slip upload: direct Supabase Storage, no local FS writes)
 
 ### Changed files
