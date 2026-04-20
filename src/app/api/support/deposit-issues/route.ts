@@ -40,12 +40,32 @@ const getSupabaseStorageConfig = () => {
   };
 };
 
+const toErrorLog = (error: unknown) => {
+  if (error instanceof Error) {
+    const maybeStatus = error as Error & { statusCode?: string | number; status?: number };
+    return {
+      name: error.name,
+      message: error.message,
+      statusCode: maybeStatus.statusCode,
+      status: maybeStatus.status,
+    };
+  }
+  return { raw: error };
+};
+
 const uploadSlipToSupabaseStorage = async (params: {
   file: File;
   slug: string;
   linkId: string;
 }) => {
   const config = getSupabaseStorageConfig();
+  console.info("[support-submission] deposit_issue storage config", {
+    bucket: config.bucket,
+    hasSupabaseUrl: Boolean(config.url),
+    hasServiceRoleKey: Boolean(config.serviceRoleKey),
+    serviceRoleKeyPrefix: config.serviceRoleKey.slice(0, 12),
+  });
+
   if (!config.isReady) {
     throw new Error("Supabase storage env is incomplete for support uploads.");
   }
@@ -55,6 +75,20 @@ const uploadSlipToSupabaseStorage = async (params: {
       persistSession: false,
       autoRefreshToken: false,
     },
+  });
+
+  const { data: bucketData, error: bucketError } = await client.storage.getBucket(config.bucket);
+  if (bucketError) {
+    console.error("[support-submission] deposit_issue bucket check failed", {
+      bucket: config.bucket,
+      error: toErrorLog(bucketError),
+    });
+    throw bucketError;
+  }
+  console.info("[support-submission] deposit_issue bucket check success", {
+    bucket: config.bucket,
+    id: bucketData?.id,
+    public: bucketData?.public,
   });
 
   const safeFileName = sanitizeFileName(params.file.name);
@@ -69,17 +103,25 @@ const uploadSlipToSupabaseStorage = async (params: {
   ].join("/");
 
   const fileBuffer = Buffer.from(await params.file.arrayBuffer());
-  const { error } = await client.storage.from(config.bucket).upload(objectPath, fileBuffer, {
+  const { data: uploadData, error: uploadError } = await client.storage
+    .from(config.bucket)
+    .upload(objectPath, fileBuffer, {
     contentType: params.file.type || "application/octet-stream",
     upsert: false,
   });
-
-  if (error) {
-    throw error;
+  console.info("[support-submission] deposit_issue storage upload returned data", uploadData ?? null);
+  if (uploadError) {
+    console.error("[support-submission] deposit_issue storage upload error", toErrorLog(uploadError));
+    throw uploadError;
   }
 
-  const { data } = client.storage.from(config.bucket).getPublicUrl(objectPath);
-  return data.publicUrl;
+  const uploadedPath = uploadData?.path || objectPath;
+  const { data: publicUrlData } = client.storage.from(config.bucket).getPublicUrl(uploadedPath);
+  console.info("[support-submission] deposit_issue computed public URL", {
+    path: uploadedPath,
+    publicUrl: publicUrlData.publicUrl,
+  });
+  return publicUrlData.publicUrl;
 };
 
 const parseJsonWithFallback = <T>(raw: string | null | undefined, fallback: T): T => {
