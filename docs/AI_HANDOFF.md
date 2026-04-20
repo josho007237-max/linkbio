@@ -3,6 +3,44 @@
 ## Current goal
 Add Google Sheets integration for existing in-site support forms while keeping current UX/routes unchanged and preserving local-dev fallback.
 
+## Update 2026-04-20 (deposit slip upload: direct Supabase Storage, no local FS writes)
+
+### Changed files
+- `src/app/api/support/deposit-issues/route.ts`
+- `src/lib/server/support-submissions-store.ts`
+- `.env.example`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- `POST /api/support/deposit-issues` no longer writes uploaded slip images to local filesystem paths (`/var/task`, `process.cwd()`, `data/...`).
+- Deposit slip file is uploaded directly to Supabase Storage using server-side Supabase admin credentials (`SUPABASE_SERVICE_ROLE_KEY`).
+- Route now passes a real Supabase Storage URL (`slipUrl`) into `submitDepositIssue`, preserving existing Google Sheets row mapping.
+- Added explicit runtime logs for:
+  - route hit
+  - `formData` keys
+  - file metadata (name/type/size)
+  - storage upload success/failure
+  - final image URL
+- Removed unused local support-upload path helper from `support-submissions-store` to avoid accidental local image persistence path reuse.
+- Client-side preview flow remains unchanged (preview still uses selected file before submit).
+
+### Env setup
+- Added:
+  - `SUPPORT_UPLOADS_BUCKET=support-uploads`
+- Required for server-side upload:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+
+### Notes
+- The configured `SUPPORT_UPLOADS_BUCKET` should be a public bucket if slip URLs need to be directly viewable from any device without signed URL exchange.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
 ## Last completed
 - Added submission adapter layer:
   - `SUPPORT_SUBMISSION_ADAPTER_MODE=auto|local_dev|google_sheets`
