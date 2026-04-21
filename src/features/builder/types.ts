@@ -30,7 +30,24 @@ export type SocialLink = {
   platform: SocialPlatform;
   url: string;
   enabled: boolean;
+  iconImageUrl?: string;
   iconUrl?: string;
+  preOpenModal?: PreOpenModalConfig;
+};
+
+export type PreOpenButtonStyle = "solid" | "outline" | "glow";
+
+export type PreOpenModalConfig = {
+  enabled: boolean;
+  bannerImageUrl?: string;
+  title: string;
+  description: string;
+  primaryButtonLabel: string;
+  destinationUrl?: string;
+  showSecondaryButton?: boolean;
+  secondaryButtonLabel?: string;
+  dismissible?: boolean;
+  buttonStyle?: PreOpenButtonStyle;
 };
 
 export type LinkSchedule = {
@@ -98,6 +115,7 @@ export type FormFieldType =
   | "phone"
   | "country"
   | "date_of_birth"
+  | "time_hms"
   | "short_answer"
   | "paragraph"
   | "single_choice"
@@ -131,6 +149,7 @@ export type FormBlock = {
   intro: string;
   outro: string;
   submitLabel: string;
+  cancelLabel?: string;
   termsPlaceholder?: string;
   fields: FormField[];
 };
@@ -142,6 +161,7 @@ export type BioLink = {
   url: string;
   enabled: boolean;
   description?: string;
+  preOpenModal?: PreOpenModalConfig;
   discount?: DiscountCodeData;
   embedPost?: EmbedPostData;
   form?: FormBlock;

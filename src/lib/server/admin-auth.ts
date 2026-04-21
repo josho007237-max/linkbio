@@ -1,7 +1,9 @@
+import { validateCriticalServerEnv } from "@/lib/server/env-validation";
+
 export const ADMIN_SESSION_COOKIE_NAME = "linkbio_admin_session";
 const ADMIN_SESSION_COOKIE_VALUE = "authenticated";
 
-export const getAdminPassword = (): string => (process.env.ADMIN_PASSWORD ?? "").trim();
+export const getAdminPassword = (): string => validateCriticalServerEnv().adminPassword;
 
 export const isAdminPasswordValid = (inputPassword: string): boolean => {
   const expected = getAdminPassword();

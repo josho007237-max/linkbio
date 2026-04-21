@@ -31,6 +31,11 @@ const normalizeImageSrc = (value: string | null | undefined): string | null => {
   return normalized || null;
 };
 
+const normalizeIconImageUrlInput = (value: string): string | undefined => {
+  const normalized = value.trim();
+  return normalized || undefined;
+};
+
 export const SocialIconsSection = () => {
   const { t } = useI18n();
   const socials = useBuilderStore((state) => state.socials);
@@ -47,6 +52,7 @@ export const SocialIconsSection = () => {
       platform: "website",
       url: "https://",
       enabled: true,
+      iconImageUrl: "",
       iconUrl: "",
     },
   });
@@ -91,11 +97,18 @@ export const SocialIconsSection = () => {
   }, [resolvedIcons, socials]);
 
   const handleAdd = form.handleSubmit((values) => {
-    addSocial(values);
-    form.reset({ platform: "website", url: "https://", enabled: true, iconUrl: "" });
+    addSocial({
+      platform: values.platform,
+      url: values.url,
+      enabled: values.enabled,
+      iconUrl: values.iconUrl,
+      iconImageUrl: normalizeIconImageUrlInput(values.iconImageUrl ?? ""),
+    });
+    form.reset({ platform: "website", url: "https://", enabled: true, iconImageUrl: "", iconUrl: "" });
     setOpenAdd(false);
   });
   const urlError = form.formState.errors.url?.message;
+  const iconImageUrlError = form.formState.errors.iconImageUrl?.message;
 
   return (
     <SectionCard
@@ -111,6 +124,22 @@ export const SocialIconsSection = () => {
         ) : (
           socials.map((social) => {
             const parsed = socialSchema.shape.url.safeParse(social.url);
+            const uploadedIconSrc = normalizeImageSrc(
+              isIndexedDbImageRef(social.iconUrl) ? resolvedIcons[social.iconUrl] : social.iconUrl,
+            );
+            const previewIconSrc = normalizeImageSrc(social.iconImageUrl) || uploadedIconSrc;
+            const currentPreOpenModal = {
+              enabled: social.preOpenModal?.enabled ?? false,
+              title: social.preOpenModal?.title ?? "Notice",
+              description: social.preOpenModal?.description ?? "",
+              primaryButtonLabel: social.preOpenModal?.primaryButtonLabel ?? "Continue",
+              destinationUrl: social.preOpenModal?.destinationUrl ?? "",
+              showSecondaryButton: social.preOpenModal?.showSecondaryButton ?? true,
+              secondaryButtonLabel: social.preOpenModal?.secondaryButtonLabel ?? "Close",
+              dismissible: social.preOpenModal?.dismissible ?? true,
+              buttonStyle: social.preOpenModal?.buttonStyle ?? ("solid" as const),
+              bannerImageUrl: social.preOpenModal?.bannerImageUrl ?? "",
+            };
             return (
               <div key={social.id} className="space-y-2 rounded-lg border p-3">
                 <div className="grid gap-2 sm:grid-cols-[1fr_2fr_auto_auto] sm:items-center">
@@ -150,33 +179,212 @@ export const SocialIconsSection = () => {
                 <div className="grid gap-2 sm:grid-cols-[auto_1fr] sm:items-center">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{t("social_icon_preview")}</span>
-                    {normalizeImageSrc(
-                      isIndexedDbImageRef(social.iconUrl) ? resolvedIcons[social.iconUrl] : social.iconUrl,
-                    ) ? (
-                      <SafeImage
-                        src={
-                          normalizeImageSrc(
-                            isIndexedDbImageRef(social.iconUrl)
-                              ? resolvedIcons[social.iconUrl]
-                              : social.iconUrl,
-                          ) as string
-                        }
-                        alt=""
-                        width={24}
-                        height={24}
-                        className="size-6 rounded object-cover"
-                      />
+                    {previewIconSrc ? (
+                      <span className="flex size-10 items-center justify-center rounded-md border bg-muted/30 p-1">
+                        <SafeImage
+                          src={previewIconSrc}
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </span>
                     ) : (
                       <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </div>
-                  <CustomImageUpload
-                    value={social.iconUrl}
-                    preset="icon"
-                    onValueChange={(nextValue) => updateSocial(social.id, { iconUrl: nextValue || undefined })}
-                    className="w-full"
-                    uploadLabel={t("social_icon_upload")}
-                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>{t("social_icon_image_url")}</Label>
+                      <Input
+                        type="url"
+                        value={social.iconImageUrl ?? ""}
+                        onChange={(event) =>
+                          updateSocial(social.id, {
+                            iconImageUrl: normalizeIconImageUrlInput(event.target.value),
+                          })
+                        }
+                        placeholder="https://example.com/icon.png"
+                      />
+                    </div>
+                    <CustomImageUpload
+                      value={social.iconUrl}
+                      preset="icon"
+                      onValueChange={(nextValue) => updateSocial(social.id, { iconUrl: nextValue || undefined })}
+                      className="w-full"
+                      uploadLabel={t("social_icon_upload")}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2 rounded-lg border border-dashed p-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={Boolean(social.preOpenModal?.enabled)}
+                      onCheckedChange={(enabled) =>
+                        updateSocial(social.id, {
+                          preOpenModal: {
+                            ...currentPreOpenModal,
+                            enabled,
+                          },
+                        })
+                      }
+                    />
+                    {t("pre_open_modal_enabled")}
+                  </label>
+                  {social.preOpenModal?.enabled ? (
+                    <>
+                      <div className="space-y-1">
+                        <Label>{t("pre_open_modal_banner_image")}</Label>
+                        <Input
+                          value={social.preOpenModal?.bannerImageUrl ?? ""}
+                          onChange={(event) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                bannerImageUrl: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <CustomImageUpload
+                        value={social.preOpenModal?.bannerImageUrl}
+                        preset="thumbnail_banner"
+                        onValueChange={(nextValue) =>
+                          updateSocial(social.id, {
+                            preOpenModal: {
+                              ...currentPreOpenModal,
+                              bannerImageUrl: nextValue || "",
+                            },
+                          })
+                        }
+                        uploadLabel={t("pre_open_modal_banner_upload")}
+                      />
+                      <div className="space-y-1">
+                        <Label>{t("pre_open_modal_title")}</Label>
+                        <Input
+                          value={social.preOpenModal?.title ?? ""}
+                          onChange={(event) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                title: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>{t("pre_open_modal_description")}</Label>
+                        <Input
+                          value={social.preOpenModal?.description ?? ""}
+                          onChange={(event) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                description: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>{t("pre_open_modal_primary_label")}</Label>
+                        <Input
+                          value={social.preOpenModal?.primaryButtonLabel ?? ""}
+                          onChange={(event) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                primaryButtonLabel: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>{t("pre_open_modal_destination_url")}</Label>
+                        <Input
+                          value={social.preOpenModal?.destinationUrl ?? ""}
+                          onChange={(event) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                destinationUrl: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>{t("pre_open_modal_button_style")}</Label>
+                        <Select
+                          value={social.preOpenModal?.buttonStyle ?? "solid"}
+                          onValueChange={(buttonStyle) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                buttonStyle: buttonStyle as "solid" | "outline" | "glow",
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="solid">{t("pre_open_modal_button_style_solid")}</SelectItem>
+                            <SelectItem value="outline">{t("pre_open_modal_button_style_outline")}</SelectItem>
+                            <SelectItem value="glow">{t("pre_open_modal_button_style_glow")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={social.preOpenModal?.showSecondaryButton ?? true}
+                          onCheckedChange={(showSecondaryButton) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                showSecondaryButton,
+                              },
+                            })
+                          }
+                        />
+                        {t("pre_open_modal_show_secondary")}
+                      </label>
+                      {(social.preOpenModal?.showSecondaryButton ?? true) ? (
+                        <div className="space-y-1">
+                          <Label>{t("pre_open_modal_secondary_label")}</Label>
+                          <Input
+                            value={social.preOpenModal?.secondaryButtonLabel ?? ""}
+                            onChange={(event) =>
+                              updateSocial(social.id, {
+                                preOpenModal: {
+                                  ...currentPreOpenModal,
+                                  secondaryButtonLabel: event.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      ) : null}
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={social.preOpenModal?.dismissible ?? true}
+                          onCheckedChange={(dismissible) =>
+                            updateSocial(social.id, {
+                              preOpenModal: {
+                                ...currentPreOpenModal,
+                                dismissible,
+                              },
+                            })
+                          }
+                        />
+                        {t("pre_open_modal_dismissible")}
+                      </label>
+                    </>
+                  ) : null}
                 </div>
                 {!parsed.success ? (
                   <p className="text-xs text-destructive">{t("social_invalid_url")}</p>
@@ -223,6 +431,17 @@ export const SocialIconsSection = () => {
             <Switch checked={formEnabled} onCheckedChange={(v) => form.setValue("enabled", v)} />
             {t("social_enabled")}
           </label>
+          <div className="space-y-2">
+            <Label>{t("social_icon_image_url")}</Label>
+            <Input
+              type="url"
+              aria-invalid={Boolean(iconImageUrlError)}
+              className={iconImageUrlError ? "border-destructive" : undefined}
+              placeholder="https://example.com/icon.png"
+              {...form.register("iconImageUrl")}
+            />
+            {iconImageUrlError ? <p className="text-xs text-destructive">{iconImageUrlError}</p> : null}
+          </div>
           <div className="space-y-2">
             <Label>{t("social_icon_upload")}</Label>
             <CustomImageUpload

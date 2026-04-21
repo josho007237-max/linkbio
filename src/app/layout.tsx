@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { validateCriticalServerEnv } from "@/lib/server/env-validation";
+
+validateCriticalServerEnv();
 
 export const metadata: Metadata = {
   title: "Link Bio Builder",

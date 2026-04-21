@@ -66,10 +66,25 @@ type FormFileSelection = {
   fileName: string;
 };
 type FormFilesByLink = Record<string, Record<string, FormFileSelection>>;
+type TimeParts = { hour: string; minute: string; second: string };
 
 const WALLPAPER_FALLBACK_SRC = "/placeholders/wallpaper-default.svg";
 const THUMBNAIL_FALLBACK_SRC = "/placeholders/link-thumbnail-default.svg";
 const MAX_SUPPORT_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
+const SAFE_EXTERNAL_HREF_PROTOCOLS = new Set([
+  "http:",
+  "https:",
+  "mailto:",
+  "tel:",
+  "sms:",
+  "line:",
+  "whatsapp:",
+  "tg:",
+]);
+const WEB_EXTERNAL_HREF_PROTOCOLS = new Set(["http:", "https:"]);
+const TIME_SEGMENT_OPTIONS = Array.from({ length: 60 }, (_, index) =>
+  index.toString().padStart(2, "0"),
+);
 
 const normalizeImageSrc = (
   value: string | null | undefined,
@@ -93,19 +108,19 @@ const socialIconMap: Record<SocialLink["platform"], ComponentType<{ className?: 
 
 const SocialVisual = ({ social }: { social: SocialLink }) => {
   const Icon = socialIconMap[social.platform];
-  const iconSrc = normalizeImageSrc(social.iconUrl);
+  const iconSrc = normalizeImageSrc(social.iconImageUrl) ?? normalizeImageSrc(social.iconUrl);
   if (iconSrc) {
     return (
       <SafeImage
         src={iconSrc}
         alt=""
-        width={16}
-        height={16}
-        className="size-4 rounded object-cover"
+        width={24}
+        height={24}
+        className="max-h-full max-w-full object-contain"
       />
     );
   }
-  return <Icon className="size-4" />;
+  return <Icon className="size-5" />;
 };
 
 const parsePreviewHref = (href: string): PreviewHrefResult => {
@@ -115,28 +130,42 @@ const parsePreviewHref = (href: string): PreviewHrefResult => {
     return { kind: "invalid", href: null };
   }
 
-  if (value.startsWith("/")) {
+  if (value.startsWith("/") && !value.startsWith("//")) {
     return { kind: "internal", href: value };
   }
 
-  if (value === "http://" || value === "https://") {
-    return { kind: "invalid", href: null };
-  }
-
-  if (value.startsWith("http://") || value.startsWith("https://")) {
-    try {
-      const parsed = new URL(value);
-      if (!parsed.hostname) {
-        return { kind: "invalid", href: null };
-      }
-      return { kind: "external", href: parsed.toString() };
-    } catch {
+  try {
+    const parsed = new URL(value.startsWith("//") ? `https:${value}` : value);
+    if (!SAFE_EXTERNAL_HREF_PROTOCOLS.has(parsed.protocol)) {
       return { kind: "invalid", href: null };
     }
+    if (WEB_EXTERNAL_HREF_PROTOCOLS.has(parsed.protocol) && !parsed.hostname) {
+      return { kind: "invalid", href: null };
+    }
+    return { kind: "external", href: parsed.toString() };
+  } catch {
+    return { kind: "invalid", href: null };
   }
-
-  return { kind: "invalid", href: null };
 };
+
+const isWebExternalHref = (
+  parsedHref: PreviewHrefResult,
+): parsedHref is { kind: "external"; href: string } => {
+  if (parsedHref.kind !== "external" || !parsedHref.href) {
+    return false;
+  }
+  try {
+    const parsed = new URL(parsedHref.href);
+    return WEB_EXTERNAL_HREF_PROTOCOLS.has(parsed.protocol) && Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const getExternalAnchorTargetProps = (
+  parsedHref: PreviewHrefResult,
+): { target?: "_blank"; rel?: "noreferrer" } =>
+  isWebExternalHref(parsedHref) ? { target: "_blank", rel: "noreferrer" } : {};
 
 const getYouTubeEmbedUrl = (rawUrl: string): string | null => {
   try {
@@ -177,7 +206,7 @@ const getXPostUrlFromEmbedCode = (embedCode: string): string | null => {
   const hrefMatch = embedCode.match(/href=["']([^"']+)["']/i);
   const rawCandidate = citeMatch?.[1] || hrefMatch?.[1] || "";
   const parsed = parsePreviewHref(rawCandidate);
-  if (parsed.kind !== "external" || !parsed.href) {
+  if (!isWebExternalHref(parsed)) {
     return null;
   }
   try {
@@ -199,7 +228,7 @@ const extractXBlockquoteMarkup = (embedCode: string): string | null => {
 
 const buildXBlockquoteFromUrl = (sourceUrl: string): string | null => {
   const parsed = parsePreviewHref(sourceUrl);
-  if (parsed.kind !== "external" || !parsed.href) {
+  if (!isWebExternalHref(parsed)) {
     return null;
   }
   return `<blockquote class="twitter-tweet"><a href="${parsed.href}"></a></blockquote>`;
@@ -227,6 +256,25 @@ const isPhoneValid = (value: string): boolean =>
 
 const isSupportTemplate = (template: string): template is "deposit_issue" | "withdraw_issue" =>
   template === "deposit_issue" || template === "withdraw_issue";
+
+const getFieldLabelTokens = (label: string): string => label.trim().toLowerCase();
+
+const getTimeParts = (value: string): TimeParts => {
+  const match = value.match(/^(\d{2}):(\d{2}):(\d{2})$/);
+  if (!match) {
+    return { hour: "", minute: "", second: "" };
+  }
+  return {
+    hour: match[1],
+    minute: match[2],
+    second: match[3],
+  };
+};
+
+const buildTimeFromParts = (parts: TimeParts): string =>
+  parts.hour && parts.minute && parts.second
+    ? `${parts.hour}:${parts.minute}:${parts.second}`
+    : "";
 
 const ensureXWidgetsScript = (): Promise<void> =>
   new Promise((resolve) => {
@@ -313,6 +361,10 @@ export const MobilePreview = ({
     () => (routeSlug?.trim() ? routeSlug.trim().toLowerCase() : data.header.username),
     [data.header.username, routeSlug],
   );
+  const urlSearchParams = useMemo(
+    () => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search)),
+    [],
+  );
   const visibleLinks = getSortedVisibleLinks(data);
   const [brokenAvatarSources, setBrokenAvatarSources] = useState<Record<string, true>>({});
   const [brokenWallpaperSources, setBrokenWallpaperSources] = useState<Record<string, true>>({});
@@ -323,6 +375,7 @@ export const MobilePreview = ({
   const [activeDiscountId, setActiveDiscountId] = useState<string | null>(null);
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const [activeFormId, setActiveFormId] = useState<string | null>(null);
+  const [activePreOpenKey, setActivePreOpenKey] = useState<string | null>(null);
   const [formValuesByLink, setFormValuesByLink] = useState<Record<string, FormSubmissionValues>>({});
   const [formErrorsByLink, setFormErrorsByLink] = useState<Record<string, FormSubmissionErrors>>({});
   const [formSubmittedByLink, setFormSubmittedByLink] = useState<Record<string, boolean>>({});
@@ -364,6 +417,61 @@ export const MobilePreview = ({
     }
     return getEmbedPostData(current).dismissible;
   }, [activeEmbedId, visibleLinks]);
+
+  const getPrefillValueForField = (
+    field: { type: string; label: string },
+    linkId: string,
+  ): string => {
+    if (!urlSearchParams) {
+      return "";
+    }
+    const read = (...keys: string[]): string => {
+      for (const key of keys) {
+        const value = urlSearchParams.get(key);
+        if (typeof value === "string" && value.trim()) {
+          return value.trim();
+        }
+      }
+      return "";
+    };
+    const label = getFieldLabelTokens(field.label);
+    if (field.type === "email") {
+      return read("email");
+    }
+    if (field.type === "phone") {
+      return read("phone", "tel", "mobile");
+    }
+    if (field.type === "name") {
+      return read("name", "full_name", "fullname");
+    }
+    if (field.type === "country") {
+      return read("country");
+    }
+    if (field.type === "date" || field.type === "date_of_birth") {
+      return read("date", "dob", "birth_date");
+    }
+    if (field.type === "time_hms") {
+      const raw = read("time", "txn_time", "transaction_time");
+      if (/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/.test(raw)) {
+        return raw;
+      }
+      const hhmmMatch = raw.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+      if (hhmmMatch) {
+        return `${hhmmMatch[1]}:${hhmmMatch[2]}:00`;
+      }
+      return "";
+    }
+    if (label.includes("user") || label.includes("ยูส")) {
+      return read("user", "username") || targetRouteSlug;
+    }
+    if (label.includes("บัญชี") || label.includes("account")) {
+      return read("account", "account_no", "account_number");
+    }
+    if (label.includes("ชื่อ")) {
+      return read("name", "full_name", "fullname");
+    }
+    return read(`field_${field.type}`, `field_${linkId}`);
+  };
 
   useEffect(() => {
     const refs = collectIndexedDbImageRefsFromBuilderData(rawData).filter(
@@ -425,7 +533,7 @@ export const MobilePreview = ({
   }, [wallpaperRequestSrc]);
 
   useEffect(() => {
-    if (!activeDiscountId && !activeEmbedId && !activeFormId) {
+    if (!activeDiscountId && !activeEmbedId && !activeFormId && !activePreOpenKey) {
       return;
     }
 
@@ -438,6 +546,7 @@ export const MobilePreview = ({
           setActiveEmbedId(null);
         }
         setActiveFormId(null);
+        setActivePreOpenKey(null);
       }
     };
 
@@ -447,7 +556,7 @@ export const MobilePreview = ({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [activeDiscountId, activeEmbedDismissible, activeEmbedId, activeFormId]);
+  }, [activeDiscountId, activeEmbedDismissible, activeEmbedId, activeFormId, activePreOpenKey]);
 
   useEffect(() => {
     if (activeFormId) {
@@ -518,7 +627,7 @@ export const MobilePreview = ({
         "mx-auto w-full",
         isAdminPreview
           ? "max-w-[390px] rounded-[40px] border-8 border-zinc-900/95 bg-zinc-950 p-2 shadow-[0_18px_60px_rgba(2,6,23,0.5)]"
-          : "max-w-none",
+          : "max-w-[390px]",
       )}
     >
       <div
@@ -526,7 +635,7 @@ export const MobilePreview = ({
           "relative overflow-hidden",
           isAdminPreview
             ? "h-[760px] rounded-[30px] border border-white/15"
-            : "rounded-[28px]",
+            : "rounded-[30px]",
         )}
         style={{
           backgroundColor: data.theme.pageBackground,
@@ -577,7 +686,7 @@ export const MobilePreview = ({
             "relative flex flex-col pb-6",
             isAdminPreview
               ? "h-full overflow-y-scroll overscroll-y-contain px-5 pt-6 [scrollbar-gutter:stable] [scrollbar-color:rgba(255,255,255,0.5)_rgba(255,255,255,0.12)] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/45 hover:[&::-webkit-scrollbar-thumb]:bg-white/60"
-              : "px-4 pt-0 sm:px-5 md:px-6",
+              : "px-5 pt-6",
           )}
           style={isAdminPreview ? { scrollbarWidth: "thin" } : undefined}
         >
@@ -585,7 +694,7 @@ export const MobilePreview = ({
             data={data}
             avatarSrc={avatarSrc}
             heroHeaderSrc={heroHeaderSrc}
-            flushToTop={!isAdminPreview}
+            flushToTop={false}
             onAvatarError={() => {
               if (avatarSrc === AVATAR_HEADER_FALLBACK_SRC || brokenAvatarSources[avatarRequestSrc]) {
                 return;
@@ -617,10 +726,112 @@ export const MobilePreview = ({
                       <span
                         key={social.id}
                         aria-disabled="true"
-                        className="cursor-not-allowed rounded-full border border-white/20 p-2 opacity-50"
+                        className="inline-flex size-10 cursor-not-allowed items-center justify-center rounded-full border border-white/20 p-2 opacity-50"
                       >
                         <SocialVisual social={social} />
                       </span>
+                    );
+                  }
+
+                  const socialPreOpenEnabled = mode === "public" && Boolean(social.preOpenModal?.enabled);
+                  if (socialPreOpenEnabled) {
+                    const preOpenKey = `social:${social.id}`;
+                    const noticeTitle = social.preOpenModal?.title?.trim() || "Notice";
+                    const noticeBody = social.preOpenModal?.description?.trim() || "";
+                    const confirmLabel = social.preOpenModal?.primaryButtonLabel?.trim() || "Continue";
+                    const secondaryLabel = social.preOpenModal?.secondaryButtonLabel?.trim() || t("form_submit_cancel");
+                    const dismissible = social.preOpenModal?.dismissible ?? true;
+                    const showSecondaryButton = social.preOpenModal?.showSecondaryButton ?? true;
+                    const buttonStyle =
+                      social.preOpenModal?.buttonStyle === "outline"
+                        ? "border-white/50 bg-transparent"
+                        : social.preOpenModal?.buttonStyle === "glow"
+                          ? "border-emerald-300/60 bg-emerald-500/30 shadow-[0_0_22px_rgba(16,185,129,0.35)]"
+                          : "border-white/30 bg-white/10";
+                    const bannerSrc = normalizeImageSrc(social.preOpenModal?.bannerImageUrl);
+                    const destinationOverride = parsePreviewHref(social.preOpenModal?.destinationUrl?.trim() || "");
+                    const targetHref =
+                      destinationOverride.kind === "external" && destinationOverride.href
+                        ? destinationOverride.href
+                        : parsedHref.href;
+                    return (
+                      <div key={social.id}>
+                        <button
+                          type="button"
+                          className="inline-flex size-10 items-center justify-center rounded-full border border-white/25 p-2 transition hover:bg-white/10"
+                          onClick={() => setActivePreOpenKey(preOpenKey)}
+                        >
+                          <SocialVisual social={social} />
+                        </button>
+                        {activePreOpenKey === preOpenKey ? (
+                          <div
+                            className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4"
+                            onClick={() => {
+                              if (dismissible) {
+                                setActivePreOpenKey(null);
+                              }
+                            }}
+                          >
+                            <div
+                              className="mx-auto flex max-h-[82dvh] w-[calc(100%-16px)] max-w-[520px] flex-col overflow-hidden rounded-[28px] border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:w-[calc(100%-24px)] sm:p-5 md:p-6"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <div className="mb-3 flex items-start justify-between gap-3">
+                                <h3 className="text-base font-bold leading-tight sm:text-xl">{noticeTitle}</h3>
+                                {dismissible ? (
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-white/25 p-1"
+                                    onClick={() => setActivePreOpenKey(null)}
+                                    aria-label={t("embed_post_action_close")}
+                                  >
+                                    <X className="size-4" />
+                                  </button>
+                                ) : null}
+                              </div>
+                              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y pr-1">
+                                {bannerSrc ? (
+                                  <SafeImage
+                                    src={bannerSrc}
+                                    alt=""
+                                    width={480}
+                                    height={240}
+                                    className="mb-3 w-full rounded-xl border border-white/20 object-cover"
+                                  />
+                                ) : null}
+                                <p className="whitespace-pre-line text-sm leading-relaxed text-zinc-200 sm:text-base">
+                                  {noticeBody}
+                                </p>
+                                <div className={cn("mt-4 grid grid-cols-1 gap-2", showSecondaryButton && "sm:grid-cols-2")}>
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "w-full min-h-12 rounded-full border px-5 text-sm font-semibold sm:text-base",
+                                      buttonStyle,
+                                    )}
+                                    onClick={() => {
+                                      setActivePreOpenKey(null);
+                                      onPublicLinkClick?.(social.id, "cta");
+                                      window.open(targetHref, "_blank", "noopener,noreferrer");
+                                    }}
+                                  >
+                                    {confirmLabel}
+                                  </button>
+                                  {showSecondaryButton ? (
+                                    <button
+                                      type="button"
+                                      className="w-full min-h-12 rounded-full border border-white/20 px-5 text-sm font-semibold sm:text-base"
+                                      onClick={() => setActivePreOpenKey(null)}
+                                    >
+                                      {secondaryLabel}
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                     );
                   }
 
@@ -628,9 +839,13 @@ export const MobilePreview = ({
                     <a
                       key={social.id}
                       href={parsedHref.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-full border border-white/25 p-2 transition hover:bg-white/10"
+                      {...getExternalAnchorTargetProps(parsedHref)}
+                      className="inline-flex size-10 items-center justify-center rounded-full border border-white/25 p-2 transition hover:bg-white/10"
+                      onClick={() => {
+                        if (mode === "public") {
+                          onPublicLinkClick?.(social.id, "cta");
+                        }
+                      }}
                     >
                       <SocialVisual social={social} />
                     </a>
@@ -705,8 +920,7 @@ export const MobilePreview = ({
                 return (
                   <a
                     href={parsedDiscountHref.href}
-                    target="_blank"
-                    rel="noreferrer"
+                    {...getExternalAnchorTargetProps(parsedDiscountHref)}
                     className="inline-flex w-full items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold min-h-12 sm:w-auto sm:text-base"
                     onClick={() => {
                       if (discount.analyticsHooks?.trackCtaClick ?? true) {
@@ -777,6 +991,7 @@ export const MobilePreview = ({
                       onClick={() => {
                         setActiveDiscountId(link.id);
                         setActiveEmbedId(null);
+                        setActivePreOpenKey(null);
                         if (discount.analyticsHooks?.trackModalOpen ?? true) {
                           onPublicLinkClick?.(link.id, "modal_open");
                         }
@@ -828,7 +1043,7 @@ export const MobilePreview = ({
                         onClick={() => setActiveDiscountId(null)}
                       >
                         <div
-                          className="mx-auto w-[calc(100%-24px)] max-w-[520px] rounded-[28px] overflow-hidden border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5 md:p-6"
+                          className="mx-auto flex max-h-[88dvh] w-[calc(100%-24px)] max-w-[520px] flex-col overflow-hidden rounded-[28px] border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5 md:p-6"
                           onClick={(event) => event.stopPropagation()}
                         >
                           <div className="mb-3 flex items-start justify-between gap-3">
@@ -844,6 +1059,7 @@ export const MobilePreview = ({
                               <X className="size-4" />
                             </button>
                           </div>
+                          <div className="min-h-0 overflow-y-auto overscroll-contain touch-pan-y pr-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                           <SafeImage
                             src={safeHeroSrc}
                             alt=""
@@ -895,6 +1111,7 @@ export const MobilePreview = ({
                               ? t("discount_copy_success_message")
                               : t("preview_copy_code")}
                           </p>
+                          </div>
                         </div>
                       </div>
                     ) : null}
@@ -930,7 +1147,7 @@ export const MobilePreview = ({
                     return parsedSourceHref;
                   }
                   const fallbackFromCode = getXPostUrlFromEmbedCode(embedPost.embedCode);
-                  if (parsedSourceHref.kind === "external" && parsedSourceHref.href) {
+                  if (isWebExternalHref(parsedSourceHref)) {
                     return parsedSourceHref;
                   }
                   if (!fallbackFromCode) {
@@ -948,8 +1165,8 @@ export const MobilePreview = ({
                     ? isXProvider
                       ? Boolean(xEmbedMarkup)
                       : Boolean(embedPost.embedCode.trim())
-                    : parsedSourceHref.kind === "external" && Boolean(parsedSourceHref.href);
-                const iframeSrc = embedPost.embedMode === "url" && parsedSourceHref.href
+                    : isWebExternalHref(parsedSourceHref);
+                const iframeSrc = embedPost.embedMode === "url" && isWebExternalHref(parsedSourceHref)
                   ? getEmbedSrcFromProvider(embedPost.provider, parsedSourceHref.href)
                   : null;
                 const embedUnavailable =
@@ -957,11 +1174,13 @@ export const MobilePreview = ({
                     ? !xEmbedMarkup
                     : !hasValidSourceInput ||
                       (embedPost.embedMode === "url" && embedPost.provider === "youtube" && !iframeSrc);
+                const embedActionClass =
+                  "inline-flex h-11 w-full items-center justify-center rounded-full border px-4 text-center text-sm font-semibold sm:h-12 sm:px-5 sm:text-base";
 
                 const renderEmbedCta = () => {
                   if (!parsedCtaHref.href || parsedCtaHref.kind === "invalid") {
                     return (
-                      <span className="inline-flex w-full min-h-12 items-center justify-center rounded-full border border-white/30 px-5 text-sm font-semibold opacity-65 sm:text-base">
+                      <span className={`${embedActionClass} border-white/30 opacity-65`}>
                         {t("preview_disabled_cta")}
                       </span>
                     );
@@ -971,7 +1190,7 @@ export const MobilePreview = ({
                     return (
                       <Link
                         href={parsedCtaHref.href}
-                        className="inline-flex w-full min-h-12 items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold sm:text-base"
+                        className={`${embedActionClass} border-white/35`}
                         onClick={() => onPublicLinkClick?.(link.id, "cta")}
                       >
                         {embedPost.ctaButtonLabel || t("embed_post_action_view_on_platform")}
@@ -982,9 +1201,8 @@ export const MobilePreview = ({
                   return (
                     <a
                       href={parsedCtaHref.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex w-full min-h-12 items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold sm:text-base"
+                      {...getExternalAnchorTargetProps(parsedCtaHref)}
+                      className={`${embedActionClass} border-white/35`}
                       onClick={() => onPublicLinkClick?.(link.id, "cta")}
                     >
                       {embedPost.ctaButtonLabel || t("embed_post_action_view_on_platform")}
@@ -1005,6 +1223,7 @@ export const MobilePreview = ({
                       onClick={() => {
                         setActiveEmbedId(link.id);
                         setActiveDiscountId(null);
+                        setActivePreOpenKey(null);
                         onPublicLinkClick?.(link.id, "modal_open");
                       }}
                     >
@@ -1042,10 +1261,11 @@ export const MobilePreview = ({
                           </p>
                         </div>
                         {cardIconSrc ? (
+                          <span className="flex size-8 items-center justify-center rounded-md border border-white/20 p-1">
                           <SafeImage
                             src={safeCardIconSrc}
                             alt=""
-                            className="size-7 rounded-md border border-white/20 object-cover"
+                            className="max-h-full max-w-full object-contain"
                             width={28}
                             height={28}
                             onError={() => {
@@ -1058,13 +1278,14 @@ export const MobilePreview = ({
                               setBrokenThumbnailKeys((current) => ({ ...current, [cardIconKey]: true }));
                             }}
                           />
+                          </span>
                         ) : null}
                       </div>
                     </button>
 
                     {activeEmbedId === link.id ? (
                       <div
-                        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 sm:items-center"
+                        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4"
                         onClick={() => {
                           if (embedPost.dismissible) {
                             setActiveEmbedId(null);
@@ -1073,13 +1294,13 @@ export const MobilePreview = ({
                       >
                         <div
                           className={cn(
-                            "mx-auto w-[calc(100%-24px)] max-w-[520px] rounded-[28px] overflow-hidden border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:p-5 md:p-6",
+                            "mx-auto flex max-h-[88dvh] w-[calc(100%-16px)] max-w-[520px] flex-col overflow-hidden rounded-[28px] border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:w-[calc(100%-24px)] sm:p-5 md:p-6",
                             providerModalClass,
                           )}
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <div className="mb-3 flex items-start justify-between gap-3">
-                            <h3 className="text-lg font-bold leading-tight sm:text-xl md:text-2xl">
+                          <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3 sm:gap-3">
+                            <h3 className="text-base font-bold leading-tight sm:text-xl md:text-2xl">
                               {embedPost.modalTitle || embedPost.cardTitle}
                             </h3>
                             {embedPost.dismissible ? (
@@ -1093,13 +1314,14 @@ export const MobilePreview = ({
                               </button>
                             ) : null}
                           </div>
+                          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y pr-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
 
                           <div
                             className={cn(
-                              "w-full rounded-[24px] overflow-hidden border border-white/15 bg-black/25",
+                              "w-full overflow-hidden rounded-[20px] border border-white/15 bg-black/25 sm:rounded-[24px]",
                             )}
                           >
-                            <div className="w-full max-h-[70vh] overflow-y-auto">
+                            <div className="w-full max-h-[52dvh] overflow-y-auto overscroll-contain touch-pan-y sm:max-h-[70vh]">
                               {embedUnavailable ? (
                                 <div className="flex w-full min-h-[420px] items-center justify-center border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200 sm:min-h-[520px] md:min-h-[640px]">
                                   {t("embed_post_public_unavailable")}
@@ -1135,13 +1357,13 @@ export const MobilePreview = ({
                           </div>
 
                           {embedPost.description ? (
-                            <p className="px-4 py-3 text-sm text-zinc-200 sm:px-5 sm:py-4 sm:text-base">
+                            <p className="px-1 py-3 text-sm text-zinc-200 sm:px-5 sm:py-4 sm:text-base">
                               {embedPost.description}
                             </p>
                           ) : null}
                           {isXProvider ? (
                             <>
-                              <div className="mt-4 rounded-lg border border-white/15 bg-white/5 p-3 text-xs text-zinc-200">
+                              <div className="mt-3 rounded-lg border border-white/15 bg-white/5 p-3 text-xs text-zinc-200 sm:mt-4">
                                 <p className="mb-2 font-medium">Activity checklist (local confirmation only)</p>
                                 {(
                                   [
@@ -1179,26 +1401,25 @@ export const MobilePreview = ({
                                   );
                                 })}
                               </div>
-                              <div className="mx-4 mb-4 mt-4 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:grid-cols-2">
+                              <div className="mt-3 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:mt-4 sm:grid-cols-2">
                                 {parsedXSourceHref.kind === "external" && parsedXSourceHref.href ? (
                                   <a
                                     href={parsedXSourceHref.href}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:text-base"
+                                    {...getExternalAnchorTargetProps(parsedXSourceHref)}
+                                    className={`${embedActionClass} border-white/30`}
                                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                                   >
                                     Open on X
                                   </a>
                                 ) : (
-                                  <span className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold opacity-65 sm:text-base">
+                                  <span className={`${embedActionClass} border-white/30 opacity-65`}>
                                     Open on X
                                   </span>
                                 )}
                                 {parsedCtaHref.kind === "internal" && parsedCtaHref.href ? (
                                   <Link
                                     href={parsedCtaHref.href}
-                                    className="w-full min-h-12 rounded-full border border-white/35 px-5 text-center text-sm font-semibold sm:text-base"
+                                    className={`${embedActionClass} border-white/35`}
                                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                                   >
                                     {embedPost.ctaButtonLabel || "Continue / Open source"}
@@ -1206,9 +1427,8 @@ export const MobilePreview = ({
                                 ) : parsedCtaHref.kind === "external" && parsedCtaHref.href ? (
                                   <a
                                     href={parsedCtaHref.href}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="w-full min-h-12 rounded-full border border-white/35 px-5 text-center text-sm font-semibold sm:text-base"
+                                    {...getExternalAnchorTargetProps(parsedCtaHref)}
+                                    className={`${embedActionClass} border-white/35`}
                                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                                   >
                                     {embedPost.ctaButtonLabel || "Continue / Open source"}
@@ -1216,7 +1436,7 @@ export const MobilePreview = ({
                                 ) : (
                                   <button
                                     type="button"
-                                    className="w-full min-h-12 cursor-not-allowed rounded-full border border-white/30 px-5 text-center text-sm font-semibold opacity-65 sm:text-base"
+                                    className={`${embedActionClass} cursor-not-allowed border-white/30 opacity-65`}
                                     disabled
                                   >
                                     {embedPost.ctaButtonLabel || "Continue / Open source"}
@@ -1224,7 +1444,7 @@ export const MobilePreview = ({
                                 )}
                                 <button
                                   type="button"
-                                  className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:col-span-2 sm:text-base"
+                                  className={`${embedActionClass} border-white/30 sm:col-span-2`}
                                   onClick={() => {
                                     if (embedPost.dismissible) {
                                       setActiveEmbedId(null);
@@ -1238,10 +1458,10 @@ export const MobilePreview = ({
                             </>
                           ) : (
                             <>
-                              <div className="mx-4 mb-4 mt-4 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:grid-cols-2">
+                              <div className="mt-3 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:mt-4 sm:grid-cols-2">
                                 <button
                                   type="button"
-                                  className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:text-base"
+                                  className={`${embedActionClass} border-white/30`}
                                   onClick={async () => {
                                     if (
                                       !parsedSourceHref.href ||
@@ -1270,7 +1490,7 @@ export const MobilePreview = ({
                                 {embedPost.dismissible ? (
                                   <button
                                     type="button"
-                                    className="w-full min-h-12 rounded-full border border-white/30 px-5 text-center text-sm font-semibold sm:col-span-2 sm:text-base"
+                                    className={`${embedActionClass} border-white/30 sm:col-span-2`}
                                     onClick={() => setActiveEmbedId(null)}
                                   >
                                     {t("embed_post_action_close")}
@@ -1292,6 +1512,7 @@ export const MobilePreview = ({
                           {isXProvider && parsedCtaHref.kind === "invalid" ? (
                             <p className="mt-2 text-[11px] text-amber-300">{t("embed_post_validation_cta_invalid")}</p>
                           ) : null}
+                          </div>
                         </div>
                       </div>
                     ) : null}
@@ -1376,6 +1597,13 @@ export const MobilePreview = ({
                       return;
                     }
                     if (
+                      field.type === "time_hms" &&
+                      !/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/.test(stringValue)
+                    ) {
+                      nextErrors[field.id] = t("form_error_time_invalid");
+                      return;
+                    }
+                    if (
                       (field.type === "single_choice" ||
                         field.type === "checkboxes" ||
                         field.type === "dropdown") &&
@@ -1397,9 +1625,30 @@ export const MobilePreview = ({
                       )}
                       style={style}
                       onClick={() => {
+                        const prefilledValues: FormSubmissionValues = {};
+                        form.fields.forEach((field) => {
+                          if (field.type === "checkboxes") {
+                            return;
+                          }
+                          if (field.type === "file_image") {
+                            return;
+                          }
+                          const prefill = getPrefillValueForField(field, link.id);
+                          if (prefill) {
+                            prefilledValues[field.id] = prefill;
+                          }
+                        });
                         setActiveFormId(link.id);
                         setActiveDiscountId(null);
                         setActiveEmbedId(null);
+                        setActivePreOpenKey(null);
+                        setFormValuesByLink((current) => ({
+                          ...current,
+                          [link.id]: {
+                            ...(current[link.id] ?? {}),
+                            ...prefilledValues,
+                          },
+                        }));
                         clearLinkFormFiles(link.id);
                         setFormSubmittedByLink((current) => ({ ...current, [link.id]: false }));
                         setFormErrorsByLink((current) => ({ ...current, [link.id]: {} }));
@@ -1759,6 +2008,47 @@ export const MobilePreview = ({
                                             </option>
                                           ))}
                                         </select>
+                                      ) : field.type === "time_hms" ? (
+                                        <div className="grid grid-cols-3 gap-2">
+                                          {(["hour", "minute", "second"] as const).map((segment) => {
+                                            const current = getTimeParts(
+                                              typeof fieldValue === "string" ? fieldValue : "",
+                                            );
+                                            const value = current[segment];
+                                            const options =
+                                              segment === "hour"
+                                                ? TIME_SEGMENT_OPTIONS.slice(0, 24)
+                                                : TIME_SEGMENT_OPTIONS;
+                                            return (
+                                              <select
+                                                key={`${field.id}-${segment}`}
+                                                className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white"
+                                                value={value}
+                                                onFocus={handleFieldFocus}
+                                                onChange={(event) => {
+                                                  const nextParts: TimeParts = {
+                                                    ...current,
+                                                    [segment]: event.target.value,
+                                                  };
+                                                  setFormValuesByLink((currentValues) => ({
+                                                    ...currentValues,
+                                                    [link.id]: {
+                                                      ...(currentValues[link.id] ?? {}),
+                                                      [field.id]: buildTimeFromParts(nextParts),
+                                                    },
+                                                  }));
+                                                }}
+                                              >
+                                                <option value="">{segment === "hour" ? "HH" : segment === "minute" ? "MM" : "SS"}</option>
+                                                {options.map((option) => (
+                                                  <option key={option} value={option}>
+                                                    {option}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            );
+                                          })}
+                                        </div>
                                       ) : (
                                         <input
                                           type={
@@ -1816,7 +2106,7 @@ export const MobilePreview = ({
                                       onClick={closeFormModal}
                                       disabled={isSubmitting}
                                     >
-                                      {t("form_submit_cancel")}
+                                      {form.cancelLabel || t("form_submit_cancel")}
                                     </button>
                                   </div>
                                 </div>
@@ -1839,6 +2129,184 @@ export const MobilePreview = ({
                     style={style}
                   >
                     {content}
+                  </div>
+                );
+              }
+
+              const preOpenEnabled = mode === "public" && Boolean(link.preOpenModal?.enabled);
+
+              if (preOpenEnabled) {
+                const preOpenKey = `link:${link.id}`;
+                const noticeTitle = link.preOpenModal?.title?.trim() || "Notice";
+                const noticeBody = link.preOpenModal?.description?.trim() || "";
+                const confirmLabel = link.preOpenModal?.primaryButtonLabel?.trim() || "Continue";
+                const secondaryLabel = link.preOpenModal?.secondaryButtonLabel?.trim() || t("form_submit_cancel");
+                const destinationOverride = parsePreviewHref(link.preOpenModal?.destinationUrl?.trim() || "");
+                const useDestinationOverride =
+                  destinationOverride.kind !== "invalid" && Boolean(destinationOverride.href);
+                const dismissible = link.preOpenModal?.dismissible ?? true;
+                const showSecondaryButton = link.preOpenModal?.showSecondaryButton ?? true;
+                const buttonStyle =
+                  link.preOpenModal?.buttonStyle === "outline"
+                    ? "border-white/50 bg-transparent"
+                    : link.preOpenModal?.buttonStyle === "glow"
+                      ? "border-emerald-300/60 bg-emerald-500/30 shadow-[0_0_22px_rgba(16,185,129,0.35)]"
+                      : "border-white/30 bg-white/10";
+                const bannerSrc = normalizeImageSrc(link.preOpenModal?.bannerImageUrl);
+                const continueWithTarget = (target: PreviewHrefResult) => {
+                  if (!target.href) {
+                    return;
+                  }
+                  onPublicLinkClick?.(link.id, "cta");
+                  if (target.kind === "internal") {
+                    window.location.assign(target.href);
+                    return;
+                  }
+                  if (isWebExternalHref(target)) {
+                    window.open(target.href, "_blank", "noopener,noreferrer");
+                    return;
+                  }
+                  window.location.assign(target.href);
+                };
+                const continueWithDefaultAction = () => {
+                  if (isDiscount) {
+                    setActiveDiscountId(link.id);
+                    setActiveEmbedId(null);
+                    setActiveFormId(null);
+                    if (discount.analyticsHooks?.trackModalOpen ?? true) {
+                      onPublicLinkClick?.(link.id, "modal_open");
+                    }
+                    return;
+                  }
+                  if (isEmbedPost) {
+                    setActiveEmbedId(link.id);
+                    setActiveDiscountId(null);
+                    setActiveFormId(null);
+                    onPublicLinkClick?.(link.id, "modal_open");
+                    return;
+                  }
+                  if (isForm) {
+                    const prefilledValues: FormSubmissionValues = {};
+                    form.fields.forEach((field) => {
+                      if (field.type === "checkboxes" || field.type === "file_image") {
+                        return;
+                      }
+                      const prefill = getPrefillValueForField(field, link.id);
+                      if (prefill) {
+                        prefilledValues[field.id] = prefill;
+                      }
+                    });
+                    setActiveFormId(link.id);
+                    setActiveDiscountId(null);
+                    setActiveEmbedId(null);
+                    setFormValuesByLink((current) => ({
+                      ...current,
+                      [link.id]: {
+                        ...(current[link.id] ?? {}),
+                        ...prefilledValues,
+                      },
+                    }));
+                    setFormFilesByLink((current) => {
+                      const existing = current[link.id];
+                      if (!existing) {
+                        return current;
+                      }
+                      Object.values(existing).forEach((selection) => {
+                        URL.revokeObjectURL(selection.previewUrl);
+                      });
+                      const next = { ...current };
+                      delete next[link.id];
+                      return next;
+                    });
+                    setFormSubmittedByLink((current) => ({ ...current, [link.id]: false }));
+                    setFormErrorsByLink((current) => ({ ...current, [link.id]: {} }));
+                    setFormSubmitErrorByLink((current) => ({ ...current, [link.id]: "" }));
+                    onPublicLinkClick?.(link.id, "modal_open");
+                    return;
+                  }
+                  continueWithTarget(parsedHref);
+                };
+                return (
+                  <div key={link.id}>
+                    <button
+                      type="button"
+                      className={className}
+                      style={style}
+                      onClick={() => setActivePreOpenKey(preOpenKey)}
+                    >
+                      {content}
+                    </button>
+                    {activePreOpenKey === preOpenKey ? (
+                      <div
+                        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4"
+                        onClick={() => {
+                          if (dismissible) {
+                            setActivePreOpenKey(null);
+                          }
+                        }}
+                      >
+                        <div
+                          className="mx-auto flex max-h-[82dvh] w-[calc(100%-16px)] max-w-[520px] flex-col overflow-hidden rounded-[28px] border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:w-[calc(100%-24px)] sm:p-5 md:p-6"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <h3 className="text-base font-bold leading-tight sm:text-xl">{noticeTitle}</h3>
+                            {dismissible ? (
+                              <button
+                                type="button"
+                                className="rounded-md border border-white/25 p-1"
+                                onClick={() => setActivePreOpenKey(null)}
+                                aria-label={t("embed_post_action_close")}
+                              >
+                                <X className="size-4" />
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y pr-1">
+                            {bannerSrc ? (
+                              <SafeImage
+                                src={bannerSrc}
+                                alt=""
+                                width={480}
+                                height={240}
+                                className="mb-3 w-full rounded-xl border border-white/20 object-cover"
+                              />
+                            ) : null}
+                            <p className="whitespace-pre-line text-sm leading-relaxed text-zinc-200 sm:text-base">
+                              {noticeBody}
+                            </p>
+                            <div className={cn("mt-4 grid grid-cols-1 gap-2", showSecondaryButton && "sm:grid-cols-2")}>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "w-full min-h-12 rounded-full border px-5 text-sm font-semibold sm:text-base",
+                                  buttonStyle,
+                                )}
+                                onClick={() => {
+                                  setActivePreOpenKey(null);
+                                  if (useDestinationOverride) {
+                                    continueWithTarget(destinationOverride);
+                                    return;
+                                  }
+                                  continueWithDefaultAction();
+                                }}
+                              >
+                                {confirmLabel}
+                              </button>
+                              {showSecondaryButton ? (
+                                <button
+                                  type="button"
+                                  className="w-full min-h-12 rounded-full border border-white/20 px-5 text-sm font-semibold sm:text-base"
+                                  onClick={() => setActivePreOpenKey(null)}
+                                >
+                                  {secondaryLabel}
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               }
@@ -1866,8 +2334,7 @@ export const MobilePreview = ({
                   <a
                     key={link.id}
                     href={parsedHref.href}
-                    target="_blank"
-                    rel="noreferrer"
+                    {...getExternalAnchorTargetProps(parsedHref)}
                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                     className={className}
                     style={style}
@@ -1881,8 +2348,7 @@ export const MobilePreview = ({
                 <a
                   key={link.id}
                   href={parsedHref.href}
-                  target="_blank"
-                  rel="noreferrer"
+                  {...getExternalAnchorTargetProps(parsedHref)}
                   className={className}
                   style={style}
                 >

@@ -113,7 +113,7 @@ export const PublicProfile = ({
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[680px] px-4 pt-12 sm:px-5 sm:pt-14 md:px-6">
+      <div className="relative z-10 mx-auto w-full max-w-[390px] pt-12 sm:pt-14">
         <MobilePreview
           data={profile}
           routeSlug={slug}

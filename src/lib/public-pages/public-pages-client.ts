@@ -1,4 +1,5 @@
 import { BuilderData } from "@/features/builder/types";
+import { resolveBuilderDataImagesForPersistence } from "@/lib/local-storage/image-storage";
 
 export type PublicPageListItem = {
   slug: string;
@@ -8,7 +9,7 @@ export type PublicPageListItem = {
 
 const parseErrorMessage = async (response: Response, fallback: string) => {
   try {
-    const payload = (await response.json()) as { error?: unknown };
+    const payload = (await parseJsonResponse(response)) as { error?: unknown } | null;
     if (typeof payload?.error === "string" && payload.error.trim()) {
       return payload.error;
     }
@@ -16,6 +17,14 @@ const parseErrorMessage = async (response: Response, fallback: string) => {
     return fallback;
   }
   return fallback;
+};
+
+const parseJsonResponse = async <T = unknown>(response: Response): Promise<T | null> => {
+  const text = await response.text();
+  if (!text.trim()) {
+    return null;
+  }
+  return JSON.parse(text) as T;
 };
 
 export const listPublicPages = async (): Promise<PublicPageListItem[]> => {
@@ -27,8 +36,8 @@ export const listPublicPages = async (): Promise<PublicPageListItem[]> => {
     throw new Error(await parseErrorMessage(response, "Failed to list public pages."));
   }
 
-  const payload = (await response.json()) as { pages?: PublicPageListItem[] };
-  return Array.isArray(payload.pages) ? payload.pages : [];
+  const payload = await parseJsonResponse<{ pages?: PublicPageListItem[] }>(response);
+  return Array.isArray(payload?.pages) ? payload.pages : [];
 };
 
 export const getPublicPageBySlug = async (slug: string): Promise<BuilderData | null> => {
@@ -43,15 +52,16 @@ export const getPublicPageBySlug = async (slug: string): Promise<BuilderData | n
     throw new Error(await parseErrorMessage(response, "Failed to load public page."));
   }
 
-  const payload = (await response.json()) as { data?: BuilderData };
+  const payload = await parseJsonResponse<{ data?: BuilderData }>(response);
   return payload?.data ?? null;
 };
 
 export const upsertPublicPageBySlug = async (slug: string, data: BuilderData): Promise<void> => {
+  const durableData = await resolveBuilderDataImagesForPersistence(data);
   const response = await fetch(`/api/public-pages/${encodeURIComponent(slug)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ data }),
+    body: JSON.stringify({ data: durableData }),
   });
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response, "Failed to save public page."));

@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 
+import { builderDataSchema } from "@/features/builder/schema";
 import { BuilderData } from "@/features/builder/types";
+import { normalizeBuilderData } from "@/features/builder/utils";
+import { validateCriticalServerEnv } from "@/lib/server/env-validation";
 
 type PublicPageRow = {
   slug: string;
@@ -11,9 +14,10 @@ type PublicPageRow = {
 const PUBLIC_PAGES_TABLE = "public_pages";
 
 const getSupabaseServerConfig = () => {
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-  const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
-  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const env = validateCriticalServerEnv();
+  const url = env.nextPublicSupabaseUrl;
+  const anonKey = env.nextPublicSupabaseAnonKey;
+  const serviceRoleKey = env.supabaseServiceRoleKey;
 
   return {
     url,
@@ -37,6 +41,21 @@ const getSupabaseAdminClient = () => {
   });
 };
 
+const parseStoredPublicPageData = (rawData: unknown, slug: string): BuilderData | null => {
+  const parsed = builderDataSchema.safeParse(rawData);
+  if (!parsed.success) {
+    console.error("[public-pages] Stored profile payload is invalid", {
+      slug,
+      details: parsed.error.issues.map((issue) => ({
+        path: issue.path.length ? issue.path.join(".") : "(root)",
+        message: issue.message,
+      })),
+    });
+    return null;
+  }
+  return normalizeBuilderData(parsed.data as BuilderData);
+};
+
 export const getPublicPageBySlug = async (slug: string): Promise<BuilderData | null> => {
   const client = getSupabaseAdminClient();
   const { data, error } = await client
@@ -48,7 +67,7 @@ export const getPublicPageBySlug = async (slug: string): Promise<BuilderData | n
   if (error) {
     throw error;
   }
-  return data?.data ?? null;
+  return data ? parseStoredPublicPageData(data.data, data.slug) : null;
 };
 
 export const listPublicPages = async (): Promise<PublicPageRow[]> => {
@@ -63,14 +82,20 @@ export const listPublicPages = async (): Promise<PublicPageRow[]> => {
     throw error;
   }
 
-  return data ?? [];
+  return (data ?? [])
+    .map((row) => {
+      const parsedData = parseStoredPublicPageData(row.data, row.slug);
+      return parsedData ? { ...row, data: parsedData } : null;
+    })
+    .filter((row): row is PublicPageRow => Boolean(row));
 };
 
 export const upsertPublicPage = async (slug: string, data: BuilderData): Promise<void> => {
   const client = getSupabaseAdminClient();
+  const normalizedData = normalizeBuilderData(data);
   const { error } = await client
     .from(PUBLIC_PAGES_TABLE)
-    .upsert({ slug, data, updated_at: new Date().toISOString() }, { onConflict: "slug" });
+    .upsert({ slug, data: normalizedData, updated_at: new Date().toISOString() }, { onConflict: "slug" });
 
   if (error) {
     throw error;

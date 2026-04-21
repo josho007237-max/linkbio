@@ -22,6 +22,8 @@ type SavedProfilesManagerCardProps = {
   currentSlug: string;
   isSwitchingWorkspace?: boolean;
   onSwitchWorkspace?: (slug: string, options?: { fallbackData?: BuilderData; markUnsaved?: boolean }) => Promise<"remote" | "fallback">;
+  savedProfiles?: PublicPageListItem[];
+  onRefreshSavedPages?: () => Promise<PublicPageListItem[] | null>;
 };
 
 type NewPageCollisionState = {
@@ -57,11 +59,13 @@ export const SavedProfilesManagerCard = ({
   currentSlug,
   isSwitchingWorkspace = false,
   onSwitchWorkspace,
+  savedProfiles: externalSavedProfiles,
+  onRefreshSavedPages,
 }: SavedProfilesManagerCardProps) => {
   const { t } = useI18n();
   const replaceBuilderData = useBuilderStore((state) => state.replaceBuilderData);
   const [isMounted, setIsMounted] = useState(false);
-  const [savedProfiles, setSavedProfiles] = useState<PublicPageListItem[]>([]);
+  const [savedProfilesState, setSavedProfilesState] = useState<PublicPageListItem[]>([]);
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -75,6 +79,7 @@ export const SavedProfilesManagerCard = ({
   const [newPageCollision, setNewPageCollision] = useState<NewPageCollisionState | null>(null);
   const [pendingActionSlug, setPendingActionSlug] = useState<string | null>(null);
   const activeSlug = useMemo(() => toProfileSlug(currentSlug), [currentSlug]);
+  const savedProfiles = externalSavedProfiles ?? savedProfilesState;
   const statusTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((type: "success" | "error", text: string) => {
@@ -90,34 +95,49 @@ export const SavedProfilesManagerCard = ({
 
   const switchWorkspace = useCallback(
     async (slug: string, options?: { fallbackData?: BuilderData; markUnsaved?: boolean }) => {
+      const normalizedSlug = toProfileSlug(slug);
       if (onSwitchWorkspace) {
-        return onSwitchWorkspace(slug, options);
+        return onSwitchWorkspace(normalizedSlug, options);
       }
       if (options?.fallbackData) {
         replaceBuilderData(options.fallbackData);
       }
-      setActiveEditorSlug(slug);
+      setActiveEditorSlug(normalizedSlug);
       return options?.fallbackData ? "fallback" : "remote";
     },
     [onSwitchWorkspace, replaceBuilderData],
   );
 
   const refreshSavedPages = useCallback(async () => {
+    if (onRefreshSavedPages) {
+      return onRefreshSavedPages();
+    }
     try {
       const pages = await listPublicPages();
-      setSavedProfiles(pages);
+      setSavedProfilesState(pages);
       return pages;
     } catch {
       showToast("error", t("saved_manager_toast_load_error"));
       return null;
     }
-  }, [showToast, t]);
+  }, [onRefreshSavedPages, showToast, t]);
 
   useEffect(() => {
     const mountFrameId = window.requestAnimationFrame(() => {
       setIsMounted(true);
-      void refreshSavedPages();
+      if (!externalSavedProfiles) {
+        void refreshSavedPages();
+      }
     });
+
+    if (externalSavedProfiles) {
+      return () => {
+        if (statusTimerRef.current) {
+          window.clearTimeout(statusTimerRef.current);
+        }
+        window.cancelAnimationFrame(mountFrameId);
+      };
+    }
 
     const onStorage = () => {
       void refreshSavedPages();
@@ -133,14 +153,14 @@ export const SavedProfilesManagerCard = ({
       window.removeEventListener("storage", onStorage);
       window.clearInterval(intervalId);
     };
-  }, [refreshSavedPages]);
+  }, [externalSavedProfiles, refreshSavedPages]);
 
   const handleCopyLink = async (slug: string) => {
     if (typeof navigator === "undefined" || !navigator.clipboard) {
       return;
     }
 
-    const publicUrl = `${window.location.origin}/${slug}`;
+    const publicUrl = `${window.location.origin}/${toProfileSlug(slug)}`;
     await navigator.clipboard.writeText(publicUrl);
     setCopiedSlug(slug);
     window.setTimeout(() => setCopiedSlug(null), 1800);
@@ -150,14 +170,15 @@ export const SavedProfilesManagerCard = ({
     if (isSwitchingWorkspace) {
       return;
     }
-    setPendingActionSlug(slug);
+    const normalizedSlug = toProfileSlug(slug);
+    setPendingActionSlug(normalizedSlug);
     try {
-      const result = await switchWorkspace(slug);
+      const result = await switchWorkspace(normalizedSlug);
       if (result === "fallback") {
-        showToast("error", t("saved_manager_toast_load_missing", { slug }));
+        showToast("error", t("saved_manager_toast_load_missing", { slug: normalizedSlug }));
         return;
       }
-      showToast("success", t("saved_manager_toast_loaded", { slug }));
+      showToast("success", t("saved_manager_toast_loaded", { slug: normalizedSlug }));
     } catch {
       showToast("error", t("saved_manager_toast_load_error"));
     } finally {

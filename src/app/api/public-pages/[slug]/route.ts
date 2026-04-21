@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { builderDataSchema } from "@/features/builder/schema";
 import { BuilderData } from "@/features/builder/types";
+import { normalizeBuilderData } from "@/features/builder/utils";
 import {
   getPublicPageBySlug,
   removePublicPageBySlug,
@@ -20,6 +21,14 @@ const getSlugFromParams = async (
   const resolved = await params;
   return (resolved.slug ?? "").trim().toLowerCase();
 };
+
+const isDevelopment = process.env.NODE_ENV !== "production";
+
+const getValidationDetails = (error: { issues: Array<{ path: PropertyKey[]; message: string }> }) =>
+  error.issues.map((issue) => ({
+    path: issue.path.length ? issue.path.join(".") : "(root)",
+    message: issue.message,
+  }));
 
 export async function GET(
   _request: Request,
@@ -53,21 +62,44 @@ export async function PUT(
     return NextResponse.json({ error: "Invalid slug." }, { status: 400 });
   }
 
+  let rawBody = "";
+  try {
+    rawBody = await request.text();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  if (!rawBody.trim()) {
+    return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
+  }
+
   let payload: unknown;
   try {
-    payload = await request.json();
-  } catch {
+    payload = JSON.parse(rawBody);
+  } catch (error) {
+    console.error("[public-pages] PUT invalid JSON", error);
     return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
   const candidate = (payload as { data?: unknown })?.data;
   const parsed = builderDataSchema.safeParse(candidate);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid profile payload." }, { status: 400 });
+    const details = getValidationDetails(parsed.error);
+    console.error("[public-pages] PUT invalid profile payload", {
+      slug,
+      details,
+    });
+    return NextResponse.json(
+      {
+        error: "Invalid profile payload.",
+        ...(isDevelopment ? { details } : {}),
+      },
+      { status: 400 },
+    );
   }
 
   try {
-    await upsertPublicPage(slug, parsed.data as BuilderData);
+    await upsertPublicPage(slug, normalizeBuilderData(parsed.data as BuilderData));
   } catch (error) {
     console.error("[public-pages] PUT failed", error);
     return NextResponse.json({ error: "Failed to save public page." }, { status: 500 });

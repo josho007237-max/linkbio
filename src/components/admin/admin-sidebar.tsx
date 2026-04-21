@@ -12,23 +12,40 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { BuilderData } from "@/features/builder/types";
 import { useI18n } from "@/i18n/use-i18n";
+import { PublicPageListItem } from "@/lib/public-pages/public-pages-client";
 import { cn } from "@/lib/utils";
 
 type AdminSidebarProps = {
   currentSlug: string;
   isSwitchingWorkspace?: boolean;
   onSwitchWorkspace?: (slug: string, options?: { fallbackData?: BuilderData; markUnsaved?: boolean }) => Promise<"remote" | "fallback">;
+  savedProfiles?: PublicPageListItem[];
+  onRefreshSavedPages?: () => Promise<PublicPageListItem[] | null>;
 };
 
-export const AdminSidebar = ({ currentSlug, isSwitchingWorkspace = false, onSwitchWorkspace }: AdminSidebarProps) => (
+export const AdminSidebar = ({
+  currentSlug,
+  isSwitchingWorkspace = false,
+  onSwitchWorkspace,
+  savedProfiles,
+  onRefreshSavedPages,
+}: AdminSidebarProps) => (
   <AdminSidebarContent
     currentSlug={currentSlug}
     isSwitchingWorkspace={isSwitchingWorkspace}
     onSwitchWorkspace={onSwitchWorkspace}
+    savedProfiles={savedProfiles}
+    onRefreshSavedPages={onRefreshSavedPages}
   />
 );
 
-const AdminSidebarContent = ({ currentSlug, isSwitchingWorkspace = false, onSwitchWorkspace }: AdminSidebarProps) => {
+const AdminSidebarContent = ({
+  currentSlug,
+  isSwitchingWorkspace = false,
+  onSwitchWorkspace,
+  savedProfiles,
+  onRefreshSavedPages,
+}: AdminSidebarProps) => {
   const { t } = useI18n();
   const SECTION_ITEMS = useMemo(
     () => [
@@ -164,6 +181,8 @@ const AdminSidebarContent = ({ currentSlug, isSwitchingWorkspace = false, onSwit
           currentSlug={currentSlug}
           isSwitchingWorkspace={isSwitchingWorkspace}
           onSwitchWorkspace={onSwitchWorkspace}
+          savedProfiles={savedProfiles}
+          onRefreshSavedPages={onRefreshSavedPages}
         />
         <AnalyticsSummaryCard currentSlug={currentSlug} />
         <DataToolsCard currentSlug={currentSlug} />

@@ -1,15 +1,71 @@
 import { z } from "zod";
 
+const isImageSourceValue = (value: string): boolean =>
+  z.string().url().safeParse(value).success ||
+  value.startsWith("data:image/") ||
+  value.startsWith("idbimg:") ||
+  value.startsWith("blob:") ||
+  value.startsWith("/");
+
 const imageSourceSchema = z
   .string()
   .trim()
   .refine(
-    (value) =>
-      z.string().url().safeParse(value).success ||
-      value.startsWith("data:image/") ||
-      value.startsWith("/"),
+    (value) => isImageSourceValue(value),
     "Image must be a valid URL, local placeholder path, or uploaded image.",
   );
+
+const optionalImageSourceSchema = (message: string) =>
+  z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || isImageSourceValue(value), message);
+
+const persistedStringSchema = z.string().trim().catch("");
+
+const persistedUrlStringSchema = z.string().trim().catch("");
+
+const persistedImageSourceSchema = z
+  .string()
+  .trim()
+  .catch("")
+  .transform((value) => (value && isImageSourceValue(value) ? value : ""));
+
+const persistedOptionalImageSourceSchema = z
+  .string()
+  .trim()
+  .optional()
+  .catch(undefined)
+  .transform((value) => (value && isImageSourceValue(value) ? value : undefined));
+
+const preOpenModalSchema = z.object({
+  enabled: z.boolean().optional(),
+  bannerImageUrl: optionalImageSourceSchema(
+    "Banner image must be a valid URL, local placeholder path, or uploaded image.",
+  ),
+  title: z.string().trim().optional(),
+  description: z.string().trim().optional(),
+  primaryButtonLabel: z.string().trim().optional(),
+  destinationUrl: z.string().trim().optional(),
+  showSecondaryButton: z.boolean().optional(),
+  secondaryButtonLabel: z.string().trim().optional(),
+  dismissible: z.boolean().optional(),
+  buttonStyle: z.enum(["solid", "outline", "glow"]).optional(),
+});
+
+const persistedPreOpenModalSchema = z.object({
+  enabled: z.boolean().default(false),
+  bannerImageUrl: persistedStringSchema.optional(),
+  title: persistedStringSchema.default(""),
+  description: persistedStringSchema.default(""),
+  primaryButtonLabel: persistedStringSchema.default("Continue"),
+  destinationUrl: persistedUrlStringSchema.optional(),
+  showSecondaryButton: z.boolean().optional(),
+  secondaryButtonLabel: persistedStringSchema.optional(),
+  dismissible: z.boolean().optional(),
+  buttonStyle: z.enum(["solid", "outline", "glow"]).optional(),
+});
 
 export const headerSchema = z.object({
   username: z
@@ -76,18 +132,18 @@ export const socialSchema = z.object({
   platform: z.enum(["instagram", "tiktok", "youtube", "x", "facebook", "website"]),
   url: z.string().url("Social URL must be valid."),
   enabled: z.boolean(),
-  iconUrl: z
+  iconImageUrl: z
     .string()
     .trim()
     .optional()
     .refine(
-      (value) =>
-        !value ||
-        z.string().url().safeParse(value).success ||
-        value.startsWith("data:image/") ||
-        value.startsWith("/"),
-      "Social icon must be a valid URL, local placeholder path, or uploaded image.",
+      (value) => !value || z.string().url().safeParse(value).success,
+      "Social icon image URL must be a valid URL.",
     ),
+  iconUrl: optionalImageSourceSchema(
+    "Social icon must be a valid URL, local placeholder path, or uploaded image.",
+  ),
+  preOpenModal: preOpenModalSchema.optional(),
 });
 
 export const linkSchema = z
@@ -98,32 +154,14 @@ export const linkSchema = z
     description: z.string().trim().optional(),
     enabled: z.boolean(),
     cardTitle: z.string().trim().optional(),
-    cardThumbnail: z
-      .string()
-      .trim()
-      .optional()
-      .refine(
-        (value) =>
-          !value ||
-          z.string().url().safeParse(value).success ||
-          value.startsWith("data:image/") ||
-          value.startsWith("/"),
-        "Thumbnail must be a valid URL, local placeholder path, or uploaded image.",
-      ),
+    cardThumbnail: optionalImageSourceSchema(
+      "Thumbnail must be a valid URL, local placeholder path, or uploaded image.",
+    ),
     layout: z.enum(["classic", "featured"]).optional(),
     modalTitle: z.string().trim().optional(),
-    modalHeroImage: z
-      .string()
-      .trim()
-      .optional()
-      .refine(
-        (value) =>
-          !value ||
-          z.string().url().safeParse(value).success ||
-          value.startsWith("data:image/") ||
-          value.startsWith("/"),
-        "Hero image must be a valid URL, local placeholder path, or uploaded image.",
-      ),
+    modalHeroImage: optionalImageSourceSchema(
+      "Hero image must be a valid URL, local placeholder path, or uploaded image.",
+    ),
     modalDescription: z.string().trim().optional(),
     discountCode: z.string().trim().optional(),
     copyButtonLabel: z.string().trim().optional(),
@@ -132,30 +170,12 @@ export const linkSchema = z
     dismissible: z.boolean().optional(),
     embedProvider: z.enum(["x", "facebook", "tiktok", "youtube", "generic"]).optional(),
     embedCardTitle: z.string().trim().optional(),
-    embedCardIcon: z
-      .string()
-      .trim()
-      .optional()
-      .refine(
-        (value) =>
-          !value ||
-          z.string().url().safeParse(value).success ||
-          value.startsWith("data:image/") ||
-          value.startsWith("/"),
-        "Card icon must be a valid URL, local placeholder path, or uploaded image.",
-      ),
-    embedCardThumbnail: z
-      .string()
-      .trim()
-      .optional()
-      .refine(
-        (value) =>
-          !value ||
-          z.string().url().safeParse(value).success ||
-          value.startsWith("data:image/") ||
-          value.startsWith("/"),
-        "Card thumbnail must be a valid URL, local placeholder path, or uploaded image.",
-      ),
+    embedCardIcon: optionalImageSourceSchema(
+      "Card icon must be a valid URL, local placeholder path, or uploaded image.",
+    ),
+    embedCardThumbnail: optionalImageSourceSchema(
+      "Card thumbnail must be a valid URL, local placeholder path, or uploaded image.",
+    ),
     embedLayout: z.enum(["classic", "featured"]).optional(),
     embedModalTitle: z.string().trim().optional(),
     embedMode: z.enum(["url", "code"]).optional(),
@@ -180,7 +200,20 @@ export const linkSchema = z
     formIntro: z.string().trim().optional(),
     formOutro: z.string().trim().optional(),
     formSubmitLabel: z.string().trim().optional(),
+    formCancelLabel: z.string().trim().optional(),
     formTermsPlaceholder: z.string().trim().optional(),
+    preOpenEnabled: z.boolean().optional(),
+    preOpenBannerImageUrl: optionalImageSourceSchema(
+      "Banner image must be a valid URL, local placeholder path, or uploaded image.",
+    ),
+    preOpenTitle: z.string().trim().optional(),
+    preOpenDescription: z.string().trim().optional(),
+    preOpenPrimaryButtonLabel: z.string().trim().optional(),
+    preOpenDestinationUrl: z.string().trim().optional(),
+    preOpenShowSecondaryButton: z.boolean().optional(),
+    preOpenSecondaryButtonLabel: z.string().trim().optional(),
+    preOpenDismissible: z.boolean().optional(),
+    preOpenButtonStyle: z.enum(["solid", "outline", "glow"]).optional(),
     formFields: z
       .array(
         z.object({
@@ -192,6 +225,7 @@ export const linkSchema = z
             "phone",
             "country",
             "date_of_birth",
+            "time_hms",
             "short_answer",
             "paragraph",
             "single_choice",
@@ -329,6 +363,31 @@ export const linkSchema = z
       return;
     }
 
+    if (value.preOpenEnabled) {
+      if (!(value.preOpenTitle ?? "").trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Pre-open modal title is required.",
+          path: ["preOpenTitle"],
+        });
+      }
+      if (!(value.preOpenPrimaryButtonLabel ?? "").trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Pre-open modal primary button label is required.",
+          path: ["preOpenPrimaryButtonLabel"],
+        });
+      }
+      const destinationUrl = (value.preOpenDestinationUrl ?? "").trim();
+      if (destinationUrl && !z.string().url().safeParse(destinationUrl).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Pre-open destination URL is invalid.",
+          path: ["preOpenDestinationUrl"],
+        });
+      }
+    }
+
     if (value.contentType !== "embed_post") {
       return;
     }
@@ -403,18 +462,9 @@ export const linkSchema = z
   });
 
 export const linkSettingsSchema = z.object({
-  thumbnailUrl: z
-    .string()
-    .trim()
-    .optional()
-    .refine(
-      (value) =>
-        !value ||
-        z.string().url().safeParse(value).success ||
-        value.startsWith("data:image/") ||
-        value.startsWith("/"),
-      "Thumbnail must be a valid URL, local placeholder path, or uploaded image.",
-    ),
+  thumbnailUrl: optionalImageSourceSchema(
+    "Thumbnail must be a valid URL, local placeholder path, or uploaded image.",
+  ),
   prioritize: z.boolean(),
   startAt: z.string().optional(),
   endAt: z.string().optional(),
@@ -423,69 +473,90 @@ export const linkSettingsSchema = z.object({
 });
 
 export const builderDataSchema = z.object({
-  header: headerSchema,
+  header: z.object({
+    username: persistedStringSchema.default("bn9"),
+    publicHandle: persistedStringSchema.optional(),
+    publicUsername: persistedStringSchema.optional(),
+    displayName: persistedStringSchema.default("Brand"),
+    tagline: persistedStringSchema.default("Tagline"),
+    avatarUrl: persistedImageSourceSchema.default("/placeholders/avatar-default.svg"),
+    heroImageUrl: persistedImageSourceSchema.default("/placeholders/wallpaper-default.svg"),
+    layout: z.enum(["classic", "hero"]).default("classic"),
+    titleMode: z.enum(["display_name", "username"]).default("display_name"),
+    heroTextAlign: z.enum(["left", "center"]).default("center"),
+    heroOverlay: z.boolean().default(true),
+    heroOverlayStrength: z.number().min(0).max(0.9).default(0.35),
+    matchThemeToHero: z.boolean().default(false),
+  }),
   theme: z.object({
-    name: z.enum(["midnight", "sunset", "forest"]),
-    wallpaperUrl: imageSourceSchema,
-    wallpaperVideoUrl: z.string().optional(),
+    name: z.enum(["midnight", "sunset", "forest"]).default("midnight"),
+    wallpaperUrl: persistedImageSourceSchema.default("/placeholders/wallpaper-default.svg"),
+    wallpaperVideoUrl: persistedStringSchema.optional(),
     wallpaperStyle: z
       .enum(["fill", "gradient", "blur", "pattern", "image", "video"])
-      .optional(),
-    pageBackground: z.string().trim().min(4),
-    cardBackground: z.string().trim().min(4),
-    textColor: z.string().trim().min(4),
-    mutedTextColor: z.string().trim().min(4),
-    titleColor: z.string().trim().min(4).optional(),
+      .default("image"),
+    pageBackground: persistedStringSchema.default("#0f172a"),
+    cardBackground: persistedStringSchema.default("rgba(15,23,42,0.72)"),
+    textColor: persistedStringSchema.default("#ffffff"),
+    mutedTextColor: persistedStringSchema.default("#cbd5e1"),
+    titleColor: persistedStringSchema.optional(),
     titleSize: z.number().min(14).max(72).optional(),
     pageFont: z.enum(["inter", "poppins", "manrope", "space_grotesk"]).optional(),
-    buttonBackground: z.string().trim().min(4),
-    buttonTextColor: z.string().trim().min(4),
-    buttonRadius: z.number().min(0).max(999),
+    buttonBackground: persistedStringSchema.default("#ffffff"),
+    buttonTextColor: persistedStringSchema.default("#0f172a"),
+    buttonRadius: z.number().min(0).max(999).default(20),
   }),
-  text: textSchema,
+  text: z.object({
+    intro: persistedStringSchema.default(""),
+    body: persistedStringSchema.default(""),
+    footerEnabled: z.boolean().default(false),
+    footerText: persistedStringSchema.default(""),
+  }),
   buttonStyle: z.object({
-    uppercase: z.boolean(),
-    shadow: z.boolean(),
-    style: z.enum(["solid", "glass", "outline"]).optional(),
-    shadowLevel: z.number().min(0).max(3).optional(),
+    uppercase: z.boolean().default(false),
+    shadow: z.boolean().default(true),
+    style: z.enum(["solid", "glass", "outline"]).default("solid"),
+    shadowLevel: z.number().min(0).max(3).default(2),
   }),
   socials: z.array(
     z.object({
       id: z.string().min(1),
       platform: socialSchema.shape.platform,
-      url: socialSchema.shape.url,
+      url: persistedUrlStringSchema.default(""),
       enabled: z.boolean(),
-      iconUrl: socialSchema.shape.iconUrl,
+      iconImageUrl: persistedUrlStringSchema.optional(),
+      iconUrl: persistedOptionalImageSourceSchema,
+      preOpenModal: persistedPreOpenModalSchema.optional(),
     }),
-  ),
+  ).default([]),
   links: z.array(
     z.object({
       id: z.string().min(1),
       contentType: z.enum(["link", "discount", "embed_post", "form"]).default("link"),
-      title: linkSchema.shape.title,
-      url: linkSchema.shape.url,
-      description: z.string().optional(),
-      enabled: z.boolean(),
+      title: persistedStringSchema.default("Untitled"),
+      url: persistedUrlStringSchema.default(""),
+      description: persistedStringSchema.optional(),
+      enabled: z.boolean().default(true),
       discount: z
         .object({
           type: z.literal("discount_code").optional(),
-          cardTitle: z.string().min(1).optional(),
-          cardThumbnail: z.string().optional(),
+          cardTitle: persistedStringSchema.optional(),
+          cardThumbnail: persistedStringSchema.optional(),
           layout: z.enum(["classic", "featured"]).default("classic"),
-          modalTitle: z.string().min(1).optional(),
-          modalHeroImage: z.string().optional(),
-          modalDescription: z.string().optional(),
-          discountCode: z.string().optional(),
-          copyButtonLabel: z.string().optional(),
-          ctaButtonLabel: z.string().optional(),
-          destinationUrl: z.string().optional(),
+          modalTitle: persistedStringSchema.optional(),
+          modalHeroImage: persistedStringSchema.optional(),
+          modalDescription: persistedStringSchema.optional(),
+          discountCode: persistedStringSchema.optional(),
+          copyButtonLabel: persistedStringSchema.optional(),
+          ctaButtonLabel: persistedStringSchema.optional(),
+          destinationUrl: persistedUrlStringSchema.optional(),
           dismissible: z.boolean().optional(),
-          code: z.string().optional(),
-          buttonLabel: z.string().optional(),
+          code: persistedStringSchema.optional(),
+          buttonLabel: persistedStringSchema.optional(),
           codeLock: z
             .object({
               enabled: z.boolean().optional(),
-              pin: z.string().optional(),
+              pin: persistedStringSchema.optional(),
             })
             .optional(),
           analyticsHooks: z
@@ -501,17 +572,17 @@ export const builderDataSchema = z.object({
         .object({
           type: z.literal("embed_post").optional(),
           provider: z.enum(["x", "facebook", "tiktok", "youtube", "generic"]).optional(),
-          cardTitle: z.string().optional(),
-          cardIcon: z.string().optional(),
-          cardThumbnail: z.string().optional(),
+          cardTitle: persistedStringSchema.optional(),
+          cardIcon: persistedStringSchema.optional(),
+          cardThumbnail: persistedStringSchema.optional(),
           layout: z.enum(["classic", "featured"]).optional(),
-          modalTitle: z.string().optional(),
+          modalTitle: persistedStringSchema.optional(),
           embedMode: z.enum(["url", "code"]).optional(),
-          sourceUrl: z.string().optional(),
-          embedCode: z.string().optional(),
-          description: z.string().optional(),
-          ctaButtonLabel: z.string().optional(),
-          ctaUrl: z.string().optional(),
+          sourceUrl: persistedUrlStringSchema.optional(),
+          embedCode: persistedStringSchema.optional(),
+          description: persistedStringSchema.optional(),
+          ctaButtonLabel: persistedStringSchema.optional(),
+          ctaUrl: persistedUrlStringSchema.optional(),
           dismissible: z.boolean().optional(),
         })
         .optional(),
@@ -533,6 +604,7 @@ export const builderDataSchema = z.object({
           intro: z.string().optional(),
           outro: z.string().optional(),
           submitLabel: z.string().optional(),
+          cancelLabel: z.string().optional(),
           termsPlaceholder: z.string().optional(),
           fields: z
             .array(
@@ -546,6 +618,7 @@ export const builderDataSchema = z.object({
                     "phone",
                     "country",
                     "date_of_birth",
+                    "time_hms",
                     "short_answer",
                     "paragraph",
                     "single_choice",
@@ -563,30 +636,21 @@ export const builderDataSchema = z.object({
             .optional(),
         })
         .optional(),
+      preOpenModal: persistedPreOpenModalSchema.optional(),
       settings: z.object({
-        thumbnailUrl: z
-          .string()
-          .optional()
-          .refine(
-            (value) =>
-              !value ||
-              z.string().url().safeParse(value).success ||
-              value.startsWith("data:image/") ||
-              value.startsWith("/"),
-            "Thumbnail must be a valid URL, local placeholder path, or uploaded image.",
-          ),
-        prioritize: z.boolean(),
+        thumbnailUrl: persistedOptionalImageSourceSchema,
+        prioritize: z.boolean().default(false),
         schedule: z
           .object({
-            startAt: z.string().optional(),
-            endAt: z.string().optional(),
+            startAt: persistedStringSchema.optional(),
+            endAt: persistedStringSchema.optional(),
           })
           .optional(),
-        locked: z.boolean(),
-        lockMessage: z.string().optional(),
+        locked: z.boolean().default(false),
+        lockMessage: persistedStringSchema.optional(),
       }),
     }),
-  ),
+  ).default([]),
 });
 
 export type HeaderFormValues = z.infer<typeof headerSchema>;

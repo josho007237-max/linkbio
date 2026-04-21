@@ -304,7 +304,18 @@ export const LinksSection = () => {
       formIntro: "",
       formOutro: "",
       formSubmitLabel: "Submit",
+      formCancelLabel: "Cancel",
       formTermsPlaceholder: "",
+      preOpenEnabled: false,
+      preOpenBannerImageUrl: "",
+      preOpenTitle: "",
+      preOpenDescription: "",
+      preOpenPrimaryButtonLabel: "Continue",
+      preOpenDestinationUrl: "",
+      preOpenShowSecondaryButton: true,
+      preOpenSecondaryButtonLabel: "Close",
+      preOpenDismissible: true,
+      preOpenButtonStyle: "solid",
       formFields: [],
     },
   });
@@ -337,6 +348,16 @@ export const LinksSection = () => {
     name: "embedDismissible",
   });
   const editFormTemplate = useWatch({ control: editForm.control, name: "formTemplate" });
+  const editPreOpenEnabled = useWatch({ control: editForm.control, name: "preOpenEnabled" });
+  const editPreOpenShowSecondaryButton = useWatch({
+    control: editForm.control,
+    name: "preOpenShowSecondaryButton",
+  });
+  const editPreOpenDismissible = useWatch({
+    control: editForm.control,
+    name: "preOpenDismissible",
+  });
+  const editPreOpenBannerImageUrl = useWatch({ control: editForm.control, name: "preOpenBannerImageUrl" });
   const editFormFields = useWatch({ control: editForm.control, name: "formFields" }) ?? [];
   const settingsThumbnailUrl = useWatch({
     control: settingsForm.control,
@@ -484,7 +505,18 @@ export const LinksSection = () => {
       formIntro: form.intro,
       formOutro: form.outro,
       formSubmitLabel: form.submitLabel,
+      formCancelLabel: form.cancelLabel ?? t("form_submit_cancel"),
       formTermsPlaceholder: form.termsPlaceholder ?? "",
+      preOpenEnabled: link.preOpenModal?.enabled ?? false,
+      preOpenBannerImageUrl: link.preOpenModal?.bannerImageUrl ?? "",
+      preOpenTitle: link.preOpenModal?.title ?? "",
+      preOpenDescription: link.preOpenModal?.description ?? "",
+      preOpenPrimaryButtonLabel: link.preOpenModal?.primaryButtonLabel ?? "Continue",
+      preOpenDestinationUrl: link.preOpenModal?.destinationUrl ?? "",
+      preOpenShowSecondaryButton: link.preOpenModal?.showSecondaryButton ?? true,
+      preOpenSecondaryButtonLabel: link.preOpenModal?.secondaryButtonLabel ?? "Close",
+      preOpenDismissible: link.preOpenModal?.dismissible ?? true,
+      preOpenButtonStyle: link.preOpenModal?.buttonStyle ?? "solid",
       formFields: form.fields,
     });
     setEditTab("link");
@@ -592,6 +624,7 @@ export const LinksSection = () => {
               intro: values.formIntro ?? "",
               outro: values.formOutro ?? "",
               submitLabel: values.formSubmitLabel ?? "Submit",
+              cancelLabel: values.formCancelLabel ?? "Cancel",
               termsPlaceholder: values.formTermsPlaceholder ?? "",
               fields: (values.formFields ?? []).map((field) => ({
                 id: field.id,
@@ -603,6 +636,18 @@ export const LinksSection = () => {
               })),
             }
           : undefined,
+      preOpenModal: {
+        enabled: values.preOpenEnabled ?? false,
+        bannerImageUrl: values.preOpenBannerImageUrl ?? "",
+        title: values.preOpenTitle ?? "",
+        description: values.preOpenDescription ?? "",
+        primaryButtonLabel: values.preOpenPrimaryButtonLabel ?? "Continue",
+        destinationUrl: values.preOpenDestinationUrl ?? "",
+        showSecondaryButton: values.preOpenShowSecondaryButton ?? true,
+        secondaryButtonLabel: values.preOpenSecondaryButtonLabel ?? "Close",
+        dismissible: values.preOpenDismissible ?? true,
+        buttonStyle: values.preOpenButtonStyle ?? "solid",
+      },
     });
 
     if (values.contentType === "discount") {
@@ -946,6 +991,98 @@ export const LinksSection = () => {
                         <Label>{t("links_label_description")}</Label>
                         <Input {...editForm.register("description")} />
                       </div>
+                      <div className="space-y-3 rounded-xl border p-3">
+                        <p className="text-sm font-medium">{t("pre_open_modal_section")}</p>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editPreOpenEnabled)}
+                            onCheckedChange={(v) =>
+                              editForm.setValue("preOpenEnabled", v, { shouldDirty: true, shouldValidate: true })
+                            }
+                          />
+                          {t("pre_open_modal_enabled")}
+                        </label>
+                        {editPreOpenEnabled ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label>{t("pre_open_modal_banner_image")}</Label>
+                              <Input {...editForm.register("preOpenBannerImageUrl")} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>{t("pre_open_modal_banner_upload")}</Label>
+                              <CustomImageUpload
+                                value={editPreOpenBannerImageUrl}
+                                preset="thumbnail_banner"
+                                onValueChange={(nextValue) =>
+                                  editForm.setValue("preOpenBannerImageUrl", nextValue, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                                onError={(message) => setUploadWarning(message)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>{t("pre_open_modal_title")}</Label>
+                              <Input {...editForm.register("preOpenTitle")} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>{t("pre_open_modal_description")}</Label>
+                              <Input {...editForm.register("preOpenDescription")} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>{t("pre_open_modal_primary_label")}</Label>
+                              <Input {...editForm.register("preOpenPrimaryButtonLabel")} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>{t("pre_open_modal_destination_url")}</Label>
+                              <Input {...editForm.register("preOpenDestinationUrl")} />
+                              <p className="text-xs text-muted-foreground">{t("pre_open_modal_destination_help")}</p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>{t("pre_open_modal_button_style")}</Label>
+                              <select
+                                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                                {...editForm.register("preOpenButtonStyle")}
+                              >
+                                <option value="solid">{t("pre_open_modal_button_style_solid")}</option>
+                                <option value="outline">{t("pre_open_modal_button_style_outline")}</option>
+                                <option value="glow">{t("pre_open_modal_button_style_glow")}</option>
+                              </select>
+                            </div>
+                            <label className="flex items-center gap-2 text-sm">
+                              <Switch
+                                checked={Boolean(editPreOpenShowSecondaryButton)}
+                                onCheckedChange={(v) =>
+                                  editForm.setValue("preOpenShowSecondaryButton", v, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              />
+                              {t("pre_open_modal_show_secondary")}
+                            </label>
+                            {editPreOpenShowSecondaryButton ? (
+                              <div className="space-y-2">
+                                <Label>{t("pre_open_modal_secondary_label")}</Label>
+                                <Input {...editForm.register("preOpenSecondaryButtonLabel")} />
+                              </div>
+                            ) : null}
+                            <label className="flex items-center gap-2 text-sm">
+                              <Switch
+                                checked={Boolean(editPreOpenDismissible)}
+                                onCheckedChange={(v) =>
+                                  editForm.setValue("preOpenDismissible", v, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              />
+                              {t("pre_open_modal_dismissible")}
+                            </label>
+                          </>
+                        ) : null}
+                      </div>
                       <label className="flex items-center gap-2 text-sm">
                         <Switch checked={editEnabled} onCheckedChange={(v) => editForm.setValue("enabled", v)} />
                         {t("links_enabled")}
@@ -1096,6 +1233,10 @@ export const LinksSection = () => {
                         ) : null}
                       </div>
                       <div className="space-y-2">
+                        <Label>{t("form_cancel_label")}</Label>
+                        <Input {...editForm.register("formCancelLabel")} />
+                      </div>
+                      <div className="space-y-2">
                         <Label>{t("form_terms_placeholder")}</Label>
                         <Input {...editForm.register("formTermsPlaceholder")} />
                       </div>
@@ -1147,6 +1288,7 @@ export const LinksSection = () => {
                                   <option value="phone">{t("form_field_type_phone")}</option>
                                   <option value="country">{t("form_field_type_country")}</option>
                                   <option value="date_of_birth">{t("form_field_type_date_of_birth")}</option>
+                                  <option value="time_hms">{t("form_field_type_time_hms")}</option>
                                   <option value="short_answer">{t("form_field_type_short_answer")}</option>
                                   <option value="paragraph">{t("form_field_type_paragraph")}</option>
                                   <option value="single_choice">{t("form_field_type_single_choice")}</option>
@@ -1492,6 +1634,98 @@ export const LinksSection = () => {
                       {t("form_layout_helper")}
                     </div>
                   )}
+                  <div className="space-y-3 rounded-xl border p-3">
+                    <p className="text-sm font-medium">{t("pre_open_modal_section")}</p>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={Boolean(editPreOpenEnabled)}
+                        onCheckedChange={(v) =>
+                          editForm.setValue("preOpenEnabled", v, { shouldDirty: true, shouldValidate: true })
+                        }
+                      />
+                      {t("pre_open_modal_enabled")}
+                    </label>
+                    {editPreOpenEnabled ? (
+                      <>
+                        <div className="space-y-2">
+                          <Label>{t("pre_open_modal_banner_image")}</Label>
+                          <Input {...editForm.register("preOpenBannerImageUrl")} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("pre_open_modal_banner_upload")}</Label>
+                          <CustomImageUpload
+                            value={editPreOpenBannerImageUrl}
+                            preset="thumbnail_banner"
+                            onValueChange={(nextValue) =>
+                              editForm.setValue("preOpenBannerImageUrl", nextValue, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                            }
+                            onError={(message) => setUploadWarning(message)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("pre_open_modal_title")}</Label>
+                          <Input {...editForm.register("preOpenTitle")} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("pre_open_modal_description")}</Label>
+                          <Input {...editForm.register("preOpenDescription")} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("pre_open_modal_primary_label")}</Label>
+                          <Input {...editForm.register("preOpenPrimaryButtonLabel")} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("pre_open_modal_destination_url")}</Label>
+                          <Input {...editForm.register("preOpenDestinationUrl")} />
+                          <p className="text-xs text-muted-foreground">{t("pre_open_modal_destination_help")}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("pre_open_modal_button_style")}</Label>
+                          <select
+                            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                            {...editForm.register("preOpenButtonStyle")}
+                          >
+                            <option value="solid">{t("pre_open_modal_button_style_solid")}</option>
+                            <option value="outline">{t("pre_open_modal_button_style_outline")}</option>
+                            <option value="glow">{t("pre_open_modal_button_style_glow")}</option>
+                          </select>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editPreOpenShowSecondaryButton)}
+                            onCheckedChange={(v) =>
+                              editForm.setValue("preOpenShowSecondaryButton", v, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                            }
+                          />
+                          {t("pre_open_modal_show_secondary")}
+                        </label>
+                        {editPreOpenShowSecondaryButton ? (
+                          <div className="space-y-2">
+                            <Label>{t("pre_open_modal_secondary_label")}</Label>
+                            <Input {...editForm.register("preOpenSecondaryButtonLabel")} />
+                          </div>
+                        ) : null}
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editPreOpenDismissible)}
+                            onCheckedChange={(v) =>
+                              editForm.setValue("preOpenDismissible", v, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                            }
+                          />
+                          {t("pre_open_modal_dismissible")}
+                        </label>
+                      </>
+                    ) : null}
+                  </div>
                   <label className="flex items-center gap-2 text-sm">
                     <Switch checked={editEnabled} onCheckedChange={(v) => editForm.setValue("enabled", v)} />
                     {t("links_enabled")}

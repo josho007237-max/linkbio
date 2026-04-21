@@ -16,17 +16,13 @@ const interpolate = (template: string, params?: Record<string, string | number>)
 };
 
 export const useI18n = () => {
-  const [language, setLanguageState] = useState<AppLanguage>("en");
+  const [language, setLanguageState] = useState<AppLanguage>(() => getAppLanguage());
 
   useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      setLanguageState(getAppLanguage());
-    });
     const onSync = () => setLanguageState(getAppLanguage());
     window.addEventListener("storage", onSync);
     window.addEventListener(LANGUAGE_EVENT, onSync);
     return () => {
-      window.cancelAnimationFrame(frameId);
       window.removeEventListener("storage", onSync);
       window.removeEventListener(LANGUAGE_EVENT, onSync);
     };

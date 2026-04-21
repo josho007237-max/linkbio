@@ -3,6 +3,76 @@
 ## Current goal
 Add Google Sheets integration for existing in-site support forms while keeping current UX/routes unchanged and preserving local-dev fallback.
 
+## Update 2026-04-21 (mobile social/embed UI polish + social icon image URL)
+
+### Changed files
+- `src/features/builder/types.ts`
+- `src/features/builder/schema.ts`
+- `src/components/admin/sections/social-icons-section.tsx`
+- `src/components/preview/mobile-preview.tsx`
+- `src/lib/local-storage/profile-storage.ts`
+- `src/lib/local-storage/image-storage.ts`
+- `src/i18n/en.ts`
+- `src/i18n/th.ts`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- Added `social.iconImageUrl` as a URL-only social icon override.
+- Social icon render priority is now:
+  - `iconImageUrl`
+  - existing uploaded `iconUrl`
+  - default provider icon
+- Social icon rendering now uses fixed-size wrappers and `object-contain` to avoid oversized or cropped icon images.
+- Mobile embed modal actions now use smaller mobile sizing (`h-11`, `text-sm`) while preserving larger desktop sizing.
+- Embed modal container now supports touch scrolling with `max-h-[80dvh]`, `overflow-y-auto`, `overscroll-contain`, and `touch-pan-y`.
+- Embed modal spacing was tightened on mobile.
+
+### Scope/guardrails preserved
+- Save/load/Supabase logic unchanged.
+- Support form logic unchanged.
+- Google Sheets flow unchanged.
+- `/admin` route unchanged.
+- Public behavior unchanged except social/embed UI rendering improvements.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
+## Update 2026-04-21 (editor My Pages/Load source-of-truth aligned to Supabase)
+
+### Changed files
+- `src/components/admin/admin-shell.tsx`
+- `src/components/admin/admin-sidebar.tsx`
+- `src/components/admin/saved-profiles-manager-card.tsx`
+- `docs/AI_HANDOFF.md`
+
+### Behavior change
+- `AdminShell` now owns the authoritative My Pages list fetched from Supabase (`/api/public-pages`) and passes that list down to sidebar/cards.
+- `SavedProfilesManagerCard` now consumes the shared Supabase list from `AdminShell` instead of relying on local component-local source state.
+- Initial editor hydration now resolves slug in this order:
+  - local active slug only if it exists in current Supabase page list
+  - otherwise first available Supabase page slug
+  - otherwise current workspace fallback slug
+- `Load` continues to call `onSwitchWorkspace`, which fetches selected slug from Supabase via `getPublicPageBySlug` and hydrates editor state.
+- `Save now` / autosave publishing path remains unchanged and still writes through `upsertPublicPageBySlug` to Supabase.
+
+### Scope/guardrails preserved
+- Support form logic unchanged.
+- Google Sheets support-submission flow unchanged.
+- Root `/` redirect behavior unchanged (`/` -> `/110`).
+- `/admin` remains editor route.
+- Reset/restore local backup behavior in Data Tools remains local-only as intentional backup UX; it is not the source of truth for My Pages or Load.
+
+### Lint result
+- `npm run lint`: PASS
+
+### Build result
+- `npm run build`: PASS (after escalated rerun)
+- Non-escalated build in this environment still hits sandbox `spawn EPERM`.
+
 ## Update 2026-04-20 (bucket mismatch hardening for deposit slip uploads)
 
 ### Changed files

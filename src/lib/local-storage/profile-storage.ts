@@ -52,6 +52,7 @@ const sanitizeProfileForIndex = (profile: BuilderData): BuilderData => ({
   },
   socials: profile.socials.map((social) => ({
     ...social,
+    iconImageUrl: sanitizeMaybePersistedDataUrl(social?.iconImageUrl),
     iconUrl: sanitizeMaybePersistedDataUrl(social?.iconUrl),
   })),
   links: profile.links.map((link) => ({

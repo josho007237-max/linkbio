@@ -292,8 +292,13 @@ export const AdminShell = () => {
 
     const initialize = async () => {
       const activeSlug = getActiveEditorSlug();
-      const resolvedSlug = activeSlug ?? workspaceSlugRef.current;
-      await refreshSavedPages();
+      const pages = await refreshSavedPages();
+      const normalizedActiveSlug = activeSlug ? toProfileSlug(activeSlug) : null;
+      const hasActiveInRemotePages = Boolean(
+        normalizedActiveSlug && pages?.some((page) => page.slug === normalizedActiveSlug),
+      );
+      const resolvedSlug =
+        (hasActiveInRemotePages ? normalizedActiveSlug : pages?.[0]?.slug) ?? workspaceSlugRef.current;
       if (canceled) {
         return;
       }
@@ -446,6 +451,8 @@ export const AdminShell = () => {
               currentSlug={currentEditorSlug}
               isSwitchingWorkspace={isSwitchingWorkspace}
               onSwitchWorkspace={handleWorkspaceSwitchRequest}
+              savedProfiles={savedProfiles}
+              onRefreshSavedPages={refreshSavedPages}
             />
           </div>
         </div>

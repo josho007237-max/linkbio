@@ -19,6 +19,17 @@ export const createEmptyLink = (): BioLink => ({
   url: "https://",
   description: "",
   enabled: true,
+  preOpenModal: {
+    enabled: false,
+    title: "Notice",
+    description: "Please review before continuing.",
+    primaryButtonLabel: "Continue",
+    destinationUrl: "",
+    showSecondaryButton: true,
+    secondaryButtonLabel: "Close",
+    dismissible: true,
+    buttonStyle: "solid",
+  },
   settings: {
     prioritize: false,
     locked: false,
@@ -123,9 +134,9 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     {
       id: createId("form-field"),
       label: "เวลาที่ทำรายการ",
-      type: "short_answer",
+      type: "time_hms",
       required: true,
-      placeholder: "เช่น 2026-04-18 14:30",
+      placeholder: "HH:MM:SS",
     },
     {
       id: createId("form-field"),
@@ -143,9 +154,9 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     {
       id: createId("form-field"),
       label: "เวลาที่ทำรายการ",
-      type: "short_answer",
+      type: "time_hms",
       required: true,
-      placeholder: "เช่น 2026-04-18 14:30",
+      placeholder: "HH:MM:SS",
     },
     {
       id: createId("form-field"),
@@ -201,6 +212,7 @@ export const createEmptyFormBlock = (template: FormTemplate = "email_signup"): B
       template === "deposit_issue" || template === "withdraw_issue"
         ? "ส่งข้อมูลเพื่อตรวจสอบ"
         : "Submit",
+    cancelLabel: template === "deposit_issue" || template === "withdraw_issue" ? "ยกเลิก" : "Cancel",
     termsPlaceholder: "",
     fields: getFormTemplateFields(template),
   },
@@ -279,6 +291,7 @@ export const getFormData = (link: BioLink): FormBlock => ({
   intro: link.form?.intro ?? link.description ?? "",
   outro: link.form?.outro ?? "Thank you. We received your submission.",
   submitLabel: link.form?.submitLabel ?? "Submit",
+  cancelLabel: link.form?.cancelLabel ?? "Cancel",
   termsPlaceholder: link.form?.termsPlaceholder ?? "",
   fields:
     link.form?.fields && link.form.fields.length > 0
@@ -287,6 +300,21 @@ export const getFormData = (link: BioLink): FormBlock => ({
           options: field.options ? [...field.options] : undefined,
         }))
       : getFormTemplateFields(link.form?.template ?? "custom"),
+});
+
+export const getPreOpenModalData = (item: {
+  preOpenModal?: BioLink["preOpenModal"];
+}) => ({
+  enabled: item.preOpenModal?.enabled ?? false,
+  bannerImageUrl: item.preOpenModal?.bannerImageUrl ?? "",
+  title: item.preOpenModal?.title ?? "Notice",
+  description: item.preOpenModal?.description ?? "",
+  primaryButtonLabel: item.preOpenModal?.primaryButtonLabel ?? "Continue",
+  destinationUrl: item.preOpenModal?.destinationUrl ?? "",
+  showSecondaryButton: item.preOpenModal?.showSecondaryButton ?? true,
+  secondaryButtonLabel: item.preOpenModal?.secondaryButtonLabel ?? "Close",
+  dismissible: item.preOpenModal?.dismissible ?? true,
+  buttonStyle: item.preOpenModal?.buttonStyle ?? "solid",
 });
 
 export const isLinkActiveNow = (link: BioLink): boolean => {

@@ -8,6 +8,7 @@ import {
   SupportSubmissionRecord,
 } from "@/lib/server/support-submissions-store";
 import { submitDepositIssue } from "@/lib/server/support-submission-adapter";
+import { validateCriticalServerEnv } from "@/lib/server/env-validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,8 +39,9 @@ const sanitizePathSegment = (value: string, fallback: string): string => {
 };
 
 const getSupabaseStorageConfig = () => {
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const env = validateCriticalServerEnv();
+  const url = env.nextPublicSupabaseUrl;
+  const serviceRoleKey = env.supabaseServiceRoleKey;
   const bucket = (process.env.SUPPORT_UPLOADS_BUCKET ?? "").trim();
 
   return {
