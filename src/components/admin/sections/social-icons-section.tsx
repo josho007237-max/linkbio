@@ -2,7 +2,7 @@
 
 import { SafeImage } from "@/components/shared/safe-image";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Trash2 } from "lucide-react";
+import { Globe, Link2, MessageCircle, Music2, Plus, SquarePlay, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
@@ -22,6 +22,15 @@ import {
 } from "@/lib/local-storage/image-storage";
 
 const PLATFORM_OPTIONS = ["instagram", "tiktok", "youtube", "x", "facebook", "website"] as const;
+
+const socialFallbackIconMap = {
+  instagram: Link2,
+  tiktok: Music2,
+  youtube: SquarePlay,
+  x: X,
+  facebook: MessageCircle,
+  website: Globe,
+} as const;
 
 const normalizeImageSrc = (value: string | null | undefined): string | null => {
   if (typeof value !== "string") {
@@ -128,6 +137,7 @@ export const SocialIconsSection = () => {
               isIndexedDbImageRef(social.iconUrl) ? resolvedIcons[social.iconUrl] : social.iconUrl,
             );
             const previewIconSrc = normalizeImageSrc(social.iconImageUrl) || uploadedIconSrc;
+            const FallbackIcon = socialFallbackIconMap[social.platform];
             const currentPreOpenModal = {
               enabled: social.preOpenModal?.enabled ?? false,
               title: social.preOpenModal?.title ?? "Notice",
@@ -190,7 +200,9 @@ export const SocialIconsSection = () => {
                         />
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
+                      <span className="flex size-10 items-center justify-center rounded-md border bg-muted/30 p-1 text-muted-foreground">
+                        <FallbackIcon className="size-4" />
+                      </span>
                     )}
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">

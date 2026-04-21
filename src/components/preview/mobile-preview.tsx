@@ -7,8 +7,9 @@ import {
   Globe,
   Link2,
   Lock,
+  MessageCircle,
   Music2,
-  Play,
+  SquarePlay,
   X,
 } from "lucide-react";
 
@@ -100,9 +101,9 @@ const normalizeImageSrc = (
 const socialIconMap: Record<SocialLink["platform"], ComponentType<{ className?: string }>> = {
   instagram: Link2,
   tiktok: Music2,
-  youtube: Play,
-  x: Link2,
-  facebook: Link2,
+  youtube: SquarePlay,
+  x: X,
+  facebook: MessageCircle,
   website: Globe,
 };
 
