@@ -200,6 +200,40 @@ const parseResponses = (raw: FormDataEntryValue | null): SupportSubmissionRecord
     .filter((entry): entry is SupportSubmissionRecord["fields"][number] => Boolean(entry));
 };
 
+const normalizeAmount = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const normalized = trimmed.replace(/,/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+    return trimmed;
+  }
+  return Number(normalized).toFixed(2);
+};
+
+const upsertField = (
+  fields: SupportSubmissionRecord["fields"],
+  id: string,
+  label: string,
+  value: string,
+): SupportSubmissionRecord["fields"] => {
+  if (!value) {
+    return fields;
+  }
+  const next = [...fields];
+  const index = next.findIndex(
+    (item) => item.id.trim().toLowerCase() === id.trim().toLowerCase() || item.label.trim() === label,
+  );
+  const entry = { id, label, value };
+  if (index >= 0) {
+    next[index] = entry;
+  } else {
+    next.push(entry);
+  }
+  return next;
+};
+
 export async function POST(request: Request) {
   const runtimeBucket = (process.env.SUPPORT_UPLOADS_BUCKET ?? "").trim();
   console.info("[support-submission] deposit_issue route hit");
@@ -222,6 +256,9 @@ export async function POST(request: Request) {
   const template = String(formData.get("template") ?? "").trim();
   const formTitle = String(formData.get("formTitle") ?? "").trim();
   const responses = parseResponses(formData.get("responses"));
+  const bankName = String(formData.get("bankName") ?? "").trim();
+  const accountNumber = String(formData.get("accountNumber") ?? "").trim();
+  const amount = normalizeAmount(String(formData.get("amount") ?? ""));
   const slip = formData.get("slip");
 
   if (!slug || !linkId || !formTitle || template !== "deposit_issue") {
@@ -267,18 +304,21 @@ export async function POST(request: Request) {
 
   console.info("[support-submission] deposit_issue final image URL", slipUrl);
   const submittedAt = new Date().toISOString();
+  const withBankName = upsertField(responses, "bank_name", "bank_name", bankName);
+  const withAccountNumber = upsertField(withBankName, "account_number", "account_number", accountNumber);
+  const mergedResponses = upsertField(withAccountNumber, "amount", "amount", amount);
 
   try {
-    await submitDepositIssue({
+    const result = await submitDepositIssue({
       slug,
       linkId,
       formTitle,
       template,
       submittedAt,
-      fields: responses,
+      fields: mergedResponses,
       slipUrl,
     });
-    return NextResponse.json({ ok: true, id: crypto.randomUUID() });
+    return NextResponse.json({ id: crypto.randomUUID(), ...result });
   } catch (error) {
     console.error("[support-submission] deposit_issue submission failed", error);
     return NextResponse.json(

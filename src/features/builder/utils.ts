@@ -116,30 +116,51 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     { id: createId("form-field"), label: "Short answer", type: "short_answer", required: false, placeholder: "Type your answer" },
   ],
   deposit_issue: [
-    { id: createId("form-field"), label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
+    { id: "user", label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
     {
-      id: createId("form-field"),
+      id: "registered_phone",
       label: "เบอร์โทรศัพท์ที่ลงทะเบียน",
       type: "phone",
       required: true,
       placeholder: "08X-XXX-XXXX",
     },
     {
-      id: createId("form-field"),
+      id: "bank_name",
+      label: "bank_name",
+      type: "short_answer",
+      required: true,
+      placeholder: "ชื่อธนาคาร",
+    },
+    {
+      id: "account_number",
+      label: "account_number",
+      type: "short_answer",
+      required: true,
+      placeholder: "เลขที่บัญชี",
+    },
+    {
+      id: "amount",
+      label: "amount",
+      type: "short_answer",
+      required: true,
+      placeholder: "11.00",
+    },
+    {
+      id: "slip",
       label: "แนบสลิปการทำรายการ",
       type: "file_image",
       required: true,
       placeholder: "",
     },
     {
-      id: createId("form-field"),
+      id: "transaction_time",
       label: "เวลาที่ทำรายการ",
       type: "time_hms",
       required: true,
       placeholder: "HH:MM:SS",
     },
     {
-      id: createId("form-field"),
+      id: "note",
       label: "หมายเหตุเพิ่มเติม",
       type: "paragraph",
       required: false,
@@ -147,19 +168,45 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     },
   ],
   withdraw_issue: [
-    { id: createId("form-field"), label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
-    { id: createId("form-field"), label: "เบอร์โทรศัพท์", type: "phone", required: true, placeholder: "08X-XXX-XXXX" },
-    { id: createId("form-field"), label: "ชื่อ-นามสกุล", type: "name", required: true, placeholder: "ชื่อจริง นามสกุล" },
-    { id: createId("form-field"), label: "เลขที่บัญชี", type: "short_answer", required: true, placeholder: "เลขที่บัญชี" },
+    { id: "user", label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
     {
-      id: createId("form-field"),
+      id: "registered_phone",
+      label: "เบอร์โทรศัพท์ที่ลงทะเบียน",
+      type: "phone",
+      required: true,
+      placeholder: "08X-XXX-XXXX",
+    },
+    { id: "full_name", label: "ชื่อ-นามสกุล", type: "name", required: true, placeholder: "ชื่อจริง นามสกุล" },
+    {
+      id: "bank_name",
+      label: "bank_name",
+      type: "short_answer",
+      required: true,
+      placeholder: "ชื่อธนาคาร",
+    },
+    {
+      id: "account_number",
+      label: "account_number",
+      type: "short_answer",
+      required: true,
+      placeholder: "เลขที่บัญชี",
+    },
+    {
+      id: "amount",
+      label: "amount",
+      type: "short_answer",
+      required: true,
+      placeholder: "11.00",
+    },
+    {
+      id: "transaction_time",
       label: "เวลาที่ทำรายการ",
       type: "time_hms",
       required: true,
       placeholder: "HH:MM:SS",
     },
     {
-      id: createId("form-field"),
+      id: "note",
       label: "หมายเหตุเพิ่มเติม",
       type: "paragraph",
       required: false,
@@ -171,7 +218,10 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
 export const getFormTemplateFields = (template: FormTemplate): FormField[] =>
   (FORM_TEMPLATE_FIELDS[template] ?? FORM_TEMPLATE_FIELDS.custom).map((field) => ({
     ...field,
-    id: createId("form-field"),
+    id:
+      template === "deposit_issue" || template === "withdraw_issue"
+        ? field.id
+        : createId("form-field"),
     options: field.options ? [...field.options] : undefined,
   }));
 
@@ -293,13 +343,36 @@ export const getFormData = (link: BioLink): FormBlock => ({
   submitLabel: link.form?.submitLabel ?? "Submit",
   cancelLabel: link.form?.cancelLabel ?? "Cancel",
   termsPlaceholder: link.form?.termsPlaceholder ?? "",
-  fields:
-    link.form?.fields && link.form.fields.length > 0
-      ? link.form.fields.map((field) => ({
-          ...field,
-          options: field.options ? [...field.options] : undefined,
-        }))
-      : getFormTemplateFields(link.form?.template ?? "custom"),
+  fields: (() => {
+    const template = link.form?.template ?? "custom";
+    const currentFields =
+      link.form?.fields && link.form.fields.length > 0
+        ? link.form.fields.map((field) => ({
+            ...field,
+            options: field.options ? [...field.options] : undefined,
+          }))
+        : [];
+    if (template !== "deposit_issue" && template !== "withdraw_issue") {
+      return currentFields.length > 0 ? currentFields : getFormTemplateFields(template);
+    }
+    const requiredFields = getFormTemplateFields(template);
+    const existingById = new Map(
+      currentFields.map((field) => [field.id.trim().toLowerCase(), field] as const),
+    );
+    return requiredFields.map((required) => {
+      const existing = existingById.get(required.id.trim().toLowerCase());
+      if (!existing) {
+        return required;
+      }
+      return {
+        ...required,
+        ...existing,
+        id: required.id,
+        label: required.label,
+        type: required.type,
+      };
+    });
+  })(),
 });
 
 export const getPreOpenModalData = (item: {

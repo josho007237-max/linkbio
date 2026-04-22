@@ -260,6 +260,24 @@ const isSupportTemplate = (template: string): template is "deposit_issue" | "wit
 
 const getFieldLabelTokens = (label: string): string => label.trim().toLowerCase();
 
+const isAmountField = (field: { id: string; label: string }): boolean => {
+  const id = field.id.trim().toLowerCase();
+  const label = getFieldLabelTokens(field.label);
+  return id.includes("amount") || label.includes("amount") || label.includes("ยอดเงิน");
+};
+
+const parseDecimalAmount = (value: string): number | null => {
+  const normalized = value.trim().replace(/,/g, "");
+  if (!normalized || !/^\d+(\.\d{1,2})?$/.test(normalized)) {
+    return null;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
+};
+
 const getTimeParts = (value: string): TimeParts => {
   const match = value.match(/^(\d{2}):(\d{2}):(\d{2})$/);
   if (!match) {
@@ -1604,6 +1622,10 @@ export const MobilePreview = ({
                       nextErrors[field.id] = t("form_error_time_invalid");
                       return;
                     }
+                    if (isAmountField(field) && parseDecimalAmount(stringValue) === null) {
+                      nextErrors[field.id] = t("form_error_required");
+                      return;
+                    }
                     if (
                       (field.type === "single_choice" ||
                         field.type === "checkboxes" ||
@@ -1748,6 +1770,28 @@ export const MobilePreview = ({
 
                                   const submitSupport = async () => {
                                     try {
+                                      const getSupportValue = (tokens: string[]): string => {
+                                        const matched = responses.find((entry) => {
+                                          const id = entry.id.trim().toLowerCase();
+                                          const label = getFieldLabelTokens(entry.label);
+                                          return tokens.some((token) => id.includes(token) || label.includes(token));
+                                        });
+                                        if (!matched || typeof matched.value !== "string") {
+                                          return "";
+                                        }
+                                        return matched.value.trim();
+                                      };
+                                      const bankName = getSupportValue(["bank_name", "bankname", "ธนาคาร"]);
+                                      const accountNumber = getSupportValue([
+                                        "account_number",
+                                        "accountnumber",
+                                        "เลขที่บัญชี",
+                                      ]);
+                                      const amountRaw = getSupportValue(["amount", "ยอดเงิน"]);
+                                      const parsedAmount = parseDecimalAmount(amountRaw);
+                                      const amount =
+                                        parsedAmount === null ? amountRaw : parsedAmount.toFixed(2);
+
                                       if (supportTemplate === "deposit_issue") {
                                         const slipField = form.fields.find((field) => field.type === "file_image");
                                         const slipFile = slipField ? currentFormFiles[slipField.id]?.file : null;
@@ -1768,6 +1812,9 @@ export const MobilePreview = ({
                                         payload.append("template", supportTemplate);
                                         payload.append("formTitle", form.formTitle || link.title);
                                         payload.append("responses", JSON.stringify(responses));
+                                        payload.append("bankName", bankName);
+                                        payload.append("accountNumber", accountNumber);
+                                        payload.append("amount", amount);
                                         payload.append("slip", slipFile);
 
                                         const response = await fetch("/api/support/deposit-issues", {
@@ -1792,6 +1839,9 @@ export const MobilePreview = ({
                                             template: supportTemplate,
                                             formTitle: form.formTitle || link.title,
                                             responses,
+                                            bankName,
+                                            accountNumber,
+                                            amount,
                                           }),
                                         });
                                         if (!response.ok) {
@@ -2049,6 +2099,30 @@ export const MobilePreview = ({
                                               </select>
                                             );
                                           })}
+                                        </div>
+                                      ) : isAmountField(field) ? (
+                                        <div className="relative">
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            inputMode="decimal"
+                                            className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 pr-10 text-sm text-white outline-none"
+                                            value={typeof fieldValue === "string" ? fieldValue : ""}
+                                            placeholder="11.00"
+                                            onFocus={handleFieldFocus}
+                                            onChange={(event) =>
+                                              setFormValuesByLink((current) => ({
+                                                ...current,
+                                                [link.id]: {
+                                                  ...(current[link.id] ?? {}),
+                                                  [field.id]: event.target.value,
+                                                },
+                                              }))
+                                            }
+                                          />
+                                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-300">
+                                            ฿
+                                          </span>
                                         </div>
                                       ) : (
                                         <input
