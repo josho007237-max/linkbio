@@ -9,6 +9,7 @@ export type DepositIssueSubmission = {
   issueType: string;
   user: string;
   registeredPhone: string;
+  fullName: string;
   slipUrl: string;
   transactionTime: string;
   note: string;
@@ -204,6 +205,7 @@ const writeDepositToLocalDev = async (input: DepositIssueSubmission): Promise<vo
     fields: [
       { id: "user", label: "USER", value: input.user },
       { id: "registered_phone", label: "เบอร์โทรศัพท์ที่ลงทะเบียน", value: input.registeredPhone },
+      { id: "full_name", label: "ชื่อ-นามสกุล", value: input.fullName },
       { id: "slip_url", label: "แนบสลิปการทำรายการ", value: input.slipUrl },
       { id: "transaction_time", label: "เวลาที่ทำรายการ", value: input.transactionTime },
       { id: "note", label: "หมายเหตุเพิ่มเติม", value: input.note },
@@ -242,6 +244,7 @@ const writeDepositToGoogleSheets = async (input: DepositIssueSubmission): Promis
     input.issueType,
     input.user,
     input.registeredPhone,
+    input.fullName,
     input.slipUrl,
     input.transactionTime,
     input.note,
@@ -291,6 +294,7 @@ export const submitDepositIssue = async (params: {
     issueType: "ฝากเงินไม่เข้า",
     user: getField(params.fields, ["USER"]),
     registeredPhone: getField(params.fields, ["เบอร์โทรศัพท์ที่ลงทะเบียน"]),
+    fullName: getField(params.fields, ["ชื่อ-นามสกุล"]),
     slipUrl: params.slipUrl,
     transactionTime: getField(params.fields, ["เวลาที่ทำรายการ"]),
     note: getField(params.fields, ["หมายเหตุเพิ่มเติม"]),

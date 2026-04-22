@@ -67,7 +67,6 @@ type FormFileSelection = {
   fileName: string;
 };
 type FormFilesByLink = Record<string, Record<string, FormFileSelection>>;
-type TimeParts = { hour: string; minute: string; second: string };
 
 const WALLPAPER_FALLBACK_SRC = "/placeholders/wallpaper-default.svg";
 const THUMBNAIL_FALLBACK_SRC = "/placeholders/link-thumbnail-default.svg";
@@ -83,9 +82,6 @@ const SAFE_EXTERNAL_HREF_PROTOCOLS = new Set([
   "tg:",
 ]);
 const WEB_EXTERNAL_HREF_PROTOCOLS = new Set(["http:", "https:"]);
-const TIME_SEGMENT_OPTIONS = Array.from({ length: 60 }, (_, index) =>
-  index.toString().padStart(2, "0"),
-);
 
 const normalizeImageSrc = (
   value: string | null | undefined,
@@ -260,22 +256,59 @@ const isSupportTemplate = (template: string): template is "deposit_issue" | "wit
 
 const getFieldLabelTokens = (label: string): string => label.trim().toLowerCase();
 
-const getTimeParts = (value: string): TimeParts => {
-  const match = value.match(/^(\d{2}):(\d{2}):(\d{2})$/);
-  if (!match) {
-    return { hour: "", minute: "", second: "" };
+const normalizeTimeInputValue = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
   }
-  return {
-    hour: match[1],
-    minute: match[2],
-    second: match[3],
-  };
+  const hhmm = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (hhmm) {
+    return `${hhmm[1]}:${hhmm[2]}:00`;
+  }
+  const hhmmss = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/);
+  if (hhmmss) {
+    return `${hhmmss[1]}:${hhmmss[2]}:${hhmmss[3]}`;
+  }
+  return trimmed;
 };
 
-const buildTimeFromParts = (parts: TimeParts): string =>
-  parts.hour && parts.minute && parts.second
-    ? `${parts.hour}:${parts.minute}:${parts.second}`
-    : "";
+const toHtmlTimeValue = (value: string): string => {
+  const normalized = normalizeTimeInputValue(value);
+  if (!normalized) {
+    return "";
+  }
+  const match = normalized.match(/^(\d{2}:\d{2}:\d{2})$/);
+  return match ? match[1] : "";
+};
+
+const getSupportFieldName = (
+  field: { type: string; label: string },
+  supportTemplate: "deposit_issue" | "withdraw_issue" | null,
+): string | null => {
+  if (!supportTemplate) {
+    return null;
+  }
+  const label = getFieldLabelTokens(field.label);
+  if (field.type === "file_image") {
+    return supportTemplate === "deposit_issue" ? "slip" : null;
+  }
+  if (field.type === "time_hms") {
+    return "transactionTime";
+  }
+  if (label.includes("user") || label.includes("ยูส")) {
+    return "username";
+  }
+  if (field.type === "phone") {
+    return supportTemplate === "deposit_issue" ? "registeredPhone" : "phone";
+  }
+  if (field.type === "name" || label.includes("ชื่อ-นามสกุล") || label.includes("full name")) {
+    return "fullName";
+  }
+  if (label.includes("หมายเหตุ") || label.includes("note")) {
+    return "note";
+  }
+  return null;
+};
 
 const ensureXWidgetsScript = (): Promise<void> =>
   new Promise((resolve) => {
@@ -1555,6 +1588,25 @@ export const MobilePreview = ({
                     behavior: "smooth",
                   });
                 };
+                const clearFieldError = (fieldId: string) => {
+                  setFormErrorsByLink((current) => ({
+                    ...current,
+                    [link.id]: {
+                      ...(current[link.id] ?? {}),
+                      [fieldId]: "",
+                    },
+                  }));
+                };
+                const setStringFieldValue = (fieldId: string, value: string) => {
+                  setFormValuesByLink((current) => ({
+                    ...current,
+                    [link.id]: {
+                      ...(current[link.id] ?? {}),
+                      [fieldId]: value,
+                    },
+                  }));
+                  clearFieldError(fieldId);
+                };
                 const validateForm = (): FormSubmissionErrors => {
                   const nextErrors: FormSubmissionErrors = {};
                   form.fields.forEach((field) => {
@@ -1599,7 +1651,7 @@ export const MobilePreview = ({
                     }
                     if (
                       field.type === "time_hms" &&
-                      !/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/.test(stringValue)
+                      !/^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/.test(stringValue)
                     ) {
                       nextErrors[field.id] = t("form_error_time_invalid");
                       return;
@@ -1734,7 +1786,12 @@ export const MobilePreview = ({
                                     return {
                                       id: field.id,
                                       label: field.label,
-                                      value: typeof raw === "string" ? raw : "",
+                                      value:
+                                        field.type === "time_hms" && typeof raw === "string"
+                                          ? normalizeTimeInputValue(raw)
+                                          : typeof raw === "string"
+                                            ? raw
+                                            : "",
                                     };
                                   });
 
@@ -1763,11 +1820,42 @@ export const MobilePreview = ({
                                         }
 
                                         const payload = new FormData();
+                                        const getFieldValueByName = (fieldName: string): string => {
+                                          const targetField = form.fields.find(
+                                            (field) =>
+                                              getSupportFieldName(field, supportTemplate) === fieldName,
+                                          );
+                                          if (!targetField) {
+                                            return "";
+                                          }
+                                          const rawValue = currentFormValues[targetField.id];
+                                          if (typeof rawValue !== "string") {
+                                            return "";
+                                          }
+                                          if (fieldName === "transactionTime") {
+                                            return normalizeTimeInputValue(rawValue);
+                                          }
+                                          return rawValue.trim();
+                                        };
                                         payload.append("slug", targetRouteSlug);
                                         payload.append("linkId", link.id);
                                         payload.append("template", supportTemplate);
                                         payload.append("formTitle", form.formTitle || link.title);
                                         payload.append("responses", JSON.stringify(responses));
+                                        payload.append(
+                                          "username",
+                                          getFieldValueByName("username") || targetRouteSlug,
+                                        );
+                                        payload.append(
+                                          "registeredPhone",
+                                          getFieldValueByName("registeredPhone"),
+                                        );
+                                        payload.append("fullName", getFieldValueByName("fullName"));
+                                        payload.append(
+                                          "transactionTime",
+                                          getFieldValueByName("transactionTime"),
+                                        );
+                                        payload.append("note", getFieldValueByName("note"));
                                         payload.append("slip", slipFile);
 
                                         const response = await fetch("/api/support/deposit-issues", {
@@ -1829,6 +1917,8 @@ export const MobilePreview = ({
                                 {form.fields.map((field) => {
                                   const fieldValue = currentFormValues[field.id];
                                   const options = field.options ?? [];
+                                  const supportFieldName = getSupportFieldName(field, supportTemplate);
+                                  const fieldName = supportFieldName || field.id;
                                   const showOptions =
                                     field.type === "single_choice" ||
                                     field.type === "checkboxes" ||
@@ -1842,23 +1932,17 @@ export const MobilePreview = ({
                                       </label>
                                     {field.type === "paragraph" ? (
                                       <textarea
+                                        name={fieldName}
                                         className="min-h-[96px] w-full rounded-md border border-white/20 bg-black/35 px-3 py-2 text-sm text-white outline-none"
                                           value={typeof fieldValue === "string" ? fieldValue : ""}
                                           placeholder={field.placeholder ?? ""}
                                           onFocus={handleFieldFocus}
-                                          onChange={(event) =>
-                                            setFormValuesByLink((current) => ({
-                                              ...current,
-                                              [link.id]: {
-                                                ...(current[link.id] ?? {}),
-                                                [field.id]: event.target.value,
-                                              },
-                                            }))
-                                          }
+                                          onChange={(event) => setStringFieldValue(field.id, event.target.value)}
                                         />
                                       ) : field.type === "file_image" ? (
                                         <div className="space-y-2">
                                           <input
+                                            name={fieldName}
                                             type="file"
                                             accept="image/*"
                                             className="block min-h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 py-2 text-sm text-white file:mr-3 file:rounded-md file:border-0 file:bg-white/20 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
@@ -1941,18 +2025,10 @@ export const MobilePreview = ({
                                             <label key={option} className="flex items-center gap-2 text-sm">
                                               <input
                                                 type="radio"
-                                                name={`${link.id}-${field.id}`}
+                                                name={fieldName}
                                                 checked={fieldValue === option}
                                                 onFocus={handleFieldFocus}
-                                                onChange={() =>
-                                                  setFormValuesByLink((current) => ({
-                                                    ...current,
-                                                    [link.id]: {
-                                                      ...(current[link.id] ?? {}),
-                                                      [field.id]: option,
-                                                    },
-                                                  }))
-                                                }
+                                                onChange={() => setStringFieldValue(field.id, option)}
                                               />
                                               <span>{option}</span>
                                             </label>
@@ -1967,6 +2043,7 @@ export const MobilePreview = ({
                                               <label key={option} className="flex items-center gap-2 text-sm">
                                                 <input
                                                   type="checkbox"
+                                                  name={`${fieldName}[]`}
                                                   checked={checked}
                                                   onFocus={handleFieldFocus}
                                                   onChange={(event) => {
@@ -1980,6 +2057,7 @@ export const MobilePreview = ({
                                                         [field.id]: nextValues,
                                                       },
                                                     }));
+                                                    clearFieldError(field.id);
                                                   }}
                                                 />
                                                 <span>{option}</span>
@@ -1989,18 +2067,11 @@ export const MobilePreview = ({
                                         </div>
                                       ) : field.type === "dropdown" && showOptions ? (
                                         <select
+                                          name={fieldName}
                                           className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white"
                                           value={typeof fieldValue === "string" ? fieldValue : ""}
                                           onFocus={handleFieldFocus}
-                                          onChange={(event) =>
-                                            setFormValuesByLink((current) => ({
-                                              ...current,
-                                              [link.id]: {
-                                                ...(current[link.id] ?? {}),
-                                                [field.id]: event.target.value,
-                                              },
-                                            }))
-                                          }
+                                          onChange={(event) => setStringFieldValue(field.id, event.target.value)}
                                         >
                                           <option value="">{t("form_select_option")}</option>
                                           {options.map((option) => (
@@ -2010,48 +2081,21 @@ export const MobilePreview = ({
                                           ))}
                                         </select>
                                       ) : field.type === "time_hms" ? (
-                                        <div className="grid grid-cols-3 gap-2">
-                                          {(["hour", "minute", "second"] as const).map((segment) => {
-                                            const current = getTimeParts(
-                                              typeof fieldValue === "string" ? fieldValue : "",
-                                            );
-                                            const value = current[segment];
-                                            const options =
-                                              segment === "hour"
-                                                ? TIME_SEGMENT_OPTIONS.slice(0, 24)
-                                                : TIME_SEGMENT_OPTIONS;
-                                            return (
-                                              <select
-                                                key={`${field.id}-${segment}`}
-                                                className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white"
-                                                value={value}
-                                                onFocus={handleFieldFocus}
-                                                onChange={(event) => {
-                                                  const nextParts: TimeParts = {
-                                                    ...current,
-                                                    [segment]: event.target.value,
-                                                  };
-                                                  setFormValuesByLink((currentValues) => ({
-                                                    ...currentValues,
-                                                    [link.id]: {
-                                                      ...(currentValues[link.id] ?? {}),
-                                                      [field.id]: buildTimeFromParts(nextParts),
-                                                    },
-                                                  }));
-                                                }}
-                                              >
-                                                <option value="">{segment === "hour" ? "HH" : segment === "minute" ? "MM" : "SS"}</option>
-                                                {options.map((option) => (
-                                                  <option key={option} value={option}>
-                                                    {option}
-                                                  </option>
-                                                ))}
-                                              </select>
-                                            );
-                                          })}
-                                        </div>
+                                        <input
+                                          name={supportTemplate === "deposit_issue" ? "transactionTime" : fieldName}
+                                          type="time"
+                                          step="1"
+                                          required={field.required}
+                                          className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white outline-none"
+                                          value={toHtmlTimeValue(typeof fieldValue === "string" ? fieldValue : "")}
+                                          onFocus={handleFieldFocus}
+                                          onChange={(event) =>
+                                            setStringFieldValue(field.id, normalizeTimeInputValue(event.target.value))
+                                          }
+                                        />
                                       ) : (
                                         <input
+                                          name={fieldName}
                                           type={
                                             field.type === "email"
                                               ? "email"
@@ -2065,15 +2109,7 @@ export const MobilePreview = ({
                                           value={typeof fieldValue === "string" ? fieldValue : ""}
                                           placeholder={field.placeholder ?? ""}
                                           onFocus={handleFieldFocus}
-                                          onChange={(event) =>
-                                            setFormValuesByLink((current) => ({
-                                              ...current,
-                                              [link.id]: {
-                                                ...(current[link.id] ?? {}),
-                                                [field.id]: event.target.value,
-                                              },
-                                            }))
-                                          }
+                                          onChange={(event) => setStringFieldValue(field.id, event.target.value)}
                                         />
                                       )}
                                       {currentFormErrors[field.id] ? (
