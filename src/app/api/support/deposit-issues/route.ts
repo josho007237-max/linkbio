@@ -212,6 +212,22 @@ const normalizeAmount = (value: string): string => {
   return Number(normalized).toFixed(2);
 };
 
+const normalizeTransactionTime = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const hhmm = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (hhmm) {
+    return `${hhmm[1]}:${hhmm[2]}:00`;
+  }
+  const hhmmss = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/);
+  if (hhmmss) {
+    return `${hhmmss[1]}:${hhmmss[2]}:${hhmmss[3]}`;
+  }
+  return trimmed;
+};
+
 const upsertField = (
   fields: SupportSubmissionRecord["fields"],
   id: string,
@@ -256,10 +272,27 @@ export async function POST(request: Request) {
   const template = String(formData.get("template") ?? "").trim();
   const formTitle = String(formData.get("formTitle") ?? "").trim();
   const responses = parseResponses(formData.get("responses"));
+  const username = String(formData.get("username") ?? "").trim();
+  const registeredPhone = String(formData.get("registeredPhone") ?? "").trim();
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const transactionTime = normalizeTransactionTime(String(formData.get("transactionTime") ?? ""));
+  const note = String(formData.get("note") ?? "").trim();
   const bankName = String(formData.get("bankName") ?? "").trim();
   const accountNumber = String(formData.get("accountNumber") ?? "").trim();
   const amount = normalizeAmount(String(formData.get("amount") ?? ""));
   const slip = formData.get("slip");
+  console.info("[support-submission] deposit_issue parsed form payload", {
+    slug,
+    linkId,
+    template,
+    formTitle,
+    username,
+    registeredPhone,
+    fullName,
+    transactionTime,
+    note,
+    hasSlip: slip instanceof File,
+  });
 
   if (!slug || !linkId || !formTitle || template !== "deposit_issue") {
     return NextResponse.json({ error: "Missing required metadata." }, { status: 400 });
@@ -304,7 +337,24 @@ export async function POST(request: Request) {
 
   console.info("[support-submission] deposit_issue final image URL", slipUrl);
   const submittedAt = new Date().toISOString();
-  const withBankName = upsertField(responses, "bank_name", "bank_name", bankName);
+  const normalizedResponses = [
+    ...upsertField(responses, "user", "USER", username || slug),
+  ];
+  const withRegisteredPhone = upsertField(
+    normalizedResponses,
+    "registered_phone",
+    "เบอร์โทรศัพท์ที่ลงทะเบียน",
+    registeredPhone,
+  );
+  const withFullName = upsertField(withRegisteredPhone, "full_name", "ชื่อ-นามสกุล", fullName);
+  const withTransactionTime = upsertField(
+    withFullName,
+    "transaction_time",
+    "เวลาที่ทำรายการ",
+    transactionTime,
+  );
+  const withNote = upsertField(withTransactionTime, "note", "หมายเหตุเพิ่มเติม", note);
+  const withBankName = upsertField(withNote, "bank_name", "bank_name", bankName);
   const withAccountNumber = upsertField(withBankName, "account_number", "account_number", accountNumber);
   const mergedResponses = upsertField(withAccountNumber, "amount", "amount", amount);
 
