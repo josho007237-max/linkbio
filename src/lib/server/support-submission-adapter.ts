@@ -101,7 +101,15 @@ const resolveEffectiveMode = (): "local_dev" | "google_sheets" => {
   if (google.configured) {
     return "google_sheets";
   }
-  return "local_dev";
+  if (isDevelopment) {
+    console.warn(
+      "[support-submission] Google Sheets config missing in auto mode. Falling back to local_dev (development only).",
+    );
+    return "local_dev";
+  }
+  throw new Error(
+    "Google Sheets adapter config is missing in production (auto mode cannot fall back to local_dev).",
+  );
 };
 
 const getGoogleAccessToken = async (): Promise<string> => {
@@ -161,6 +169,11 @@ const appendGoogleSheetRow = async (tabName: string, values: string[]) => {
   if (!google.configured) {
     throw new Error("Google Sheets adapter config is missing.");
   }
+  console.info("[support-submission] Google Sheets append target", {
+    spreadsheetId: google.spreadsheetId,
+    tabName,
+    valuesCount: values.length,
+  });
   const token = await getGoogleAccessToken();
   const range = encodeURIComponent(`${tabName}!A1`);
   const endpoint = `https://sheets.googleapis.com/v4/spreadsheets/${google.spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
@@ -178,8 +191,23 @@ const appendGoogleSheetRow = async (tabName: string, values: string[]) => {
 
   if (!response.ok) {
     const body = await response.text();
+    console.error("[support-submission] Google Sheets append failed", {
+      spreadsheetId: google.spreadsheetId,
+      tabName,
+      status: response.status,
+      body,
+    });
     throw new Error(`Google Sheets append failed (${response.status}): ${body}`);
   }
+  const body = (await response.json().catch(() => null)) as
+    | { updates?: { updatedRange?: string; updatedRows?: number } }
+    | null;
+  console.info("[support-submission] Google Sheets append success", {
+    spreadsheetId: google.spreadsheetId,
+    tabName,
+    updatedRange: body?.updates?.updatedRange ?? null,
+    updatedRows: body?.updates?.updatedRows ?? null,
+  });
 };
 
 const getField = (
@@ -288,6 +316,14 @@ export const submitDepositIssue = async (params: {
   fields: SupportSubmissionRecord["fields"];
   slipUrl: string;
 }) => {
+  console.info("[support-submission] deposit_issue parsed payload", {
+    slug: params.slug,
+    linkId: params.linkId,
+    formTitle: params.formTitle,
+    template: params.template,
+    fieldsCount: params.fields.length,
+    fieldIds: params.fields.map((field) => field.id),
+  });
   const submittedAt = params.submittedAt ?? new Date().toISOString();
   const input: DepositIssueSubmission = {
     submittedAt,
@@ -306,8 +342,27 @@ export const submitDepositIssue = async (params: {
       template: params.template,
     },
   };
+  console.info("[support-submission] deposit_issue normalized payload", {
+    submittedAt: input.submittedAt,
+    issueType: input.issueType,
+    user: input.user,
+    registeredPhone: input.registeredPhone,
+    fullName: input.fullName,
+    transactionTime: input.transactionTime,
+    note: input.note,
+    status: input.status,
+    metadata: input.metadata,
+  });
 
   const mode = resolveEffectiveMode();
+  const google = getGoogleConfig();
+  console.info("[support-submission] deposit_issue adapter mode", {
+    mode,
+    nodeEnv: process.env.NODE_ENV ?? "unknown",
+    spreadsheetId: google.spreadsheetId,
+    depositTab: google.depositTab,
+    googleConfigured: google.configured,
+  });
   if (mode === "local_dev") {
     await writeDepositToLocalDev(input);
     return;

@@ -264,6 +264,18 @@ export async function POST(request: Request) {
   const transactionTime = normalizeTransactionTime(String(formData.get("transactionTime") ?? ""));
   const note = String(formData.get("note") ?? "").trim();
   const slip = formData.get("slip");
+  console.info("[support-submission] deposit_issue parsed form payload", {
+    slug,
+    linkId,
+    template,
+    formTitle,
+    username,
+    registeredPhone,
+    fullName,
+    transactionTime,
+    note,
+    hasSlip: slip instanceof File,
+  });
 
   if (!slug || !linkId || !formTitle || template !== "deposit_issue") {
     return NextResponse.json({ error: "Missing required metadata." }, { status: 400 });
@@ -296,6 +308,10 @@ export async function POST(request: Request) {
     transactionTime,
   );
   const mergedResponses = upsertField(withTransactionTime, "note", "หมายเหตุเพิ่มเติม", note);
+  console.info("[support-submission] deposit_issue normalized responses", {
+    count: mergedResponses.length,
+    fieldIds: mergedResponses.map((field) => field.id),
+  });
 
   console.info("[support-submission] deposit_issue file metadata", {
     name: slip.name,
