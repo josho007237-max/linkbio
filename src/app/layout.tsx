@@ -5,8 +5,8 @@ import { validateCriticalServerEnv } from "@/lib/server/env-validation";
 validateCriticalServerEnv();
 
 export const metadata: Metadata = {
-  title: "Link Bio Builder",
-  description: "Mobile-first link-in-bio admin and public profile experience.",
+  title: "LinkBio Studio",
+  description: "Create and publish custom link pages with branded social previews.",
 };
 
 export default function RootLayout({

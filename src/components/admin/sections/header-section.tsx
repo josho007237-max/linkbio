@@ -8,6 +8,7 @@ import { z } from "zod";
 import { CustomImageUpload } from "@/components/admin/shared/custom-image-upload";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { SectionCard } from "@/components/admin/section-card";
 import { headerSchema } from "@/features/builder/schema";
 import { useBuilderStore } from "@/features/builder/store/use-builder-store";
@@ -33,6 +34,9 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
       publicHandle: header.publicHandle ?? header.publicUsername ?? header.username,
       displayName: header.displayName,
       tagline: header.tagline,
+      shareTitle: header.shareTitle ?? "",
+      shareDescription: header.shareDescription ?? "",
+      shareImageUrl: header.shareImageUrl ?? "",
       avatarUrl: header.avatarUrl,
       heroImageUrl: header.heroImageUrl ?? "/placeholders/wallpaper-default.svg",
       layout: header.layout ?? "classic",
@@ -170,6 +174,23 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
       <div className="space-y-2">
         <Label htmlFor="tagline">{t("header_tagline")}</Label>
         <Input id="tagline" {...form.register("tagline")} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="shareTitle">{t("header_share_title")}</Label>
+        <Input id="shareTitle" {...form.register("shareTitle")} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="shareDescription">{t("header_share_description")}</Label>
+        <Textarea id="shareDescription" rows={3} {...form.register("shareDescription")} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="shareImageUrl">{t("header_share_image_url")}</Label>
+        <Input
+          id="shareImageUrl"
+          type="text"
+          placeholder="https://... or /placeholders/wallpaper-default.svg"
+          {...form.register("shareImageUrl")}
+        />
       </div>
       {layout === "classic" ? (
         <div className="space-y-2">
