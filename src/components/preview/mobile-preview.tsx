@@ -82,6 +82,9 @@ const SAFE_EXTERNAL_HREF_PROTOCOLS = new Set([
   "tg:",
 ]);
 const WEB_EXTERNAL_HREF_PROTOCOLS = new Set(["http:", "https:"]);
+const TIME_SEGMENT_OPTIONS = Array.from({ length: 60 }, (_, index) =>
+  String(index).padStart(2, "0"),
+);
 
 const normalizeImageSrc = (
   value: string | null | undefined,
@@ -272,6 +275,12 @@ const parseDecimalAmount = (value: string): number | null => {
     return null;
   }
   return parsed;
+};
+
+type TimeParts = {
+  hour: string;
+  minute: string;
+  second: string;
 };
 
 const getTimeParts = (value: string): TimeParts => {
