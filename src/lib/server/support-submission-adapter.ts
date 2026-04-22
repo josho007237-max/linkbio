@@ -1,6 +1,7 @@
 import { createSign } from "node:crypto";
 
 import { appendSupportSubmission, SupportSubmissionRecord } from "@/lib/server/support-submissions-store";
+import { sendTelegramSupportIssueAlert } from "@/lib/server/telegram-admin-notifications";
 
 export type SupportSubmissionAdapterMode = "auto" | "local_dev" | "google_sheets";
 
@@ -43,6 +44,13 @@ export type WithdrawIssueSubmission = {
 const DEFAULT_STATUS = "new";
 const TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
 const TOKEN_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
+
+type GoogleSheetAppendResult = {
+  tabName: string;
+  updatedRange: string | null;
+  updatedRows: number | null;
+  rowNumber: number | null;
+};
 
 const base64UrlEncode = (value: string): string =>
   Buffer.from(value).toString("base64url");
@@ -164,7 +172,18 @@ const getGoogleAccessToken = async (): Promise<string> => {
   return parsed.access_token;
 };
 
-const appendGoogleSheetRow = async (tabName: string, values: string[]) => {
+const getUpdatedRangeRowNumber = (updatedRange: string | null): number | null => {
+  const match = updatedRange?.match(/![A-Z]+(\d+)(?::|$)/);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]);
+};
+
+const appendGoogleSheetRow = async (
+  tabName: string,
+  values: string[],
+): Promise<GoogleSheetAppendResult> => {
   const google = getGoogleConfig();
   if (!google.configured) {
     throw new Error("Google Sheets adapter config is missing.");
@@ -208,6 +227,13 @@ const appendGoogleSheetRow = async (tabName: string, values: string[]) => {
     updatedRange: body?.updates?.updatedRange ?? null,
     updatedRows: body?.updates?.updatedRows ?? null,
   });
+  const updatedRange = body?.updates?.updatedRange ?? null;
+  return {
+    tabName,
+    updatedRange,
+    updatedRows: body?.updates?.updatedRows ?? null,
+    rowNumber: getUpdatedRangeRowNumber(updatedRange),
+  };
 };
 
 const getField = (
@@ -267,7 +293,7 @@ const writeWithdrawToLocalDev = async (input: WithdrawIssueSubmission): Promise<
 
 const writeDepositToGoogleSheets = async (input: DepositIssueSubmission): Promise<void> => {
   const google = getGoogleConfig();
-  await appendGoogleSheetRow(google.depositTab, [
+  const appendResult = await appendGoogleSheetRow(google.depositTab, [
     input.submittedAt,
     input.issueType,
     input.user,
@@ -278,11 +304,27 @@ const writeDepositToGoogleSheets = async (input: DepositIssueSubmission): Promis
     input.note,
     input.status,
   ]);
+  try {
+    await sendTelegramSupportIssueAlert({
+      issueType: "deposit_issue",
+      submittedAt: input.submittedAt,
+      user: input.user,
+      registeredPhone: input.registeredPhone,
+      transactionTime: input.transactionTime,
+      note: input.note,
+      slug: input.metadata.slug,
+      sheetTab: appendResult.tabName,
+      sheetRow: appendResult.rowNumber,
+      updatedRange: appendResult.updatedRange,
+    });
+  } catch (error) {
+    console.error("[support-submission] Telegram admin alert failed for deposit_issue", error);
+  }
 };
 
 const writeWithdrawToGoogleSheets = async (input: WithdrawIssueSubmission): Promise<void> => {
   const google = getGoogleConfig();
-  await appendGoogleSheetRow(google.withdrawTab, [
+  const appendResult = await appendGoogleSheetRow(google.withdrawTab, [
     input.submittedAt,
     input.issueType,
     input.user,
@@ -293,6 +335,22 @@ const writeWithdrawToGoogleSheets = async (input: WithdrawIssueSubmission): Prom
     input.note,
     input.status,
   ]);
+  try {
+    await sendTelegramSupportIssueAlert({
+      issueType: "withdraw_issue",
+      submittedAt: input.submittedAt,
+      user: input.user,
+      registeredPhone: input.phone,
+      transactionTime: input.transactionTime,
+      note: input.note,
+      slug: input.metadata.slug,
+      sheetTab: appendResult.tabName,
+      sheetRow: appendResult.rowNumber,
+      updatedRange: appendResult.updatedRange,
+    });
+  } catch (error) {
+    console.error("[support-submission] Telegram admin alert failed for withdraw_issue", error);
+  }
 };
 
 const withFallback = async (fn: () => Promise<void>, fallback: () => Promise<void>) => {
