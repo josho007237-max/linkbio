@@ -175,6 +175,9 @@ export type ProfileHeader = {
   publicUsername?: string;
   displayName: string;
   tagline: string;
+  shareTitle?: string;
+  shareDescription?: string;
+  shareImageUrl?: string;
   avatarUrl: string;
   heroImageUrl?: string;
   layout?: "classic" | "hero";
