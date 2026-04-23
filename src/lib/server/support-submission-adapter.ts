@@ -105,6 +105,9 @@ const TOKEN_AUDIENCE = "https://oauth2.googleapis.com/token";
 const TOKEN_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 const DUPLICATE_WINDOW_MS = 15 * 60 * 1000;
 const SUPPORT_CASE_LOG_FILE = path.join(process.cwd(), "data", "support-case-log.json");
+const shouldPersistCaseLogToFile =
+  process.env.NODE_ENV !== "production" && process.env.VERCEL !== "1";
+const inMemoryCaseLog: SupportCaseLogEntry[] = [];
 
 const base64UrlEncode = (value: string): string =>
   Buffer.from(value).toString("base64url");
@@ -199,6 +202,9 @@ const parseCaseSequence = (caseId: string): number | null => {
 };
 
 const readSupportCaseLog = async (): Promise<SupportCaseLogEntry[]> => {
+  if (!shouldPersistCaseLogToFile) {
+    return [...inMemoryCaseLog];
+  }
   try {
     const raw = await readFile(SUPPORT_CASE_LOG_FILE, "utf8");
     const parsed = JSON.parse(raw) as unknown;
@@ -215,6 +221,9 @@ const readSupportCaseLog = async (): Promise<SupportCaseLogEntry[]> => {
 };
 
 const writeSupportCaseLog = async (entries: SupportCaseLogEntry[]): Promise<void> => {
+  if (!shouldPersistCaseLogToFile) {
+    return;
+  }
   await mkdir(path.dirname(SUPPORT_CASE_LOG_FILE), { recursive: true });
   await writeFile(SUPPORT_CASE_LOG_FILE, JSON.stringify(entries, null, 2), "utf8");
 };
@@ -496,6 +505,10 @@ const decideCaseSubmission = (
 };
 
 const appendCaseLog = async (entry: SupportCaseLogEntry): Promise<void> => {
+  inMemoryCaseLog.push(entry);
+  if (!shouldPersistCaseLogToFile) {
+    return;
+  }
   const current = await readSupportCaseLog();
   current.push(entry);
   await writeSupportCaseLog(current);
@@ -644,18 +657,24 @@ const logCaseAttempt = async (
   decision: SupportCaseDecision,
   submittedAt: string,
 ): Promise<void> => {
-  await appendCaseLog({
-    issueType,
-    user,
-    registeredPhone,
-    identityKey: toIdentityKey(issueType, user, registeredPhone),
-    caseId: decision.caseId || decision.existingCaseId || "UNKNOWN",
-    submittedAt,
-    isDuplicate: decision.isDuplicate,
-    duplicateOf: decision.duplicateOf,
-    repeatCount: decision.repeatCount,
-    priority: decision.priority,
-  });
+  try {
+    await appendCaseLog({
+      issueType,
+      user,
+      registeredPhone,
+      identityKey: toIdentityKey(issueType, user, registeredPhone),
+      caseId: decision.caseId || decision.existingCaseId || "UNKNOWN",
+      submittedAt,
+      isDuplicate: decision.isDuplicate,
+      duplicateOf: decision.duplicateOf,
+      repeatCount: decision.repeatCount,
+      priority: decision.priority,
+    });
+  } catch (error) {
+    console.warn("[support-submission] case log persistence unavailable; continuing without durable duplicate log", {
+      error,
+    });
+  }
 };
 
 const maybeSendUrgentDuplicateAlert = async (params: {
