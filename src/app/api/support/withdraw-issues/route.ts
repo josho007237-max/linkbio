@@ -14,7 +14,9 @@ type WithdrawPayload = {
   template?: unknown;
   formTitle?: unknown;
   responses?: unknown;
+  bank_name?: unknown;
   bankName?: unknown;
+  account_number?: unknown;
   accountNumber?: unknown;
   amount?: unknown;
 };
@@ -63,6 +65,32 @@ const normalizeAmount = (value: string): string => {
   return Number(normalized).toFixed(2);
 };
 
+const pickString = (payload: WithdrawPayload, keys: Array<keyof WithdrawPayload>): string => {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+};
+
+const getFieldFromResponses = (
+  fields: SupportSubmissionRecord["fields"],
+  aliases: string[],
+): string => {
+  const normalizedAliases = aliases.map((alias) => alias.trim().toLowerCase());
+  const matched = fields.find((field) => {
+    const id = field.id.trim().toLowerCase();
+    const label = field.label.trim().toLowerCase();
+    return normalizedAliases.includes(id) || normalizedAliases.includes(label);
+  });
+  if (!matched) {
+    return "";
+  }
+  return Array.isArray(matched.value) ? matched.value.join(", ").trim() : String(matched.value ?? "").trim();
+};
+
 const upsertField = (
   fields: SupportSubmissionRecord["fields"],
   id: string,
@@ -98,12 +126,45 @@ export async function POST(request: Request) {
   const template = typeof payload.template === "string" ? payload.template.trim() : "";
   const formTitle = typeof payload.formTitle === "string" ? payload.formTitle.trim() : "";
   const responses = normalizeResponses(payload.responses);
-  const bankName = typeof payload.bankName === "string" ? payload.bankName.trim() : "";
-  const accountNumber = typeof payload.accountNumber === "string" ? payload.accountNumber.trim() : "";
-  const amount = normalizeAmount(typeof payload.amount === "string" ? payload.amount : "");
+  const bankName =
+    pickString(payload, ["bankName", "bank_name"]) ||
+    getFieldFromResponses(responses, ["bank_name", "bankname", "bank name", "ธนาคาร", "ชื่อธนาคาร"]);
+  const accountNumber =
+    pickString(payload, ["accountNumber", "account_number"]) ||
+    getFieldFromResponses(responses, [
+      "account_number",
+      "accountnumber",
+      "account number",
+      "เลขที่บัญชี",
+      "bank_account",
+    ]);
+  const amount = normalizeAmount(
+    pickString(payload, ["amount"]) ||
+      getFieldFromResponses(responses, ["amount", "ยอดเงิน", "จำนวนเงิน"]),
+  );
+  console.info("[support-submission] withdraw_issue parsed payload", {
+    slug,
+    linkId,
+    template,
+    formTitle,
+    bankName,
+    accountNumber,
+    amount,
+    responseFieldCount: responses.length,
+  });
   const withBankName = upsertField(responses, "bank_name", "bank_name", bankName);
   const withAccountNumber = upsertField(withBankName, "account_number", "account_number", accountNumber);
   const mergedResponses = upsertField(withAccountNumber, "amount", "amount", amount);
+  console.info("[support-submission] withdraw_issue normalized payload", {
+    slug,
+    linkId,
+    template,
+    formTitle,
+    bankName,
+    accountNumber,
+    amount,
+    responseFieldCount: mergedResponses.length,
+  });
 
   if (!slug || !linkId || !formTitle || template !== "withdraw_issue") {
     return NextResponse.json({ error: "Missing required metadata." }, { status: 400 });
@@ -118,6 +179,7 @@ export async function POST(request: Request) {
       submittedAt: new Date().toISOString(),
       fields: mergedResponses,
     });
+    console.info("[support-submission] withdraw_issue submit adapter result", result);
     return NextResponse.json({ id: crypto.randomUUID(), ...result });
   } catch (error) {
     console.error("[support-submission] withdraw_issue submission failed", error);

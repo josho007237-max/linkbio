@@ -200,6 +200,32 @@ const parseResponses = (raw: FormDataEntryValue | null): SupportSubmissionRecord
     .filter((entry): entry is SupportSubmissionRecord["fields"][number] => Boolean(entry));
 };
 
+const getStringFromFormData = (formData: FormData, keys: string[]): string => {
+  for (const key of keys) {
+    const raw = formData.get(key);
+    if (typeof raw === "string" && raw.trim()) {
+      return raw.trim();
+    }
+  }
+  return "";
+};
+
+const getFieldFromResponses = (
+  fields: SupportSubmissionRecord["fields"],
+  aliases: string[],
+): string => {
+  const normalizedAliases = aliases.map((alias) => alias.trim().toLowerCase());
+  const found = fields.find((field) => {
+    const id = field.id.trim().toLowerCase();
+    const label = field.label.trim().toLowerCase();
+    return normalizedAliases.includes(id) || normalizedAliases.includes(label);
+  });
+  if (!found) {
+    return "";
+  }
+  return Array.isArray(found.value) ? found.value.join(", ").trim() : String(found.value ?? "").trim();
+};
+
 const normalizeAmount = (value: string): string => {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -272,14 +298,36 @@ export async function POST(request: Request) {
   const template = String(formData.get("template") ?? "").trim();
   const formTitle = String(formData.get("formTitle") ?? "").trim();
   const responses = parseResponses(formData.get("responses"));
-  const username = String(formData.get("username") ?? "").trim();
-  const registeredPhone = String(formData.get("registeredPhone") ?? "").trim();
-  const fullName = String(formData.get("fullName") ?? "").trim();
-  const transactionTime = normalizeTransactionTime(String(formData.get("transactionTime") ?? ""));
-  const note = String(formData.get("note") ?? "").trim();
-  const bankName = String(formData.get("bankName") ?? "").trim();
-  const accountNumber = String(formData.get("accountNumber") ?? "").trim();
-  const amount = normalizeAmount(String(formData.get("amount") ?? ""));
+  const username = getStringFromFormData(formData, ["username", "user"]) || getFieldFromResponses(responses, ["user", "username", "ยูส"]);
+  const registeredPhone =
+    getStringFromFormData(formData, ["registeredPhone", "registered_phone", "phone"]) ||
+    getFieldFromResponses(responses, ["registered_phone", "phone", "เบอร์โทรศัพท์ที่ลงทะเบียน", "เบอร์โทรศัพท์"]);
+  const fullName =
+    getStringFromFormData(formData, ["fullName", "full_name"]) ||
+    getFieldFromResponses(responses, ["full_name", "full name", "ชื่อ-นามสกุล"]);
+  const transactionTime = normalizeTransactionTime(
+    getStringFromFormData(formData, ["transactionTime", "transaction_time"]) ||
+      getFieldFromResponses(responses, ["transaction_time", "เวลาที่ทำรายการ"]),
+  );
+  const note =
+    getStringFromFormData(formData, ["note"]) ||
+    getFieldFromResponses(responses, ["note", "หมายเหตุเพิ่มเติม"]);
+  const bankName =
+    getStringFromFormData(formData, ["bankName", "bank_name"]) ||
+    getFieldFromResponses(responses, ["bank_name", "bankname", "bank name", "ธนาคาร", "ชื่อธนาคาร"]);
+  const accountNumber =
+    getStringFromFormData(formData, ["accountNumber", "account_number"]) ||
+    getFieldFromResponses(responses, [
+      "account_number",
+      "accountnumber",
+      "account number",
+      "เลขที่บัญชี",
+      "bank_account",
+    ]);
+  const amount = normalizeAmount(
+    getStringFromFormData(formData, ["amount"]) ||
+      getFieldFromResponses(responses, ["amount", "ยอดเงิน", "จำนวนเงิน"]),
+  );
   const slip = formData.get("slip");
   console.info("[support-submission] deposit_issue parsed form payload", {
     slug,
@@ -291,6 +339,9 @@ export async function POST(request: Request) {
     fullName,
     transactionTime,
     note,
+    bankName,
+    accountNumber,
+    amount,
     hasSlip: slip instanceof File,
   });
 
@@ -357,6 +408,16 @@ export async function POST(request: Request) {
   const withBankName = upsertField(withNote, "bank_name", "bank_name", bankName);
   const withAccountNumber = upsertField(withBankName, "account_number", "account_number", accountNumber);
   const mergedResponses = upsertField(withAccountNumber, "amount", "amount", amount);
+  console.info("[support-submission] deposit_issue normalized payload", {
+    slug,
+    linkId,
+    template,
+    formTitle,
+    bankName,
+    accountNumber,
+    amount,
+    responseFieldCount: mergedResponses.length,
+  });
 
   try {
     const result = await submitDepositIssue({
@@ -368,9 +429,10 @@ export async function POST(request: Request) {
       fields: mergedResponses,
       slipUrl,
     });
+    console.info("[support-submission] deposit_issue submit adapter result", result);
     return NextResponse.json({ id: crypto.randomUUID(), ...result });
   } catch (error) {
-    console.error("[support-submission] deposit_issue submission failed", error);
+    console.error("[support-submission] deposit_issue submission failed", toErrorLog(error));
     return NextResponse.json(
       { error: "Submission failed. Please try again later." },
       { status: 500 },

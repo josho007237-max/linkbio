@@ -386,6 +386,11 @@ const appendGoogleSheetRow = async (
   const sheetId = await getSheetIdByTabName(google.spreadsheetId, tabName, token);
   await insertRowAtTop(google.spreadsheetId, sheetId, token);
   const targetRowNumber = 2;
+  console.info("[support-submission] Google Sheets append target", {
+    tabName,
+    targetRowNumber,
+    valueCount: values.length,
+  });
   const updated = await updateSheetRowValues({
     spreadsheetId: google.spreadsheetId,
     tabName,
@@ -394,22 +399,27 @@ const appendGoogleSheetRow = async (
     token,
   });
   const updatedRange = updated.updatedRange ?? `${tabName}!A${targetRowNumber}`;
-  return {
+  const result = {
     tabName,
     updatedRange,
     updatedRows: updated.updatedRows,
     rowNumber: getUpdatedRangeRowNumber(updatedRange),
   };
+  console.info("[support-submission] Google Sheets append result", result);
+  return result;
 };
+
+const normalizeFieldKey = (value: string): string =>
+  value.trim().toLowerCase().replace(/[\s_-]+/g, "");
 
 const getField = (
   fields: SupportSubmissionRecord["fields"],
   labels: string[],
 ): string => {
-  const normalizedLabels = labels.map((label) => label.trim().toLowerCase());
+  const normalizedLabels = labels.map((label) => normalizeFieldKey(label));
   const matched = fields.find((field) =>
-    normalizedLabels.includes(field.label.trim().toLowerCase()) ||
-    normalizedLabels.includes(field.id.trim().toLowerCase()),
+    normalizedLabels.includes(normalizeFieldKey(field.label)) ||
+    normalizedLabels.includes(normalizeFieldKey(field.id)),
   );
   if (!matched) {
     return "";
@@ -553,50 +563,66 @@ const writeDepositToGoogleSheets = async (
   input: DepositIssueSubmission,
 ): Promise<GoogleSheetAppendResult> => {
   const google = getGoogleConfig();
-  return appendGoogleSheetRow(google.depositTab, [
-    input.submittedAt,
-    input.issueType,
-    input.user,
-    input.registeredPhone,
-    input.bankName,
-    input.accountNumber,
-    input.amount,
-    input.slipUrl,
-    input.transactionTime,
-    input.note,
-    input.metadata.slug,
-    input.caseId,
-    String(input.repeatCount),
-    String(input.isDuplicate),
-    input.duplicateOf ?? "",
-    input.priority,
-    input.status,
-  ]);
+  try {
+    return await appendGoogleSheetRow(google.depositTab, [
+      input.submittedAt,
+      input.issueType,
+      input.user,
+      input.registeredPhone,
+      input.bankName,
+      input.accountNumber,
+      input.amount,
+      input.slipUrl,
+      input.transactionTime,
+      input.note,
+      input.metadata.slug,
+      input.caseId,
+      String(input.repeatCount),
+      String(input.isDuplicate),
+      input.duplicateOf ?? "",
+      input.priority,
+      input.status,
+    ]);
+  } catch (error) {
+    console.error("[support-submission] deposit_issue Google Sheets write failed", {
+      tabName: google.depositTab,
+      error,
+    });
+    throw error;
+  }
 };
 
 const writeWithdrawToGoogleSheets = async (
   input: WithdrawIssueSubmission,
 ): Promise<GoogleSheetAppendResult> => {
   const google = getGoogleConfig();
-  return appendGoogleSheetRow(google.withdrawTab, [
-    input.submittedAt,
-    input.issueType,
-    input.user,
-    input.registeredPhone,
-    input.fullName,
-    input.bankName,
-    input.accountNumber,
-    input.amount,
-    input.transactionTime,
-    input.note,
-    input.metadata.slug,
-    input.caseId,
-    String(input.repeatCount),
-    String(input.isDuplicate),
-    input.duplicateOf ?? "",
-    input.priority,
-    input.status,
-  ]);
+  try {
+    return await appendGoogleSheetRow(google.withdrawTab, [
+      input.submittedAt,
+      input.issueType,
+      input.user,
+      input.registeredPhone,
+      input.fullName,
+      input.bankName,
+      input.accountNumber,
+      input.amount,
+      input.transactionTime,
+      input.note,
+      input.metadata.slug,
+      input.caseId,
+      String(input.repeatCount),
+      String(input.isDuplicate),
+      input.duplicateOf ?? "",
+      input.priority,
+      input.status,
+    ]);
+  } catch (error) {
+    console.error("[support-submission] withdraw_issue Google Sheets write failed", {
+      tabName: google.withdrawTab,
+      error,
+    });
+    throw error;
+  }
 };
 
 const withFallback = async <T>(fn: () => Promise<T>, fallback: () => Promise<T>) => {
@@ -749,8 +775,14 @@ export const submitDepositIssue = async (params: {
       template: params.template,
     },
   };
-
   const mode = resolveEffectiveMode();
+  console.info("[support-submission] deposit_issue adapter normalized payload", {
+    caseId: input.caseId,
+    bankName: input.bankName,
+    accountNumber: input.accountNumber,
+    amount: input.amount,
+    mode,
+  });
   if (mode === "local_dev") {
     await writeDepositToLocalDev(input);
     return {
@@ -894,8 +926,14 @@ export const submitWithdrawIssue = async (params: {
       template: params.template,
     },
   };
-
   const mode = resolveEffectiveMode();
+  console.info("[support-submission] withdraw_issue adapter normalized payload", {
+    caseId: input.caseId,
+    bankName: input.bankName,
+    accountNumber: input.accountNumber,
+    amount: input.amount,
+    mode,
+  });
   if (mode === "local_dev") {
     await writeWithdrawToLocalDev(input);
     return {
