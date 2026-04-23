@@ -20,6 +20,7 @@ import {
   getDiscountData,
   getEmbedPostData,
   getFormData,
+  getLinkDisplaySettings,
   getSortedVisibleLinks,
 } from "@/features/builder/utils";
 import {
@@ -164,8 +165,9 @@ const isWebExternalHref = (
 
 const getExternalAnchorTargetProps = (
   parsedHref: PreviewHrefResult,
+  openInNewTab = true,
 ): { target?: "_blank"; rel?: "noreferrer" } =>
-  isWebExternalHref(parsedHref) ? { target: "_blank", rel: "noreferrer" } : {};
+  isWebExternalHref(parsedHref) && openInNewTab ? { target: "_blank", rel: "noreferrer" } : {};
 
 const getYouTubeEmbedUrl = (rawUrl: string): string | null => {
   try {
@@ -263,6 +265,38 @@ const isAmountField = (field: { id: string; label: string }): boolean => {
   const id = field.id.trim().toLowerCase();
   const label = getFieldLabelTokens(field.label);
   return id.includes("amount") || label.includes("amount") || label.includes("ยอดเงิน");
+};
+
+const getSupportFieldLabelKey = (
+  field: { id: string; label: string },
+): "bank_name" | "account_number" | "amount" | null => {
+  const id = field.id.trim().toLowerCase();
+  const label = getFieldLabelTokens(field.label);
+  if (id.includes("bank_name") || label.includes("bank_name") || label.includes("ธนาคาร")) {
+    return "bank_name";
+  }
+  if (
+    id.includes("account_number") ||
+    label.includes("account_number") ||
+    label.includes("เลขที่บัญชี")
+  ) {
+    return "account_number";
+  }
+  if (isAmountField(field)) {
+    return "amount";
+  }
+  return null;
+};
+
+const sanitizeAmountInput = (value: string): string => {
+  const normalized = value.replace(/,/g, "").replace(/[^\d.]/g, "");
+  const [integerPart = "", ...decimalParts] = normalized.split(".");
+  const safeInteger = integerPart.replace(/^0+(?=\d)/, "") || (integerPart ? "0" : "");
+  const mergedDecimal = decimalParts.join("").slice(0, 2);
+  if (normalized.includes(".")) {
+    return `${safeInteger || "0"}.${mergedDecimal}`;
+  }
+  return safeInteger;
 };
 
 const parseDecimalAmount = (value: string): number | null => {
@@ -925,27 +959,66 @@ export const MobilePreview = ({
               const thumbnailSrc =
                 normalizeImageSrc(link.settings.thumbnailUrl, THUMBNAIL_FALLBACK_SRC) ??
                 THUMBNAIL_FALLBACK_SRC;
-              const thumbnailKey = `${link.id}::${thumbnailSrc}`;
-              const safeThumbnailSrc = brokenThumbnailKeys[thumbnailKey]
+              const displaySettings = getLinkDisplaySettings(link);
+              const styleImageSrc =
+                normalizeImageSrc(displaySettings.imageUrl, thumbnailSrc) ?? thumbnailSrc;
+              const iconImageSrc =
+                normalizeImageSrc(displaySettings.iconImageUrl, styleImageSrc) ?? styleImageSrc;
+              const backgroundImageSrc =
+                normalizeImageSrc(displaySettings.backgroundImageUrl, styleImageSrc) ?? styleImageSrc;
+              const activeStyle = displaySettings.style ?? "icon_left";
+              const openInNewTab = displaySettings.openInNewTab ?? true;
+              const styleImageKey = `${link.id}::style::${styleImageSrc}`;
+              const safeStyleImageSrc = brokenThumbnailKeys[styleImageKey]
                 ? THUMBNAIL_FALLBACK_SRC
-                : thumbnailSrc;
+                : styleImageSrc;
+              const iconImageKey = `${link.id}::icon::${iconImageSrc}`;
+              const safeIconImageSrc = brokenThumbnailKeys[iconImageKey]
+                ? THUMBNAIL_FALLBACK_SRC
+                : iconImageSrc;
+              const backgroundImageKey = `${link.id}::bg::${backgroundImageSrc}`;
+              const safeBackgroundImageSrc = brokenThumbnailKeys[backgroundImageKey]
+                ? THUMBNAIL_FALLBACK_SRC
+                : backgroundImageSrc;
+              const textAlignClass =
+                displaySettings.textAlign === "center"
+                  ? "text-center items-center"
+                  : displaySettings.textAlign === "right"
+                    ? "text-right items-end"
+                    : "text-left items-start";
+              const isImageFullStyle = activeStyle === "image_banner";
+              const isTextPanelStyle = activeStyle === "text_panel";
               const className = cn(
-                "w-full flex items-center gap-3 border font-semibold backdrop-blur-sm transition hover:brightness-105",
-                isAdminPreview ? "px-4 py-3 text-sm" : "p-4 text-sm sm:p-5 sm:text-base md:p-6",
+                "w-full border font-semibold backdrop-blur-sm transition hover:brightness-105",
+                isImageFullStyle
+                  ? "relative overflow-hidden p-0"
+                  : isTextPanelStyle
+                    ? cn(
+                        "px-5 py-5 sm:px-6 sm:py-6",
+                        isAdminPreview ? "text-sm" : "text-base sm:text-lg",
+                      )
+                    : cn(
+                        "flex items-center gap-3",
+                        isAdminPreview ? "px-4 py-3 text-sm" : "p-4 text-sm sm:p-5 sm:text-base md:p-6",
+                      ),
                 data.buttonStyle.uppercase && "uppercase tracking-wide",
                 data.buttonStyle.shadow && shadowClass,
                 buttonStyleClass,
               );
               const style = {
                 backgroundColor:
-                  data.buttonStyle.style === "outline"
+                  displaySettings.backgroundColor ||
+                  (data.buttonStyle.style === "outline"
                     ? "transparent"
                     : data.buttonStyle.style === "glass"
                       ? "rgba(255,255,255,0.12)"
-                      : data.theme.buttonBackground,
-                color: data.theme.buttonTextColor,
-                borderRadius: `${data.theme.buttonRadius}px`,
-                borderColor: "rgba(255,255,255,0.25)",
+                      : data.theme.buttonBackground),
+                color: displaySettings.textColor || data.theme.buttonTextColor,
+                borderRadius: `${displaySettings.borderRadius ?? data.theme.buttonRadius}px`,
+                borderColor:
+                  displaySettings.showBorder === false
+                    ? "transparent"
+                    : displaySettings.borderColor || "rgba(255,255,255,0.25)",
               } as const;
               const parsedHref = parsePreviewHref(link.url);
               const isDiscount = getContentType(link) === "discount";
@@ -954,7 +1027,159 @@ export const MobilePreview = ({
               const discount = getDiscountData(link);
               const embedPost = getEmbedPostData(link);
               const form = getFormData(link);
-              const discountLayout = discount.layout;
+              const lockBadge = link.settings.locked ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-black/20 bg-black/10 px-2 py-1 text-[10px]">
+                  <Lock className="size-3" />
+                  {link.settings.lockMessage || t("preview_locked")}
+                </span>
+              ) : null;
+
+              const renderStyledButtonContent = ({
+                title,
+                description,
+                panelText,
+              }: {
+                title?: string;
+                description?: string;
+                panelText?: string;
+              }) => {
+                if (activeStyle === "text_only") {
+                  return (
+                    <div className={cn("flex w-full flex-col gap-1", textAlignClass)}>
+                      {title ? (
+                        <p className="w-full text-sm font-semibold sm:text-base">{title}</p>
+                      ) : null}
+                      {lockBadge}
+                    </div>
+                  );
+                }
+
+                if (activeStyle === "image_banner") {
+                  return (
+                    <div
+                      className={cn(
+                        "relative w-full",
+                        displaySettings.bannerRatio === "2:1" ? "aspect-[2/1]" : "aspect-[3/1]",
+                      )}
+                    >
+                      <SafeImage
+                        src={safeBackgroundImageSrc}
+                        alt=""
+                        width={720}
+                        height={360}
+                        className={cn(
+                          "absolute inset-0 h-full w-full",
+                          displaySettings.imageFit === "contain" ? "object-contain" : "object-cover",
+                        )}
+                        onError={() => {
+                          if (
+                            safeBackgroundImageSrc === THUMBNAIL_FALLBACK_SRC ||
+                            brokenThumbnailKeys[backgroundImageKey]
+                          ) {
+                            return;
+                          }
+                          setBrokenThumbnailKeys((current) => ({ ...current, [backgroundImageKey]: true }));
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/35" />
+                      <div className="relative z-[1] flex h-full w-full flex-col justify-center gap-1 px-4 py-3 text-left text-white sm:px-5">
+                        {title ? (
+                          <p
+                            className={cn(
+                              "font-semibold",
+                              displaySettings.titleSize ? "" : "text-base sm:text-lg",
+                            )}
+                            style={displaySettings.titleSize ? { fontSize: `${displaySettings.titleSize}px` } : undefined}
+                          >
+                            {title}
+                          </p>
+                        ) : null}
+                        {description ? <p className="line-clamp-2 text-xs opacity-90 sm:text-sm">{description}</p> : null}
+                        {lockBadge}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (activeStyle === "media_card") {
+                  return (
+                    <div className="flex w-full items-center gap-3">
+                      <SafeImage
+                        src={safeStyleImageSrc}
+                        alt=""
+                        className="h-20 w-20 shrink-0 rounded-lg border border-black/10 object-cover"
+                        width={80}
+                        height={80}
+                        onError={() => {
+                          if (
+                            safeStyleImageSrc === THUMBNAIL_FALLBACK_SRC ||
+                            brokenThumbnailKeys[styleImageKey]
+                          ) {
+                            return;
+                          }
+                          setBrokenThumbnailKeys((current) => ({ ...current, [styleImageKey]: true }));
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        {title ? <p className="text-lg font-semibold leading-tight">{title}</p> : null}
+                        {description ? (
+                          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed opacity-80 sm:text-sm">
+                            {description}
+                          </p>
+                        ) : null}
+                        {lockBadge ? <div className="mt-2">{lockBadge}</div> : null}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (activeStyle === "text_panel") {
+                  return (
+                    <div className={cn("flex w-full flex-col gap-2", textAlignClass)}>
+                      {title ? <p className="w-full text-base font-semibold sm:text-lg">{title}</p> : null}
+                      {panelText || description ? (
+                        <p
+                          className={cn(
+                            "w-full text-sm leading-relaxed opacity-90 sm:text-base",
+                            displaySettings.preserveLineBreaks === false ? "whitespace-normal" : "whitespace-pre-wrap",
+                          )}
+                        >
+                          {panelText || description}
+                        </p>
+                      ) : null}
+                      {lockBadge}
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <SafeImage
+                      src={safeIconImageSrc}
+                      alt=""
+                      className="size-10 rounded-full border border-black/10 object-cover"
+                      width={40}
+                      height={40}
+                      onError={() => {
+                        if (
+                          safeIconImageSrc === THUMBNAIL_FALLBACK_SRC ||
+                          brokenThumbnailKeys[iconImageKey]
+                        ) {
+                          return;
+                        }
+                        setBrokenThumbnailKeys((current) => ({ ...current, [iconImageKey]: true }));
+                      }}
+                    />
+                    <div className={cn("min-w-0 flex-1", textAlignClass)}>
+                      {title ? <p className="truncate text-sm font-semibold sm:text-base">{title}</p> : null}
+                      {description ? (
+                        <p className="truncate text-xs leading-relaxed opacity-80 sm:text-sm">{description}</p>
+                      ) : null}
+                    </div>
+                    {lockBadge}
+                  </>
+                );
+              };
 
               const renderDiscountCta = (
                 parsedDiscountHref: PreviewHrefResult,
@@ -999,46 +1224,14 @@ export const MobilePreview = ({
                   </a>
                 );
               };
-              const content = (
-                <>
-                  <SafeImage
-                    src={safeThumbnailSrc}
-                    alt=""
-                    className="size-10 rounded-md border border-black/10 object-cover"
-                    width={40}
-                    height={40}
-                    onError={() => {
-                      if (safeThumbnailSrc === THUMBNAIL_FALLBACK_SRC || brokenThumbnailKeys[thumbnailKey]) {
-                        return;
-                      }
-                      setBrokenThumbnailKeys((current) => ({ ...current, [thumbnailKey]: true }));
-                    }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm sm:text-base font-semibold">{link.title}</p>
-                    {link.description ? (
-                      <p className="truncate text-xs leading-relaxed opacity-80 sm:text-sm">{link.description}</p>
-                    ) : null}
-                  </div>
-                  {link.settings.locked ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-black/20 bg-black/10 px-2 py-1 text-[10px]">
-                      <Lock className="size-3" />
-                      {link.settings.lockMessage || t("preview_locked")}
-                    </span>
-                  ) : null}
-                </>
-              );
+              const content = renderStyledButtonContent({
+                title: link.title,
+                description: link.description,
+                panelText: displaySettings.textPanelContent,
+              });
 
               if (isDiscount) {
                 const code = discount.discountCode ?? "";
-                const isFeatured = discountLayout === "featured";
-                const cardThumbnailSrc =
-                  normalizeImageSrc(discount.cardThumbnail, THUMBNAIL_FALLBACK_SRC) ??
-                  THUMBNAIL_FALLBACK_SRC;
-                const cardThumbnailKey = `${link.id}::card::${cardThumbnailSrc}`;
-                const safeCardThumbnailSrc = brokenThumbnailKeys[cardThumbnailKey]
-                  ? THUMBNAIL_FALLBACK_SRC
-                  : cardThumbnailSrc;
                 const destinationParsed = parsePreviewHref(discount.destinationUrl);
                 const heroSrc =
                   normalizeImageSrc(discount.modalHeroImage, THUMBNAIL_FALLBACK_SRC) ??
@@ -1049,11 +1242,7 @@ export const MobilePreview = ({
                   <div key={link.id}>
                     <button
                       type="button"
-                      className={cn(
-                        "w-full space-y-3 border text-left font-semibold backdrop-blur-sm transition hover:brightness-105",
-                        isFeatured ? "rounded-2xl shadow-xl" : "",
-                        isAdminPreview ? "px-4 py-3 text-sm" : "p-4 text-sm sm:p-5 sm:text-base md:p-6",
-                      )}
+                      className={className}
                       style={style}
                       onClick={() => {
                         setActiveDiscountId(link.id);
@@ -1064,44 +1253,13 @@ export const MobilePreview = ({
                         }
                       }}
                     >
-                      <div className={cn("flex items-center gap-3", isFeatured && "items-start")}>
-                        <SafeImage
-                          src={safeCardThumbnailSrc}
-                          alt=""
-                          className={cn(
-                            "rounded-md border border-black/10 object-cover",
-                            isFeatured ? "h-16 w-20" : "size-10",
-                          )}
-                          width={isFeatured ? 80 : 40}
-                          height={isFeatured ? 64 : 40}
-                          onError={() => {
-                            if (
-                              safeCardThumbnailSrc === THUMBNAIL_FALLBACK_SRC ||
-                              brokenThumbnailKeys[cardThumbnailKey]
-                            ) {
-                              return;
-                            }
-                            setBrokenThumbnailKeys((current) => ({ ...current, [cardThumbnailKey]: true }));
-                          }}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm sm:text-base font-semibold">
-                            {discount.cardTitle || link.title}
-                          </p>
-                          {isFeatured ? (
-                            <p className="mt-1 inline-flex rounded-full border border-white/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em]">
-                              {t("preview_layout_featured_badge")}
-                            </p>
-                          ) : null}
-                          <p className="truncate text-xs leading-relaxed opacity-80 sm:text-sm">
-                            {t("preview_use_my_code")}
-                          </p>
-                        </div>
-                      </div>
-                      {discount.modalDescription ? (
-                        <p className="text-xs leading-relaxed opacity-80 sm:text-sm">{discount.modalDescription}</p>
-                      ) : null}
-                      <p className="text-xs leading-relaxed opacity-85 sm:text-sm">{t("discount_open_details")}</p>
+                      {renderStyledButtonContent({
+                        title: discount.cardTitle || link.title,
+                        description: discount.modalDescription || t("discount_open_details"),
+                        panelText:
+                          displaySettings.textPanelContent ||
+                          `${discount.cardTitle || link.title}\n${discount.modalDescription || ""}`,
+                      })}
                     </button>
 
                     {activeDiscountId === link.id ? (
@@ -1187,19 +1345,6 @@ export const MobilePreview = ({
               }
 
               if (isEmbedPost) {
-                const isFeatured = embedPost.layout === "featured";
-                const cardThumbnailSrc =
-                  normalizeImageSrc(embedPost.cardThumbnail, THUMBNAIL_FALLBACK_SRC) ??
-                  THUMBNAIL_FALLBACK_SRC;
-                const cardThumbnailKey = `${link.id}::embed-card::${cardThumbnailSrc}`;
-                const safeCardThumbnailSrc = brokenThumbnailKeys[cardThumbnailKey]
-                  ? THUMBNAIL_FALLBACK_SRC
-                  : cardThumbnailSrc;
-                const cardIconSrc = normalizeImageSrc(embedPost.cardIcon) ?? "";
-                const cardIconKey = `${link.id}::embed-icon::${cardIconSrc}`;
-                const safeCardIconSrc = brokenThumbnailKeys[cardIconKey]
-                  ? THUMBNAIL_FALLBACK_SRC
-                  : cardIconSrc;
                 const parsedCtaHref = parsePreviewHref(embedPost.ctaUrl);
                 const parsedSourceHref = parsePreviewHref(embedPost.sourceUrl);
                 const isXProvider = embedPost.provider === "x";
@@ -1281,11 +1426,7 @@ export const MobilePreview = ({
                   <div key={link.id}>
                     <button
                       type="button"
-                      className={cn(
-                        "w-full space-y-3 border text-left font-semibold backdrop-blur-sm transition hover:brightness-105",
-                        isFeatured ? "rounded-2xl shadow-xl" : "",
-                        isAdminPreview ? "px-4 py-3 text-sm" : "p-4 text-sm sm:p-5 sm:text-base md:p-6",
-                      )}
+                      className={className}
                       style={style}
                       onClick={() => {
                         setActiveEmbedId(link.id);
@@ -1294,60 +1435,13 @@ export const MobilePreview = ({
                         onPublicLinkClick?.(link.id, "modal_open");
                       }}
                     >
-                      <div className={cn("flex items-center gap-3", isFeatured && "items-start")}>
-                        <SafeImage
-                          src={safeCardThumbnailSrc}
-                          alt=""
-                          className={cn(
-                            "rounded-md border border-black/10 object-cover",
-                            isFeatured ? "h-16 w-20" : "size-10",
-                          )}
-                          width={isFeatured ? 80 : 40}
-                          height={isFeatured ? 64 : 40}
-                          onError={() => {
-                            if (
-                              safeCardThumbnailSrc === THUMBNAIL_FALLBACK_SRC ||
-                              brokenThumbnailKeys[cardThumbnailKey]
-                            ) {
-                              return;
-                            }
-                            setBrokenThumbnailKeys((current) => ({ ...current, [cardThumbnailKey]: true }));
-                          }}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm sm:text-base font-semibold">
-                            {embedPost.cardTitle || link.title}
-                          </p>
-                          {isFeatured ? (
-                            <p className="mt-1 inline-flex rounded-full border border-white/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em]">
-                              {t("links_layout_featured")}
-                            </p>
-                          ) : null}
-                          <p className="truncate text-xs leading-relaxed opacity-80 sm:text-sm">
-                            {t("embed_post_public_open_in_modal")}
-                          </p>
-                        </div>
-                        {cardIconSrc ? (
-                          <span className="flex size-8 items-center justify-center rounded-md border border-white/20 p-1">
-                          <SafeImage
-                            src={safeCardIconSrc}
-                            alt=""
-                            className="max-h-full max-w-full object-contain"
-                            width={28}
-                            height={28}
-                            onError={() => {
-                              if (
-                                safeCardIconSrc === THUMBNAIL_FALLBACK_SRC ||
-                                brokenThumbnailKeys[cardIconKey]
-                              ) {
-                                return;
-                              }
-                              setBrokenThumbnailKeys((current) => ({ ...current, [cardIconKey]: true }));
-                            }}
-                          />
-                          </span>
-                        ) : null}
-                      </div>
+                      {renderStyledButtonContent({
+                        title: embedPost.cardTitle || link.title,
+                        description: embedPost.description || t("embed_post_public_open_in_modal"),
+                        panelText:
+                          displaySettings.textPanelContent ||
+                          `${embedPost.cardTitle || link.title}\n${embedPost.description || ""}`,
+                      })}
                     </button>
 
                     {activeEmbedId === link.id ? (
@@ -1588,7 +1682,6 @@ export const MobilePreview = ({
               }
 
               if (isForm) {
-                const isFeatured = form.layout === "featured";
                 const currentFormValues = formValuesByLink[link.id] ?? {};
                 const currentFormErrors = formErrorsByLink[link.id] ?? {};
                 const currentFormFiles = formFilesByLink[link.id] ?? {};
@@ -1709,10 +1802,7 @@ export const MobilePreview = ({
                   <div key={link.id}>
                     <button
                       type="button"
-                      className={cn(
-                        "w-full space-y-2 border text-left font-semibold backdrop-blur-sm transition hover:brightness-105",
-                        isFeatured ? "rounded-2xl p-5 shadow-xl" : "p-4",
-                      )}
+                      className={className}
                       style={style}
                       onClick={() => {
                         const prefilledValues: FormSubmissionValues = {};
@@ -1746,11 +1836,13 @@ export const MobilePreview = ({
                         onPublicLinkClick?.(link.id, "modal_open");
                       }}
                     >
-                      <p className="text-sm font-semibold sm:text-base">{form.formTitle || link.title}</p>
-                      {form.intro ? (
-                        <p className="text-xs leading-relaxed opacity-85 sm:text-sm">{form.intro}</p>
-                      ) : null}
-                      <p className="text-[11px] opacity-80">{t("form_open_form")}</p>
+                      {renderStyledButtonContent({
+                        title: form.formTitle || link.title,
+                        description: form.intro || t("form_open_form"),
+                        panelText:
+                          displaySettings.textPanelContent ||
+                          `${form.formTitle || link.title}\n${form.intro || ""}`,
+                      })}
                     </button>
 
                     {activeFormId === link.id ? (
@@ -1984,6 +2076,15 @@ export const MobilePreview = ({
                                   const options = field.options ?? [];
                                   const supportFieldName = getSupportFieldName(field, supportTemplate);
                                   const fieldName = supportFieldName || field.id;
+                                  const supportFieldLabelKey = getSupportFieldLabelKey(field);
+                                  const fieldLabel =
+                                    supportFieldLabelKey === "bank_name"
+                                      ? t("form_support_label_bank_name")
+                                      : supportFieldLabelKey === "account_number"
+                                        ? t("form_support_label_account_number")
+                                        : supportFieldLabelKey === "amount"
+                                          ? t("form_support_label_amount")
+                                          : field.label;
                                   const showOptions =
                                     field.type === "single_choice" ||
                                     field.type === "checkboxes" ||
@@ -1992,7 +2093,7 @@ export const MobilePreview = ({
                                   return (
                                     <div key={field.id} className="space-y-1.5">
                                       <label className="text-sm font-medium text-zinc-200">
-                                        {field.label}
+                                        {fieldLabel}
                                         {field.required ? " *" : ""}
                                       </label>
                                     {field.type === "paragraph" ? (
@@ -2192,22 +2293,37 @@ export const MobilePreview = ({
                                             type="number"
                                             step="0.01"
                                             inputMode="decimal"
-                                            className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 pr-10 text-sm text-white outline-none"
+                                            className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 pr-14 text-sm text-white outline-none"
                                             value={typeof fieldValue === "string" ? fieldValue : ""}
-                                            placeholder="11.00"
+                                            placeholder={t("form_support_amount_placeholder")}
                                             onFocus={handleFieldFocus}
-                                            onChange={(event) =>
+                                            onChange={(event) => {
+                                              const nextAmount = sanitizeAmountInput(event.target.value);
                                               setFormValuesByLink((current) => ({
                                                 ...current,
                                                 [link.id]: {
                                                   ...(current[link.id] ?? {}),
-                                                  [field.id]: event.target.value,
+                                                  [field.id]: nextAmount,
                                                 },
-                                              }))
-                                            }
+                                              }));
+                                            }}
+                                            onBlur={() => {
+                                              const rawValue = typeof fieldValue === "string" ? fieldValue : "";
+                                              const parsed = parseDecimalAmount(rawValue);
+                                              if (parsed === null) {
+                                                return;
+                                              }
+                                              setFormValuesByLink((current) => ({
+                                                ...current,
+                                                [link.id]: {
+                                                  ...(current[link.id] ?? {}),
+                                                  [field.id]: parsed.toFixed(2),
+                                                },
+                                              }));
+                                            }}
                                           />
                                           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-300">
-                                            ฿
+                                            {t("form_support_amount_suffix")}
                                           </span>
                                         </div>
                                       ) : (
@@ -2317,7 +2433,11 @@ export const MobilePreview = ({
                     return;
                   }
                   if (isWebExternalHref(target)) {
-                    window.open(target.href, "_blank", "noopener,noreferrer");
+                    if (openInNewTab) {
+                      window.open(target.href, "_blank", "noopener,noreferrer");
+                    } else {
+                      window.location.assign(target.href);
+                    }
                     return;
                   }
                   window.location.assign(target.href);
@@ -2488,7 +2608,7 @@ export const MobilePreview = ({
                   <a
                     key={link.id}
                     href={parsedHref.href}
-                    {...getExternalAnchorTargetProps(parsedHref)}
+                    {...getExternalAnchorTargetProps(parsedHref, openInNewTab)}
                     onClick={() => onPublicLinkClick?.(link.id, "cta")}
                     className={className}
                     style={style}
@@ -2502,7 +2622,7 @@ export const MobilePreview = ({
                 <a
                   key={link.id}
                   href={parsedHref.href}
-                  {...getExternalAnchorTargetProps(parsedHref)}
+                  {...getExternalAnchorTargetProps(parsedHref, openInNewTab)}
                   className={className}
                   style={style}
                 >

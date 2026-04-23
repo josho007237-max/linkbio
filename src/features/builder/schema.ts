@@ -22,6 +22,16 @@ const optionalImageSourceSchema = (message: string) =>
     .optional()
     .refine((value) => !value || isImageSourceValue(value), message);
 
+const isUrlOrLocalPathValue = (value: string): boolean =>
+  z.string().url().safeParse(value).success || value.startsWith("/");
+
+const optionalUrlOrLocalPathSchema = (message: string) =>
+  z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || isUrlOrLocalPathValue(value), message);
+
 const persistedStringSchema = z.string().trim().catch("");
 
 const persistedUrlStringSchema = z.string().trim().catch("");
@@ -154,18 +164,18 @@ export const socialSchema = z.object({
 export const linkSchema = z
   .object({
     contentType: z.enum(["link", "discount", "embed_post", "form"]),
-    title: z.string().trim().min(1, "Title is required."),
-    url: z.string().url("Link URL must be valid."),
+    title: z.string().trim().optional(),
+    url: z.string().trim().optional(),
     description: z.string().trim().optional(),
     enabled: z.boolean(),
     cardTitle: z.string().trim().optional(),
-    cardThumbnail: optionalImageSourceSchema(
-      "Thumbnail must be a valid URL, local placeholder path, or uploaded image.",
+    cardThumbnail: optionalUrlOrLocalPathSchema(
+      "Thumbnail must be a valid URL or local placeholder path.",
     ),
     layout: z.enum(["classic", "featured"]).optional(),
     modalTitle: z.string().trim().optional(),
-    modalHeroImage: optionalImageSourceSchema(
-      "Hero image must be a valid URL, local placeholder path, or uploaded image.",
+    modalHeroImage: optionalUrlOrLocalPathSchema(
+      "Hero image must be a valid URL or local placeholder path.",
     ),
     modalDescription: z.string().trim().optional(),
     discountCode: z.string().trim().optional(),
@@ -175,11 +185,11 @@ export const linkSchema = z
     dismissible: z.boolean().optional(),
     embedProvider: z.enum(["x", "facebook", "tiktok", "youtube", "generic"]).optional(),
     embedCardTitle: z.string().trim().optional(),
-    embedCardIcon: optionalImageSourceSchema(
-      "Card icon must be a valid URL, local placeholder path, or uploaded image.",
+    embedCardIcon: optionalUrlOrLocalPathSchema(
+      "Card icon must be a valid URL or local placeholder path.",
     ),
-    embedCardThumbnail: optionalImageSourceSchema(
-      "Card thumbnail must be a valid URL, local placeholder path, or uploaded image.",
+    embedCardThumbnail: optionalUrlOrLocalPathSchema(
+      "Card thumbnail must be a valid URL or local placeholder path.",
     ),
     embedLayout: z.enum(["classic", "featured"]).optional(),
     embedModalTitle: z.string().trim().optional(),
@@ -208,8 +218,8 @@ export const linkSchema = z
     formCancelLabel: z.string().trim().optional(),
     formTermsPlaceholder: z.string().trim().optional(),
     preOpenEnabled: z.boolean().optional(),
-    preOpenBannerImageUrl: optionalImageSourceSchema(
-      "Banner image must be a valid URL, local placeholder path, or uploaded image.",
+    preOpenBannerImageUrl: optionalUrlOrLocalPathSchema(
+      "Banner image must be a valid URL or local placeholder path.",
     ),
     preOpenTitle: z.string().trim().optional(),
     preOpenDescription: z.string().trim().optional(),
@@ -219,6 +229,35 @@ export const linkSchema = z
     preOpenSecondaryButtonLabel: z.string().trim().optional(),
     preOpenDismissible: z.boolean().optional(),
     preOpenButtonStyle: z.enum(["solid", "outline", "glow"]).optional(),
+    style: z
+      .enum(["icon_left", "image_banner", "text_only", "media_card", "text_panel"])
+      .optional(),
+    displayStyle: z
+      .enum(["icon_left", "image_banner", "text_only", "media_card", "text_panel"])
+      .optional(),
+    textAlign: z.enum(["left", "center", "right"]).optional(),
+    bannerRatio: z.enum(["3:1", "2:1"]).optional(),
+    imageAspect: z.enum(["3:1", "2:1"]).optional(),
+    imageFit: z.enum(["cover", "contain"]).optional(),
+    imageUrl: optionalUrlOrLocalPathSchema(
+      "Image URL must be a valid URL or local placeholder path.",
+    ),
+    iconImageUrl: optionalUrlOrLocalPathSchema(
+      "Icon image URL must be a valid URL or local placeholder path.",
+    ),
+    backgroundImageUrl: optionalUrlOrLocalPathSchema(
+      "Background image URL must be a valid URL or local placeholder path.",
+    ),
+    preserveLineBreaks: z.boolean().optional(),
+    textPanelContent: z.string().optional(),
+    openInNewTab: z.boolean().optional(),
+    sortOrder: z.number().int().optional(),
+    titleSize: z.number().optional(),
+    textColor: z.string().trim().optional(),
+    backgroundColor: z.string().trim().optional(),
+    borderColor: z.string().trim().optional(),
+    showBorder: z.boolean().optional(),
+    borderRadius: z.number().optional(),
     formFields: z
       .array(
         z.object({
@@ -467,14 +506,37 @@ export const linkSchema = z
   });
 
 export const linkSettingsSchema = z.object({
-  thumbnailUrl: optionalImageSourceSchema(
-    "Thumbnail must be a valid URL, local placeholder path, or uploaded image.",
+  thumbnailUrl: optionalUrlOrLocalPathSchema(
+    "Thumbnail must be a valid URL or local placeholder path.",
   ),
   prioritize: z.boolean(),
   startAt: z.string().optional(),
   endAt: z.string().optional(),
   locked: z.boolean(),
   lockMessage: z.string().trim().optional(),
+  style: z
+    .enum(["icon_left", "image_banner", "text_only", "media_card", "text_panel"])
+    .optional(),
+  textAlign: z.enum(["left", "center", "right"]).optional(),
+  bannerRatio: z.enum(["3:1", "2:1"]).optional(),
+  imageFit: z.enum(["cover", "contain"]).optional(),
+  imageUrl: optionalUrlOrLocalPathSchema("Image URL must be a valid URL or local placeholder path."),
+  iconImageUrl: optionalUrlOrLocalPathSchema(
+    "Icon image URL must be a valid URL or local placeholder path.",
+  ),
+  backgroundImageUrl: optionalUrlOrLocalPathSchema(
+    "Background image URL must be a valid URL or local placeholder path.",
+  ),
+  preserveLineBreaks: z.boolean().optional(),
+  textPanelContent: z.string().optional(),
+  openInNewTab: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+  titleSize: z.number().optional(),
+  textColor: z.string().trim().optional(),
+  backgroundColor: z.string().trim().optional(),
+  borderColor: z.string().trim().optional(),
+  showBorder: z.boolean().optional(),
+  borderRadius: z.number().optional(),
 });
 
 export const builderDataSchema = z.object({
@@ -656,6 +718,29 @@ export const builderDataSchema = z.object({
           .optional(),
         locked: z.boolean().default(false),
         lockMessage: persistedStringSchema.optional(),
+        style: z
+          .enum(["icon_left", "image_banner", "text_only", "media_card", "text_panel"])
+          .default("icon_left"),
+        displayStyle: z
+          .enum(["icon_left", "image_banner", "text_only", "media_card", "text_panel"])
+          .optional(),
+        textAlign: z.enum(["left", "center", "right"]).default("left"),
+        bannerRatio: z.enum(["3:1", "2:1"]).default("3:1"),
+        imageAspect: z.enum(["3:1", "2:1"]).optional(),
+        imageFit: z.enum(["cover", "contain"]).default("cover"),
+        imageUrl: persistedStringSchema.optional(),
+        iconImageUrl: persistedStringSchema.optional(),
+        backgroundImageUrl: persistedStringSchema.optional(),
+        preserveLineBreaks: z.boolean().default(true),
+        textPanelContent: persistedStringSchema.optional(),
+        openInNewTab: z.boolean().default(true),
+        sortOrder: z.number().int().optional(),
+        titleSize: z.number().optional(),
+        textColor: persistedStringSchema.optional(),
+        backgroundColor: persistedStringSchema.optional(),
+        borderColor: persistedStringSchema.optional(),
+        showBorder: z.boolean().default(true),
+        borderRadius: z.number().optional(),
       }),
     }),
   ).default([]),

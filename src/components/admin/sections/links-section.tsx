@@ -26,7 +26,6 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/components/admin/section-card";
-import { CustomImageUpload } from "@/components/admin/shared/custom-image-upload";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -316,6 +315,23 @@ export const LinksSection = () => {
       preOpenSecondaryButtonLabel: "Close",
       preOpenDismissible: true,
       preOpenButtonStyle: "solid",
+      style: "icon_left",
+      textAlign: "left",
+      bannerRatio: "3:1",
+      imageFit: "cover",
+      imageUrl: "",
+      iconImageUrl: "",
+      backgroundImageUrl: "",
+      preserveLineBreaks: true,
+      textPanelContent: "",
+      openInNewTab: true,
+      sortOrder: 0,
+      titleSize: 0,
+      textColor: "",
+      backgroundColor: "",
+      borderColor: "",
+      showBorder: true,
+      borderRadius: 0,
       formFields: [],
     },
   });
@@ -333,13 +349,6 @@ export const LinksSection = () => {
   });
   const editEnabled = useWatch({ control: editForm.control, name: "enabled" });
   const editContentType = useWatch({ control: editForm.control, name: "contentType" });
-  const editModalHeroImage = useWatch({ control: editForm.control, name: "modalHeroImage" });
-  const editCardThumbnail = useWatch({ control: editForm.control, name: "cardThumbnail" });
-  const editEmbedCardIcon = useWatch({ control: editForm.control, name: "embedCardIcon" });
-  const editEmbedCardThumbnail = useWatch({
-    control: editForm.control,
-    name: "embedCardThumbnail",
-  });
   const editDismissible = useWatch({ control: editForm.control, name: "dismissible" });
   const editEmbedProvider = useWatch({ control: editForm.control, name: "embedProvider" });
   const editEmbedMode = useWatch({ control: editForm.control, name: "embedMode" });
@@ -357,12 +366,10 @@ export const LinksSection = () => {
     control: editForm.control,
     name: "preOpenDismissible",
   });
-  const editPreOpenBannerImageUrl = useWatch({ control: editForm.control, name: "preOpenBannerImageUrl" });
+  const editStyle = useWatch({ control: editForm.control, name: "style" });
+  const editOpenInNewTab = useWatch({ control: editForm.control, name: "openInNewTab" });
+  const editPreserveLineBreaks = useWatch({ control: editForm.control, name: "preserveLineBreaks" });
   const editFormFields = useWatch({ control: editForm.control, name: "formFields" }) ?? [];
-  const settingsThumbnailUrl = useWatch({
-    control: settingsForm.control,
-    name: "thumbnailUrl",
-  });
   const prioritize = useWatch({ control: settingsForm.control, name: "prioritize" });
   const locked = useWatch({ control: settingsForm.control, name: "locked" });
   const editUrlError = editForm.formState.errors.url?.message;
@@ -390,6 +397,9 @@ export const LinksSection = () => {
   const editFormTitleError = editForm.formState.errors.formTitle?.message;
   const editFormLayoutError = editForm.formState.errors.formLayout?.message;
   const editFormSubmitLabelError = editForm.formState.errors.formSubmitLabel?.message;
+  const editImageUrlError = editForm.formState.errors.imageUrl?.message;
+  const editIconImageUrlError = editForm.formState.errors.iconImageUrl?.message;
+  const editBackgroundImageUrlError = editForm.formState.errors.backgroundImageUrl?.message;
   const editFormFieldsError = editForm.formState.errors.formFields?.message as string | undefined;
   const editLayoutErrorText =
     editContentType === "discount"
@@ -408,8 +418,6 @@ export const LinksSection = () => {
   const slug = useMemo(() => toProfileSlug(username), [username]);
   const [isDndMounted, setIsDndMounted] = useState(false);
   const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0);
-  const [uploadWarning, setUploadWarning] = useState<string | null>(null);
-
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
       setIsDndMounted(true);
@@ -517,6 +525,23 @@ export const LinksSection = () => {
       preOpenSecondaryButtonLabel: link.preOpenModal?.secondaryButtonLabel ?? "Close",
       preOpenDismissible: link.preOpenModal?.dismissible ?? true,
       preOpenButtonStyle: link.preOpenModal?.buttonStyle ?? "solid",
+      style: link.settings.style ?? link.settings.displayStyle ?? "icon_left",
+      textAlign: link.settings.textAlign ?? "left",
+      bannerRatio: link.settings.bannerRatio ?? "3:1",
+      imageFit: link.settings.imageFit ?? "cover",
+      imageUrl: link.settings.imageUrl ?? "",
+      iconImageUrl: link.settings.iconImageUrl ?? "",
+      backgroundImageUrl: link.settings.backgroundImageUrl ?? "",
+      preserveLineBreaks: link.settings.preserveLineBreaks ?? true,
+      textPanelContent: link.settings.textPanelContent ?? "",
+      openInNewTab: link.settings.openInNewTab ?? true,
+      sortOrder: link.settings.sortOrder ?? 0,
+      titleSize: link.settings.titleSize ?? 0,
+      textColor: link.settings.textColor ?? "",
+      backgroundColor: link.settings.backgroundColor ?? "",
+      borderColor: link.settings.borderColor ?? "",
+      showBorder: link.settings.showBorder ?? true,
+      borderRadius: link.settings.borderRadius ?? 0,
       formFields: form.fields,
     });
     setEditTab("link");
@@ -550,25 +575,25 @@ export const LinksSection = () => {
           ? values.cardTitle ?? ""
           : values.contentType === "embed_post"
             ? values.embedCardTitle ?? ""
-            : values.contentType === "form"
+          : values.contentType === "form"
               ? values.formTitle ?? ""
-            : values.title,
+            : values.title ?? "",
       url:
         values.contentType === "discount"
           ? values.destinationUrl ?? ""
           : values.contentType === "embed_post"
             ? values.embedCtaUrl ?? ""
-            : values.contentType === "form"
+          : values.contentType === "form"
               ? values.url || "https://example.com/form"
-            : values.url,
+            : values.url ?? "",
       description:
         values.contentType === "discount"
           ? values.modalDescription
           : values.contentType === "embed_post"
             ? values.embedDescription
-            : values.contentType === "form"
+          : values.contentType === "form"
               ? values.formIntro
-            : values.description,
+            : values.description ?? "",
       enabled: values.enabled,
       discount:
         values.contentType === "discount"
@@ -648,6 +673,25 @@ export const LinksSection = () => {
         dismissible: values.preOpenDismissible ?? true,
         buttonStyle: values.preOpenButtonStyle ?? "solid",
       },
+    });
+    updateLinkSettings(editId, {
+      style: values.style ?? "icon_left",
+      textAlign: values.textAlign ?? "left",
+      bannerRatio: values.bannerRatio ?? "3:1",
+      imageFit: values.imageFit ?? "cover",
+      imageUrl: values.imageUrl || undefined,
+      iconImageUrl: values.iconImageUrl || undefined,
+      backgroundImageUrl: values.backgroundImageUrl || undefined,
+      preserveLineBreaks: values.preserveLineBreaks ?? true,
+      textPanelContent: values.textPanelContent ?? "",
+      openInNewTab: values.openInNewTab ?? true,
+      sortOrder: values.sortOrder,
+      titleSize: values.titleSize || undefined,
+      textColor: values.textColor || undefined,
+      backgroundColor: values.backgroundColor || undefined,
+      borderColor: values.borderColor || undefined,
+      showBorder: values.showBorder ?? true,
+      borderRadius: values.borderRadius || undefined,
     });
 
     if (values.contentType === "discount") {
@@ -852,10 +896,6 @@ export const LinksSection = () => {
           )}
         </div>
       ) : null}
-      {uploadWarning ? (
-        <p className="text-xs text-amber-600">{uploadWarning}</p>
-      ) : null}
-
       {links.length === 0 ? (
         <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
           {t("links_empty")}
@@ -918,7 +958,7 @@ export const LinksSection = () => {
               onSubmit={saveEdit}
               className="space-y-4 overflow-x-hidden px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             >
-              {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" ? (
+              {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "link" ? (
                 <div className="inline-flex rounded-md border bg-muted/35 p-1 text-xs">
                   <button
                     type="button"
@@ -989,7 +1029,10 @@ export const LinksSection = () => {
                       </div>
                       <div className="space-y-2">
                         <Label>{t("links_label_description")}</Label>
-                        <Input {...editForm.register("description")} />
+                        <textarea
+                          className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                          {...editForm.register("description")}
+                        />
                       </div>
                       <div className="space-y-3 rounded-xl border p-3">
                         <p className="text-sm font-medium">{t("pre_open_modal_section")}</p>
@@ -1007,20 +1050,6 @@ export const LinksSection = () => {
                             <div className="space-y-2">
                               <Label>{t("pre_open_modal_banner_image")}</Label>
                               <Input {...editForm.register("preOpenBannerImageUrl")} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>{t("pre_open_modal_banner_upload")}</Label>
-                              <CustomImageUpload
-                                value={editPreOpenBannerImageUrl}
-                                preset="thumbnail_banner"
-                                onValueChange={(nextValue) =>
-                                  editForm.setValue("preOpenBannerImageUrl", nextValue, {
-                                    shouldDirty: true,
-                                    shouldValidate: true,
-                                  })
-                                }
-                                onError={(message) => setUploadWarning(message)}
-                              />
                             </div>
                             <div className="space-y-2">
                               <Label>{t("pre_open_modal_title")}</Label>
@@ -1113,20 +1142,6 @@ export const LinksSection = () => {
                         {editModalHeroImageError ? (
                           <p className="text-xs text-destructive">{editModalHeroImageError}</p>
                         ) : null}
-                      </div>
-                      <div className="space-y-2">
-                        <Label>{t("discount_modal_hero_upload")}</Label>
-                        <CustomImageUpload
-                          value={editModalHeroImage}
-                          preset="avatar_hero"
-                          onValueChange={(nextValue) =>
-                            editForm.setValue("modalHeroImage", nextValue, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            })
-                          }
-                          onError={(message) => setUploadWarning(message)}
-                        />
                       </div>
                       <div className="space-y-2">
                         <Label>{t("discount_modal_description")}</Label>
@@ -1481,33 +1496,155 @@ export const LinksSection = () => {
                 </>
               ) : null}
 
-              {(editContentType === "discount" || editContentType === "embed_post" || editContentType === "form") && editTab === "layout" ? (
+              {(editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "link") && editTab === "layout" ? (
                 <>
                   <div className="space-y-2">
-                    <Label>
-                      {editContentType === "embed_post"
-                        ? t("embed_post_fields_layout")
-                        : editContentType === "form"
-                          ? t("form_layout_label")
-                        : t("links_label_layout")}
-                    </Label>
+                    <Label>{t("links_display_style")}</Label>
                     <select
                       className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                      {...editForm.register(
-                        editContentType === "discount"
-                          ? "layout"
-                          : editContentType === "embed_post"
-                            ? "embedLayout"
-                            : "formLayout",
-                      )}
+                      {...editForm.register("style")}
                     >
-                      <option value="classic">{t("links_layout_classic")}</option>
-                      <option value="featured">{t("links_layout_featured")}</option>
+                      <option value="icon_left">{t("links_display_style_icon_left")}</option>
+                      <option value="image_banner">{t("links_display_style_image_full")}</option>
+                      <option value="text_only">{t("links_display_style_text_only")}</option>
+                      <option value="media_card">{t("links_display_style_card_left_image")}</option>
+                      <option value="text_panel">{t("links_display_style_text_panel")}</option>
                     </select>
-                    {editLayoutErrorText ? (
-                      <p className="text-xs text-destructive">{editLayoutErrorText}</p>
-                    ) : null}
                   </div>
+                  {editStyle === "icon_left" ? (
+                    <div className="space-y-2">
+                      <Label>{t("links_style_icon_image_url")}</Label>
+                      <Input
+                        placeholder="https://... or /placeholders/link-thumbnail-default.svg"
+                        aria-invalid={Boolean(editIconImageUrlError)}
+                        className={editIconImageUrlError ? "border-destructive" : undefined}
+                        {...editForm.register("iconImageUrl")}
+                      />
+                      {editIconImageUrlError ? (
+                        <p className="text-xs text-destructive">{editIconImageUrlError}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {editStyle === "image_banner" ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>{t("links_style_background_image_url")}</Label>
+                        <Input
+                          placeholder="https://... or /placeholders/link-thumbnail-default.svg"
+                          aria-invalid={Boolean(editBackgroundImageUrlError)}
+                          className={editBackgroundImageUrlError ? "border-destructive" : undefined}
+                          {...editForm.register("backgroundImageUrl")}
+                        />
+                        {editBackgroundImageUrlError ? (
+                          <p className="text-xs text-destructive">{editBackgroundImageUrlError}</p>
+                        ) : null}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("links_style_image_aspect")}</Label>
+                        <select
+                          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                          {...editForm.register("bannerRatio")}
+                        >
+                          <option value="3:1">{t("links_style_image_aspect_3_1")}</option>
+                          <option value="2:1">{t("links_style_image_aspect_2_1")}</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("links_style_image_fit")}</Label>
+                        <select
+                          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                          {...editForm.register("imageFit")}
+                        >
+                          <option value="cover">{t("links_style_image_fit_cover")}</option>
+                          <option value="contain">{t("links_style_image_fit_contain")}</option>
+                        </select>
+                      </div>
+                    </>
+                  ) : null}
+                  {editStyle === "media_card" ? (
+                    <div className="space-y-2">
+                      <Label>{t("links_style_image_url")}</Label>
+                      <Input
+                        placeholder="https://... or /placeholders/link-thumbnail-default.svg"
+                        aria-invalid={Boolean(editImageUrlError)}
+                        className={editImageUrlError ? "border-destructive" : undefined}
+                        {...editForm.register("imageUrl")}
+                      />
+                      {editImageUrlError ? (
+                        <p className="text-xs text-destructive">{editImageUrlError}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {(editStyle === "icon_left" || editStyle === "text_only") ? (
+                    <div className="space-y-2">
+                      <Label>{t("links_style_text_align")}</Label>
+                      <select
+                        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                        {...editForm.register("textAlign")}
+                      >
+                        <option value="left">{t("links_style_text_align_left")}</option>
+                        <option value="center">{t("links_style_text_align_center")}</option>
+                        <option value="right">{t("links_style_text_align_right")}</option>
+                      </select>
+                    </div>
+                  ) : null}
+                  {editStyle === "text_panel" ? (
+                    <div className="space-y-2">
+                      <Label>{t("links_style_text_panel_content")}</Label>
+                      <textarea
+                        className="min-h-[120px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                        {...editForm.register("textPanelContent")}
+                      />
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={Boolean(editPreserveLineBreaks)}
+                          onCheckedChange={(value) =>
+                            editForm.setValue("preserveLineBreaks", value, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                        />
+                        {t("links_style_preserve_line_breaks")}
+                      </label>
+                    </div>
+                  ) : null}
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={Boolean(editOpenInNewTab)}
+                      onCheckedChange={(value) =>
+                        editForm.setValue("openInNewTab", value, { shouldDirty: true, shouldValidate: true })
+                      }
+                    />
+                    {t("links_style_open_in_new_tab")}
+                  </label>
+                  {editContentType !== "link" ? (
+                    <div className="space-y-2">
+                      <Label>
+                        {editContentType === "embed_post"
+                          ? t("embed_post_fields_layout")
+                          : editContentType === "form"
+                            ? t("form_layout_label")
+                            : t("links_label_layout")}
+                      </Label>
+                      <select
+                        className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                        {...editForm.register(
+                          editContentType === "discount"
+                            ? "layout"
+                            : editContentType === "embed_post"
+                              ? "embedLayout"
+                              : "formLayout",
+                        )}
+                      >
+                        <option value="classic">{t("links_layout_classic")}</option>
+                        <option value="featured">{t("links_layout_featured")}</option>
+                      </select>
+                      {editLayoutErrorText ? (
+                        <p className="text-xs text-destructive">{editLayoutErrorText}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {editContentType === "discount" ? (
                     <>
                       <div className="space-y-2">
@@ -1578,62 +1715,12 @@ export const LinksSection = () => {
                         ) : null}
                       </div>
                     </>
-                  ) : (
+                  ) : null}
+                  {editContentType === "form" ? (
                     <div className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
                       {t("form_layout_helper")}
                     </div>
-                  )}
-                  {editContentType === "discount" ? (
-                    <div className="space-y-2">
-                      <Label>{t("discount_card_thumbnail_upload")}</Label>
-                      <CustomImageUpload
-                        value={editCardThumbnail}
-                        preset="thumbnail_banner"
-                        onValueChange={(nextValue) =>
-                          editForm.setValue("cardThumbnail", nextValue, {
-                            shouldDirty: true,
-                            shouldValidate: true,
-                          })
-                        }
-                        onError={(message) => setUploadWarning(message)}
-                      />
-                    </div>
-                  ) : editContentType === "embed_post" ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label>{t("embed_post_fields_card_icon")}</Label>
-                        <CustomImageUpload
-                          value={editEmbedCardIcon}
-                          preset="icon"
-                          onValueChange={(nextValue) =>
-                            editForm.setValue("embedCardIcon", nextValue, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            })
-                          }
-                          onError={(message) => setUploadWarning(message)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>{t("embed_post_fields_card_thumbnail")}</Label>
-                        <CustomImageUpload
-                          value={editEmbedCardThumbnail}
-                          preset="thumbnail_banner"
-                          onValueChange={(nextValue) =>
-                            editForm.setValue("embedCardThumbnail", nextValue, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            })
-                          }
-                          onError={(message) => setUploadWarning(message)}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded-lg border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                      {t("form_layout_helper")}
-                    </div>
-                  )}
+                  ) : null}
                   <div className="space-y-3 rounded-xl border p-3">
                     <p className="text-sm font-medium">{t("pre_open_modal_section")}</p>
                     <label className="flex items-center gap-2 text-sm">
@@ -1650,20 +1737,6 @@ export const LinksSection = () => {
                         <div className="space-y-2">
                           <Label>{t("pre_open_modal_banner_image")}</Label>
                           <Input {...editForm.register("preOpenBannerImageUrl")} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>{t("pre_open_modal_banner_upload")}</Label>
-                          <CustomImageUpload
-                            value={editPreOpenBannerImageUrl}
-                            preset="thumbnail_banner"
-                            onValueChange={(nextValue) =>
-                              editForm.setValue("preOpenBannerImageUrl", nextValue, {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              })
-                            }
-                            onError={(message) => setUploadWarning(message)}
-                          />
                         </div>
                         <div className="space-y-2">
                           <Label>{t("pre_open_modal_title")}</Label>
@@ -1765,20 +1838,6 @@ export const LinksSection = () => {
                 {settingsThumbnailError ? (
                   <p className="text-xs text-destructive">{settingsThumbnailError}</p>
                 ) : null}
-              </div>
-              <div className="space-y-2">
-                <Label>{t("links_upload_thumbnail")}</Label>
-                <CustomImageUpload
-                  value={settingsThumbnailUrl}
-                  preset="thumbnail_banner"
-                  onValueChange={(nextValue) =>
-                    settingsForm.setValue("thumbnailUrl", nextValue, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    })
-                  }
-                  onError={(message) => setUploadWarning(message)}
-                />
               </div>
               <label className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
                 {t("links_prioritize")}

@@ -55,12 +55,65 @@ export type LinkSchedule = {
   endAt?: string;
 };
 
+export type LinkDisplayStyle =
+  | "icon_left"
+  | "image_banner"
+  | "text_only"
+  | "media_card"
+  | "text_panel";
+
+export type LinkTextAlign = "left" | "center" | "right";
+export type LinkBannerRatio = "3:1" | "2:1";
+export type LinkImageFit = "cover" | "contain";
+
+export type UnifiedMenuItemDisplay = {
+  id: string;
+  style?: LinkDisplayStyle;
+  enabled?: boolean;
+  sortOrder?: number;
+  title?: string;
+  description?: string;
+  linkUrl?: string;
+  openInNewTab?: boolean;
+  textAlign?: LinkTextAlign;
+  imageUrl?: string;
+  iconImageUrl?: string;
+  backgroundImageUrl?: string;
+  preserveLineBreaks?: boolean;
+  bannerRatio?: LinkBannerRatio;
+  imageFit?: LinkImageFit;
+  titleSize?: number;
+  textColor?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  showBorder?: boolean;
+  borderRadius?: number;
+};
+
 export type LinkSettings = {
   thumbnailUrl?: string;
   prioritize: boolean;
   schedule?: LinkSchedule;
   locked: boolean;
   lockMessage?: string;
+  style?: LinkDisplayStyle;
+  displayStyle?: LinkDisplayStyle;
+  textAlign?: LinkTextAlign;
+  bannerRatio?: LinkBannerRatio;
+  imageFit?: LinkImageFit;
+  imageUrl?: string;
+  iconImageUrl?: string;
+  backgroundImageUrl?: string;
+  preserveLineBreaks?: boolean;
+  textPanelContent?: string;
+  openInNewTab?: boolean;
+  sortOrder?: number;
+  titleSize?: number;
+  textColor?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  showBorder?: boolean;
+  borderRadius?: number;
 };
 
 export type ContentType = "link" | "discount" | "embed_post" | "form";

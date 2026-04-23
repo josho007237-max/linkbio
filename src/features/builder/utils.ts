@@ -7,10 +7,78 @@ import {
   FormBlock,
   FormField,
   FormTemplate,
+  LinkSettings,
+  UnifiedMenuItemDisplay,
 } from "@/features/builder/types";
 
 export const createId = (prefix: string): string =>
   `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+
+const DEFAULT_LINK_SETTINGS_STYLE: Pick<
+  LinkSettings,
+  | "style"
+  | "textAlign"
+  | "bannerRatio"
+  | "imageFit"
+  | "imageUrl"
+  | "iconImageUrl"
+  | "backgroundImageUrl"
+  | "preserveLineBreaks"
+  | "textPanelContent"
+  | "openInNewTab"
+  | "showBorder"
+> = {
+  style: "icon_left",
+  textAlign: "left",
+  bannerRatio: "3:1",
+  imageFit: "cover",
+  imageUrl: "",
+  iconImageUrl: "",
+  backgroundImageUrl: "",
+  preserveLineBreaks: true,
+  textPanelContent: "",
+  openInNewTab: true,
+  showBorder: true,
+};
+
+export const getLinkDisplaySettings = (link: BioLink) => ({
+  ...DEFAULT_LINK_SETTINGS_STYLE,
+  style: link.settings.style ?? link.settings.displayStyle ?? DEFAULT_LINK_SETTINGS_STYLE.style,
+  bannerRatio: link.settings.bannerRatio ?? (link.settings as { imageAspect?: "3:1" | "2:1" }).imageAspect ?? DEFAULT_LINK_SETTINGS_STYLE.bannerRatio,
+  backgroundImageUrl: link.settings.backgroundImageUrl ?? link.settings.imageUrl ?? "",
+  iconImageUrl: link.settings.iconImageUrl ?? link.settings.imageUrl ?? "",
+  ...link.settings,
+});
+
+export const getUnifiedMenuItemDisplay = (
+  link: BioLink,
+  sortOrder: number,
+): UnifiedMenuItemDisplay => {
+  const settings = getLinkDisplaySettings(link);
+  return {
+    id: link.id,
+    style: settings.style,
+    enabled: link.enabled,
+    sortOrder: settings.sortOrder ?? sortOrder,
+    title: link.title,
+    description: link.description ?? "",
+    linkUrl: link.url,
+    openInNewTab: settings.openInNewTab,
+    textAlign: settings.textAlign,
+    imageUrl: settings.imageUrl,
+    iconImageUrl: settings.iconImageUrl,
+    backgroundImageUrl: settings.backgroundImageUrl,
+    preserveLineBreaks: settings.preserveLineBreaks,
+    bannerRatio: settings.bannerRatio,
+    imageFit: settings.imageFit,
+    titleSize: settings.titleSize,
+    textColor: settings.textColor,
+    backgroundColor: settings.backgroundColor,
+    borderColor: settings.borderColor,
+    showBorder: settings.showBorder,
+    borderRadius: settings.borderRadius,
+  };
+};
 
 export const createEmptyLink = (): BioLink => ({
   id: createId("link"),
@@ -33,6 +101,7 @@ export const createEmptyLink = (): BioLink => ({
   settings: {
     prioritize: false,
     locked: false,
+    ...DEFAULT_LINK_SETTINGS_STYLE,
   },
 });
 
@@ -68,6 +137,7 @@ export const createEmptyDiscountCode = (): BioLink => ({
   settings: {
     prioritize: false,
     locked: false,
+    ...DEFAULT_LINK_SETTINGS_STYLE,
   },
 });
 
@@ -97,6 +167,7 @@ export const createEmptyEmbedPost = (): BioLink => ({
   settings: {
     prioritize: false,
     locked: false,
+    ...DEFAULT_LINK_SETTINGS_STYLE,
   },
 });
 
@@ -126,24 +197,24 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     },
     {
       id: "bank_name",
-      label: "bank_name",
+      label: "Bank Name",
       type: "short_answer",
       required: true,
       placeholder: "ชื่อธนาคาร",
     },
     {
       id: "account_number",
-      label: "account_number",
+      label: "Account Number",
       type: "short_answer",
       required: true,
       placeholder: "เลขที่บัญชี",
     },
     {
       id: "amount",
-      label: "amount",
+      label: "Amount",
       type: "short_answer",
       required: true,
-      placeholder: "11.00",
+      placeholder: "0.00",
     },
     {
       id: "slip",
@@ -179,24 +250,24 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     { id: "full_name", label: "ชื่อ-นามสกุล", type: "name", required: true, placeholder: "ชื่อจริง นามสกุล" },
     {
       id: "bank_name",
-      label: "bank_name",
+      label: "Bank Name",
       type: "short_answer",
       required: true,
       placeholder: "ชื่อธนาคาร",
     },
     {
       id: "account_number",
-      label: "account_number",
+      label: "Account Number",
       type: "short_answer",
       required: true,
       placeholder: "เลขที่บัญชี",
     },
     {
       id: "amount",
-      label: "amount",
+      label: "Amount",
       type: "short_answer",
       required: true,
-      placeholder: "11.00",
+      placeholder: "0.00",
     },
     {
       id: "transaction_time",
@@ -269,6 +340,7 @@ export const createEmptyFormBlock = (template: FormTemplate = "email_signup"): B
   settings: {
     prioritize: false,
     locked: false,
+    ...DEFAULT_LINK_SETTINGS_STYLE,
   },
 });
 
@@ -464,6 +536,7 @@ export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
       discount,
       settings: {
         ...link.settings,
+        ...getLinkDisplaySettings(link),
         thumbnailUrl: discount.cardThumbnail ?? link.settings.thumbnailUrl,
       },
     };
@@ -481,12 +554,19 @@ export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
       embedPost,
       settings: {
         ...link.settings,
+        ...getLinkDisplaySettings(link),
         thumbnailUrl: embedPost.cardThumbnail,
       },
     };
   }).map((link) => {
     if (getContentType(link) !== "form") {
-      return link;
+      return {
+        ...link,
+        settings: {
+          ...link.settings,
+          ...getLinkDisplaySettings(link),
+        },
+      };
     }
     const form = getFormData(link);
     return {
@@ -494,6 +574,10 @@ export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
       title: form.formTitle,
       description: form.intro,
       form,
+      settings: {
+        ...link.settings,
+        ...getLinkDisplaySettings(link),
+      },
     };
   }),
 });
