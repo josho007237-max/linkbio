@@ -68,6 +68,7 @@ import {
   getFormData,
   getPromoGalleryData,
   getFormTemplateFields,
+  normalizeFormFieldType,
 } from "@/features/builder/utils";
 import { useI18n } from "@/i18n/use-i18n";
 import { getPerLinkClickCounts } from "@/lib/local-storage/analytics-storage";
@@ -773,7 +774,7 @@ export const LinksSection = () => {
               fields: (values.formFields ?? []).map((field) => ({
                 id: field.id,
                 label: field.label,
-                type: field.type,
+                type: normalizeFormFieldType(field.type),
                 required: field.required,
                 placeholder: field.placeholder ?? "",
                 options: field.options?.map((option) => option.trim()).filter(Boolean) ?? undefined,
@@ -915,7 +916,7 @@ export const LinksSection = () => {
       {
         id: `form-field-${Math.random().toString(36).slice(2, 9)}`,
         label: t("form_field_label_default"),
-        type: "short_answer",
+        type: "text",
         required: false,
         placeholder: "",
         options: [],
@@ -1557,10 +1558,9 @@ export const LinksSection = () => {
                           <p className="text-xs text-muted-foreground">{t("form_fields_empty")}</p>
                         ) : null}
                         {editFormFields.map((field, fieldIndex) => {
+                          const normalizedFieldType = normalizeFormFieldType(field.type);
                           const needsOptions =
-                            field.type === "single_choice" ||
-                            field.type === "checkboxes" ||
-                            field.type === "dropdown";
+                            normalizedFieldType === "single_select" || normalizedFieldType === "multi_select";
                           return (
                             <div key={field.id || `form-field-${fieldIndex}`} className="space-y-2 rounded-lg border p-3">
                               <div className="grid gap-2 sm:grid-cols-2">
@@ -1573,14 +1573,13 @@ export const LinksSection = () => {
                                 />
                                 <select
                                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                                  value={field.type}
+                                  value={normalizedFieldType}
                                   onChange={(event) =>
                                     updateFormField(fieldIndex, {
                                       type: event.target.value as NonNullable<LinkFormValues["formFields"]>[number]["type"],
                                       options:
-                                        event.target.value === "single_choice" ||
-                                        event.target.value === "checkboxes" ||
-                                        event.target.value === "dropdown"
+                                        event.target.value === "single_select" ||
+                                        event.target.value === "multi_select"
                                           ? field.options && field.options.length > 0
                                             ? field.options
                                             : [t("form_option_default")]
@@ -1591,16 +1590,13 @@ export const LinksSection = () => {
                                   <option value="name">{t("form_field_type_name")}</option>
                                   <option value="email">{t("form_field_type_email")}</option>
                                   <option value="phone">{t("form_field_type_phone")}</option>
-                                  <option value="country">{t("form_field_type_country")}</option>
-                                  <option value="date_of_birth">{t("form_field_type_date_of_birth")}</option>
-                                  <option value="time_hms">{t("form_field_type_time_hms")}</option>
-                                  <option value="short_answer">{t("form_field_type_short_answer")}</option>
-                                  <option value="paragraph">{t("form_field_type_paragraph")}</option>
-                                  <option value="single_choice">{t("form_field_type_single_choice")}</option>
-                                  <option value="checkboxes">{t("form_field_type_checkboxes")}</option>
-                                  <option value="dropdown">{t("form_field_type_dropdown")}</option>
+                                  <option value="text">{t("form_field_type_text")}</option>
+                                  <option value="textarea">{t("form_field_type_textarea")}</option>
+                                  <option value="single_select">{t("form_field_type_single_select")}</option>
+                                  <option value="multi_select">{t("form_field_type_multi_select")}</option>
                                   <option value="date">{t("form_field_type_date")}</option>
-                                  <option value="file_image">{t("form_field_type_file_image")}</option>
+                                  <option value="time">{t("form_field_type_time")}</option>
+                                  <option value="image_upload">{t("form_field_type_image_upload")}</option>
                                 </select>
                               </div>
                               <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
@@ -1628,12 +1624,13 @@ export const LinksSection = () => {
                                 </Button>
                               </div>
                               {needsOptions ? (
-                                <Input
-                                  value={(field.options ?? []).join(", ")}
+                                <textarea
+                                  className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                                  value={(field.options ?? []).join("\n")}
                                   onChange={(event) =>
                                     updateFormField(fieldIndex, {
                                       options: event.target.value
-                                        .split(",")
+                                        .split("\n")
                                         .map((option) => option.trim())
                                         .filter(Boolean),
                                     })

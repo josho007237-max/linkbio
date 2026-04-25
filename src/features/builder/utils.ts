@@ -16,6 +16,28 @@ import {
 export const createId = (prefix: string): string =>
   `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 
+export const normalizeFormFieldType = (fieldType: FormField["type"]): FormField["type"] => {
+  if (fieldType === "short_answer") {
+    return "text";
+  }
+  if (fieldType === "paragraph") {
+    return "textarea";
+  }
+  if (fieldType === "single_choice" || fieldType === "dropdown") {
+    return "single_select";
+  }
+  if (fieldType === "checkboxes") {
+    return "multi_select";
+  }
+  if (fieldType === "time_hms") {
+    return "time";
+  }
+  if (fieldType === "file_image") {
+    return "image_upload";
+  }
+  return fieldType;
+};
+
 const DEFAULT_LINK_SETTINGS_STYLE: Pick<
   LinkSettings,
   | "style"
@@ -183,13 +205,13 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
   contact_form: [
     { id: createId("form-field"), label: "Name", type: "name", required: true, placeholder: "Your name" },
     { id: createId("form-field"), label: "Email", type: "email", required: true, placeholder: "you@example.com" },
-    { id: createId("form-field"), label: "Message", type: "paragraph", required: true, placeholder: "How can we help?" },
+    { id: createId("form-field"), label: "Message", type: "textarea", required: true, placeholder: "How can we help?" },
   ],
   custom: [
-    { id: createId("form-field"), label: "Short answer", type: "short_answer", required: false, placeholder: "Type your answer" },
+    { id: createId("form-field"), label: "Short answer", type: "text", required: false, placeholder: "Type your answer" },
   ],
   deposit_issue: [
-    { id: "user", label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
+    { id: "user", label: "USER", type: "text", required: true, placeholder: "กรอก USER" },
     {
       id: "registered_phone",
       label: "เบอร์โทรศัพท์ที่ลงทะเบียน",
@@ -200,48 +222,48 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     {
       id: "bank_name",
       label: "Bank Name",
-      type: "short_answer",
+      type: "text",
       required: true,
       placeholder: "ชื่อธนาคาร",
     },
     {
       id: "account_number",
       label: "Account Number",
-      type: "short_answer",
+      type: "text",
       required: true,
       placeholder: "เลขที่บัญชี",
     },
     {
       id: "amount",
       label: "Amount",
-      type: "short_answer",
+      type: "text",
       required: true,
       placeholder: "0.00",
     },
     {
       id: "slip",
       label: "แนบสลิปการทำรายการ",
-      type: "file_image",
+      type: "image_upload",
       required: true,
       placeholder: "",
     },
     {
       id: "transaction_time",
       label: "เวลาที่ทำรายการ",
-      type: "time_hms",
+      type: "time",
       required: true,
       placeholder: "HH:MM:SS",
     },
     {
       id: "note",
       label: "หมายเหตุเพิ่มเติม",
-      type: "paragraph",
+      type: "textarea",
       required: false,
       placeholder: "รายละเอียดเพิ่มเติม (ถ้ามี)",
     },
   ],
   withdraw_issue: [
-    { id: "user", label: "USER", type: "short_answer", required: true, placeholder: "กรอก USER" },
+    { id: "user", label: "USER", type: "text", required: true, placeholder: "กรอก USER" },
     {
       id: "registered_phone",
       label: "เบอร์โทรศัพท์ที่ลงทะเบียน",
@@ -253,35 +275,35 @@ const FORM_TEMPLATE_FIELDS: Record<FormTemplate, FormField[]> = {
     {
       id: "bank_name",
       label: "Bank Name",
-      type: "short_answer",
+      type: "text",
       required: true,
       placeholder: "ชื่อธนาคาร",
     },
     {
       id: "account_number",
       label: "Account Number",
-      type: "short_answer",
+      type: "text",
       required: true,
       placeholder: "เลขที่บัญชี",
     },
     {
       id: "amount",
       label: "Amount",
-      type: "short_answer",
+      type: "text",
       required: true,
       placeholder: "0.00",
     },
     {
       id: "transaction_time",
       label: "เวลาที่ทำรายการ",
-      type: "time_hms",
+      type: "time",
       required: true,
       placeholder: "HH:MM:SS",
     },
     {
       id: "note",
       label: "หมายเหตุเพิ่มเติม",
-      type: "paragraph",
+      type: "textarea",
       required: false,
       placeholder: "รายละเอียดเพิ่มเติม (ถ้ามี)",
     },
@@ -486,6 +508,7 @@ export const getFormData = (link: BioLink): FormBlock => ({
       link.form?.fields && link.form.fields.length > 0
         ? link.form.fields.map((field) => ({
             ...field,
+            type: normalizeFormFieldType(field.type),
             options: field.options ? [...field.options] : undefined,
           }))
         : [];

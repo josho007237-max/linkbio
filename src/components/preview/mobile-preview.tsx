@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 
-import { BuilderData, SocialLink } from "@/features/builder/types";
+import { BuilderData, FormField, SocialLink } from "@/features/builder/types";
 import { ProfileHeader } from "@/components/profile/profile-header";
 import {
   getContentType,
@@ -21,6 +21,7 @@ import {
   getEmbedPostData,
   getExternalFormData,
   getFormData,
+  normalizeFormFieldType,
   getLinkDisplaySettings,
   getPromoGalleryData,
   getSortedVisibleLinks,
@@ -358,10 +359,11 @@ const getSupportFieldName = (
     return null;
   }
   const label = getFieldLabelTokens(field.label);
-  if (field.type === "file_image") {
+  const normalizedFieldType = normalizeFormFieldType(field.type as FormField["type"]);
+  if (normalizedFieldType === "image_upload") {
     return supportTemplate === "deposit_issue" ? "slip" : null;
   }
-  if (field.type === "time_hms") {
+  if (normalizedFieldType === "time") {
     return "transactionTime";
   }
   if (label.includes("user") || label.includes("ยูส")) {
@@ -378,6 +380,21 @@ const getSupportFieldName = (
   }
   return null;
 };
+
+const isSingleSelectFieldType = (fieldType: string): boolean =>
+  normalizeFormFieldType(fieldType as FormField["type"]) === "single_select";
+
+const isMultiSelectFieldType = (fieldType: string): boolean =>
+  normalizeFormFieldType(fieldType as FormField["type"]) === "multi_select";
+
+const isImageUploadFieldType = (fieldType: string): boolean =>
+  normalizeFormFieldType(fieldType as FormField["type"]) === "image_upload";
+
+const isTimeFieldType = (fieldType: string): boolean =>
+  normalizeFormFieldType(fieldType as FormField["type"]) === "time";
+
+const isTextAreaFieldType = (fieldType: string): boolean =>
+  normalizeFormFieldType(fieldType as FormField["type"]) === "textarea";
 
 const ensureXWidgetsScript = (): Promise<void> =>
   new Promise((resolve) => {
@@ -559,7 +576,7 @@ export const MobilePreview = ({
     if (field.type === "date" || field.type === "date_of_birth") {
       return read("date", "dob", "birth_date");
     }
-    if (field.type === "time_hms") {
+    if (isTimeFieldType(field.type)) {
       const raw = read("time", "txn_time", "transaction_time");
       if (/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/.test(raw)) {
         return raw;
@@ -2286,7 +2303,7 @@ export const MobilePreview = ({
                 const validateForm = (): FormSubmissionErrors => {
                   const nextErrors: FormSubmissionErrors = {};
                   form.fields.forEach((field) => {
-                    if (field.type === "file_image") {
+                    if (isImageUploadFieldType(field.type)) {
                       const fileSelection = currentFormFiles[field.id];
                       if (field.required && !fileSelection) {
                         nextErrors[field.id] = t("form_error_required");
@@ -2326,7 +2343,7 @@ export const MobilePreview = ({
                       return;
                     }
                     if (
-                      field.type === "time_hms" &&
+                      isTimeFieldType(field.type) &&
                       !/^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/.test(stringValue)
                     ) {
                       nextErrors[field.id] = t("form_error_time_invalid");
@@ -2337,9 +2354,7 @@ export const MobilePreview = ({
                       return;
                     }
                     if (
-                      (field.type === "single_choice" ||
-                        field.type === "checkboxes" ||
-                        field.type === "dropdown") &&
+                      (isSingleSelectFieldType(field.type) || isMultiSelectFieldType(field.type)) &&
                       (!field.options || field.options.length === 0)
                     ) {
                       nextErrors[field.id] = t("form_error_options");
@@ -2357,10 +2372,10 @@ export const MobilePreview = ({
                       onClick={() => {
                         const prefilledValues: FormSubmissionValues = {};
                         form.fields.forEach((field) => {
-                          if (field.type === "checkboxes") {
+                          if (isMultiSelectFieldType(field.type)) {
                             return;
                           }
-                          if (field.type === "file_image") {
+                          if (isImageUploadFieldType(field.type)) {
                             return;
                           }
                           const prefill = getPrefillValueForField(field, link.id);
@@ -2449,14 +2464,14 @@ export const MobilePreview = ({
                                   }
                                   const responses = form.fields.map((field) => {
                                     const raw = currentFormValues[field.id];
-                                    if (field.type === "checkboxes") {
+                                    if (isMultiSelectFieldType(field.type)) {
                                       return {
                                         id: field.id,
                                         label: field.label,
                                         value: Array.isArray(raw) ? raw : [],
                                       };
                                     }
-                                    if (field.type === "file_image") {
+                                    if (isImageUploadFieldType(field.type)) {
                                       const fileSelection = currentFormFiles[field.id];
                                       return {
                                         id: field.id,
@@ -2465,10 +2480,10 @@ export const MobilePreview = ({
                                       };
                                     }
                                     return {
-                                      id: field.id,
-                                      label: field.label,
-                                      value:
-                                        field.type === "time_hms" && typeof raw === "string"
+                                        id: field.id,
+                                        label: field.label,
+                                        value:
+                                        isTimeFieldType(field.type) && typeof raw === "string"
                                           ? normalizeTimeInputValue(raw)
                                           : typeof raw === "string"
                                             ? raw
@@ -2477,6 +2492,35 @@ export const MobilePreview = ({
                                   });
 
                                   if (!supportTemplate) {
+                                    if (typeof window !== "undefined") {
+                                      try {
+                                        const responsesJson = JSON.stringify(responses);
+                                        const storageKey = "linkbio:generic-form-submissions";
+                                        const existingRaw = window.localStorage.getItem(storageKey);
+                                        const existing = existingRaw ? JSON.parse(existingRaw) : [];
+                                        const nextEntry = {
+                                          slug: targetRouteSlug,
+                                          linkId: link.id,
+                                          template: form.template,
+                                          formTitle: form.formTitle || link.title,
+                                          responses_json: responsesJson,
+                                          extra_fields: responses.reduce<Record<string, string | string[]>>(
+                                            (accumulator, entry) => {
+                                              accumulator[entry.id] = entry.value;
+                                              return accumulator;
+                                            },
+                                            {},
+                                          ),
+                                          createdAt: new Date().toISOString(),
+                                        };
+                                        const next = Array.isArray(existing)
+                                          ? [...existing, nextEntry].slice(-100)
+                                          : [nextEntry];
+                                        window.localStorage.setItem(storageKey, JSON.stringify(next));
+                                      } catch {
+                                        // Best-effort local persistence for generic forms only.
+                                      }
+                                    }
                                     setFormSubmittedByLink((current) => ({ ...current, [link.id]: true }));
                                     return;
                                   }
@@ -2507,9 +2551,36 @@ export const MobilePreview = ({
                                       const parsedAmount = parseDecimalAmount(amountRaw);
                                       const amount =
                                         parsedAmount === null ? amountRaw : parsedAmount.toFixed(2);
+                                      const responsesJson = JSON.stringify(responses);
+                                      const supportResponseFieldKeys = new Set([
+                                        "username",
+                                        "registeredPhone",
+                                        "fullName",
+                                        "transactionTime",
+                                        "note",
+                                        "bankName",
+                                        "accountNumber",
+                                        "amount",
+                                        "slip",
+                                      ]);
+                                      const extraFields = responses.reduce<Record<string, string | string[]>>(
+                                        (accumulator, entry) => {
+                                          const fieldName = getSupportFieldName(
+                                            { type: "text", label: entry.label },
+                                            supportTemplate,
+                                          );
+                                          if (!fieldName || !supportResponseFieldKeys.has(fieldName)) {
+                                            accumulator[entry.id] = entry.value;
+                                          }
+                                          return accumulator;
+                                        },
+                                        {},
+                                      );
 
                                       if (supportTemplate === "deposit_issue") {
-                                        const slipField = form.fields.find((field) => field.type === "file_image");
+                                        const slipField = form.fields.find((field) =>
+                                          isImageUploadFieldType(field.type),
+                                        );
                                         const slipFile = slipField ? currentFormFiles[slipField.id]?.file : null;
                                         if (!slipFile) {
                                           setFormErrorsByLink((current) => ({
@@ -2544,7 +2615,9 @@ export const MobilePreview = ({
                                         payload.append("linkId", link.id);
                                         payload.append("template", supportTemplate);
                                         payload.append("formTitle", form.formTitle || link.title);
-                                        payload.append("responses", JSON.stringify(responses));
+                                        payload.append("responses", responsesJson);
+                                        payload.append("responses_json", responsesJson);
+                                        payload.append("extra_fields", JSON.stringify(extraFields));
                                         payload.append("bankName", bankName);
                                         payload.append("accountNumber", accountNumber);
                                         payload.append("amount", amount);
@@ -2586,6 +2659,8 @@ export const MobilePreview = ({
                                             template: supportTemplate,
                                             formTitle: form.formTitle || link.title,
                                             responses,
+                                            responses_json: responsesJson,
+                                            extra_fields: extraFields,
                                             bankName,
                                             accountNumber,
                                             amount,
@@ -2638,9 +2713,8 @@ export const MobilePreview = ({
                                           ? t("form_support_label_amount")
                                           : field.label;
                                   const showOptions =
-                                    field.type === "single_choice" ||
-                                    field.type === "checkboxes" ||
-                                    field.type === "dropdown";
+                                    isSingleSelectFieldType(field.type) ||
+                                    isMultiSelectFieldType(field.type);
 
                                   return (
                                     <div key={field.id} className="space-y-1.5">
@@ -2648,7 +2722,7 @@ export const MobilePreview = ({
                                         {fieldLabel}
                                         {field.required ? " *" : ""}
                                       </label>
-                                    {field.type === "paragraph" ? (
+                                    {isTextAreaFieldType(field.type) ? (
                                       <textarea
                                         name={fieldName}
                                         className="min-h-[96px] w-full rounded-md border border-white/20 bg-black/35 px-3 py-2 text-sm text-white outline-none"
@@ -2657,7 +2731,7 @@ export const MobilePreview = ({
                                           onFocus={handleFieldFocus}
                                           onChange={(event) => setStringFieldValue(field.id, event.target.value)}
                                         />
-                                      ) : field.type === "file_image" ? (
+                                      ) : isImageUploadFieldType(field.type) ? (
                                         <div className="space-y-2">
                                           <input
                                             name={fieldName}
@@ -2737,7 +2811,7 @@ export const MobilePreview = ({
                                             </div>
                                           ) : null}
                                         </div>
-                                      ) : field.type === "single_choice" && showOptions ? (
+                                      ) : isSingleSelectFieldType(field.type) && showOptions ? (
                                         <div className="space-y-2">
                                           {options.map((option) => (
                                             <label key={option} className="flex items-center gap-2 text-sm">
@@ -2752,7 +2826,7 @@ export const MobilePreview = ({
                                             </label>
                                           ))}
                                         </div>
-                                      ) : field.type === "checkboxes" && showOptions ? (
+                                      ) : isMultiSelectFieldType(field.type) && showOptions ? (
                                         <div className="space-y-2">
                                           {options.map((option) => {
                                             const currentValues = Array.isArray(fieldValue) ? fieldValue : [];
@@ -2783,7 +2857,7 @@ export const MobilePreview = ({
                                             );
                                           })}
                                         </div>
-                                      ) : field.type === "dropdown" && showOptions ? (
+                                      ) : isSingleSelectFieldType(field.type) && showOptions ? (
                                         <select
                                           name={fieldName}
                                           className="h-11 w-full rounded-md border border-white/20 bg-black/35 px-3 text-sm text-white"
@@ -2798,7 +2872,7 @@ export const MobilePreview = ({
                                             </option>
                                           ))}
                                         </select>
-                                      ) : field.type === "time_hms" ? (
+                                      ) : isTimeFieldType(field.type) ? (
                                         <div className="grid grid-cols-3 gap-2">
                                           {(["hour", "minute", "second"] as const).map((segment) => {
                                             const current = getTimeParts(
@@ -3016,7 +3090,7 @@ export const MobilePreview = ({
                   if (isForm) {
                     const prefilledValues: FormSubmissionValues = {};
                     form.fields.forEach((field) => {
-                      if (field.type === "checkboxes" || field.type === "file_image") {
+                      if (isMultiSelectFieldType(field.type) || isImageUploadFieldType(field.type)) {
                         return;
                       }
                       const prefill = getPrefillValueForField(field, link.id);

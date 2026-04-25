@@ -308,6 +308,12 @@ export const linkSchema = z
             "name",
             "email",
             "phone",
+            "text",
+            "textarea",
+            "single_select",
+            "multi_select",
+            "time",
+            "image_upload",
             "country",
             "date_of_birth",
             "time_hms",
@@ -432,7 +438,9 @@ export const linkSchema = z
           });
         }
         if (
-          (field.type === "single_choice" ||
+          (field.type === "single_select" ||
+            field.type === "multi_select" ||
+            field.type === "single_choice" ||
             field.type === "checkboxes" ||
             field.type === "dropdown") &&
           (!field.options || field.options.filter((option) => option.trim().length > 0).length === 0)
@@ -727,6 +735,12 @@ export const builderDataSchema = z.object({
                     "name",
                     "email",
                     "phone",
+                    "text",
+                    "textarea",
+                    "single_select",
+                    "multi_select",
+                    "time",
+                    "image_upload",
                     "country",
                     "date_of_birth",
                     "time_hms",
