@@ -2492,36 +2492,47 @@ export const MobilePreview = ({
                                   });
 
                                   if (!supportTemplate) {
-                                    if (typeof window !== "undefined") {
+                                    setFormSubmittingByLink((current) => ({ ...current, [link.id]: true }));
+                                    setFormSubmitErrorByLink((current) => ({ ...current, [link.id]: "" }));
+                                    const submitGeneric = async () => {
                                       try {
-                                        const responsesJson = JSON.stringify(responses);
-                                        const storageKey = "linkbio:generic-form-submissions";
-                                        const existingRaw = window.localStorage.getItem(storageKey);
-                                        const existing = existingRaw ? JSON.parse(existingRaw) : [];
-                                        const nextEntry = {
-                                          slug: targetRouteSlug,
-                                          linkId: link.id,
-                                          template: form.template,
-                                          formTitle: form.formTitle || link.title,
-                                          responses_json: responsesJson,
-                                          extra_fields: responses.reduce<Record<string, string | string[]>>(
-                                            (accumulator, entry) => {
-                                              accumulator[entry.id] = entry.value;
-                                              return accumulator;
-                                            },
-                                            {},
-                                          ),
-                                          createdAt: new Date().toISOString(),
-                                        };
-                                        const next = Array.isArray(existing)
-                                          ? [...existing, nextEntry].slice(-100)
-                                          : [nextEntry];
-                                        window.localStorage.setItem(storageKey, JSON.stringify(next));
-                                      } catch {
-                                        // Best-effort local persistence for generic forms only.
+                                        const response = await fetch("/api/forms/generic-submissions", {
+                                          method: "POST",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                            submitted_at: new Date().toISOString(),
+                                            slug: targetRouteSlug,
+                                            form_title: form.formTitle || link.title,
+                                            form_id: link.id,
+                                            responses,
+                                          }),
+                                        });
+                                        if (!response.ok) {
+                                          const body = (await response.json().catch(() => null)) as
+                                            | { error?: string }
+                                            | null;
+                                          throw new Error(body?.error || t("form_submit_failed"));
+                                        }
+                                        setFormSubmittedByLink((current) => ({ ...current, [link.id]: true }));
+                                      } catch (error) {
+                                        const message =
+                                          error instanceof Error && error.message
+                                            ? error.message
+                                            : t("form_submit_failed");
+                                        setFormSubmitErrorByLink((current) => ({
+                                          ...current,
+                                          [link.id]: message,
+                                        }));
+                                      } finally {
+                                        setFormSubmittingByLink((current) => ({
+                                          ...current,
+                                          [link.id]: false,
+                                        }));
                                       }
-                                    }
-                                    setFormSubmittedByLink((current) => ({ ...current, [link.id]: true }));
+                                    };
+                                    void submitGeneric();
                                     return;
                                   }
 
