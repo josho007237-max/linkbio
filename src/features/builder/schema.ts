@@ -197,8 +197,30 @@ export const linkSchema = z
     embedSourceUrl: z.string().trim().optional(),
     embedCode: z.string().trim().optional(),
     embedDescription: z.string().trim().optional(),
+    embedChecklistTitle: z.string().trim().optional(),
+    embedChecklistItem1Label: z.string().trim().optional(),
+    embedChecklistItem2Label: z.string().trim().optional(),
+    embedChecklistItem3Label: z.string().trim().optional(),
+    embedSourceButtonLabel: z.string().trim().optional(),
+    embedSourceButtonUrl: z.string().trim().optional(),
+    embedSourceButtonOpenInNewTab: z.boolean().optional(),
+    embedSourceButtonEnabled: z.boolean().optional(),
     embedCtaButtonLabel: z.string().trim().optional(),
     embedCtaUrl: z.string().trim().optional(),
+    embedCtaButtonOpenInNewTab: z.boolean().optional(),
+    embedCtaButtonEnabled: z.boolean().optional(),
+    embedCloseButtonLabel: z.string().trim().optional(),
+    embedCloseButtonEnabled: z.boolean().optional(),
+    embedShowModalTitle: z.boolean().optional(),
+    embedShowDescription: z.boolean().optional(),
+    embedShowChecklist: z.boolean().optional(),
+    embedShowChecklistItem1: z.boolean().optional(),
+    embedShowChecklistItem2: z.boolean().optional(),
+    embedShowChecklistItem3: z.boolean().optional(),
+    embedShowSourceButton: z.boolean().optional(),
+    embedShowCtaButton: z.boolean().optional(),
+    embedShowCloseButton: z.boolean().optional(),
+    embedShowTopRightDismissButton: z.boolean().optional(),
     embedDismissible: z.boolean().optional(),
     formTemplate: z
       .enum([
@@ -506,7 +528,7 @@ export const linkSchema = z
         path: ["embedLayout"],
       });
     }
-    if (!value.embedModalTitle) {
+    if ((value.embedShowModalTitle ?? true) && !value.embedModalTitle) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Modal title is required.",
@@ -537,7 +559,19 @@ export const linkSchema = z
         path: ["embedCode"],
       });
     }
-    if (!value.embedCtaButtonLabel) {
+    const shouldValidateSourceButton =
+      (value.embedShowSourceButton ?? true) && (value.embedSourceButtonEnabled ?? true);
+    const sourceButtonUrl = value.embedSourceButtonUrl ?? "";
+    if (shouldValidateSourceButton && sourceButtonUrl && !z.string().url().safeParse(sourceButtonUrl).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Source button URL is invalid",
+        path: ["embedSourceButtonUrl"],
+      });
+    }
+    const shouldValidateCtaButton =
+      (value.embedShowCtaButton ?? true) && (value.embedCtaButtonEnabled ?? true);
+    if (shouldValidateCtaButton && !(value.embedCtaButtonLabel ?? "").trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "CTA button label is required.",
@@ -545,7 +579,7 @@ export const linkSchema = z
       });
     }
     const embedCtaUrl = value.embedCtaUrl ?? "";
-    if (!embedCtaUrl || !z.string().url().safeParse(embedCtaUrl).success) {
+    if (shouldValidateCtaButton && (!embedCtaUrl || !z.string().url().safeParse(embedCtaUrl).success)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "CTA URL is invalid",
@@ -700,8 +734,30 @@ export const builderDataSchema = z.object({
           sourceUrl: persistedUrlStringSchema.optional(),
           embedCode: persistedStringSchema.optional(),
           description: persistedStringSchema.optional(),
+          checklistTitle: persistedStringSchema.optional(),
+          checklistItem1Label: persistedStringSchema.optional(),
+          checklistItem2Label: persistedStringSchema.optional(),
+          checklistItem3Label: persistedStringSchema.optional(),
+          sourceButtonLabel: persistedStringSchema.optional(),
+          sourceButtonUrl: persistedUrlStringSchema.optional(),
+          sourceButtonOpenInNewTab: z.boolean().optional(),
+          sourceButtonEnabled: z.boolean().optional(),
           ctaButtonLabel: persistedStringSchema.optional(),
           ctaUrl: persistedUrlStringSchema.optional(),
+          ctaButtonOpenInNewTab: z.boolean().optional(),
+          ctaButtonEnabled: z.boolean().optional(),
+          closeButtonLabel: persistedStringSchema.optional(),
+          closeButtonEnabled: z.boolean().optional(),
+          showModalTitle: z.boolean().optional(),
+          showDescription: z.boolean().optional(),
+          showChecklist: z.boolean().optional(),
+          showChecklistItem1: z.boolean().optional(),
+          showChecklistItem2: z.boolean().optional(),
+          showChecklistItem3: z.boolean().optional(),
+          showSourceButton: z.boolean().optional(),
+          showCtaButton: z.boolean().optional(),
+          showCloseButton: z.boolean().optional(),
+          showTopRightDismissButton: z.boolean().optional(),
           dismissible: z.boolean().optional(),
         })
         .optional(),

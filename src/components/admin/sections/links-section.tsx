@@ -324,8 +324,30 @@ export const LinksSection = () => {
       embedSourceUrl: "",
       embedCode: "",
       embedDescription: "",
+      embedChecklistTitle: "Activity checklist (local confirmation only)",
+      embedChecklistItem1Label: "Followed",
+      embedChecklistItem2Label: "Reposted",
+      embedChecklistItem3Label: "Commented",
+      embedSourceButtonLabel: "Open on source",
+      embedSourceButtonUrl: "https://example.com",
+      embedSourceButtonOpenInNewTab: true,
+      embedSourceButtonEnabled: true,
       embedCtaButtonLabel: "",
       embedCtaUrl: "https://example.com",
+      embedCtaButtonOpenInNewTab: true,
+      embedCtaButtonEnabled: true,
+      embedCloseButtonLabel: "Close",
+      embedCloseButtonEnabled: true,
+      embedShowModalTitle: true,
+      embedShowDescription: true,
+      embedShowChecklist: true,
+      embedShowChecklistItem1: true,
+      embedShowChecklistItem2: true,
+      embedShowChecklistItem3: true,
+      embedShowSourceButton: true,
+      embedShowCtaButton: true,
+      embedShowCloseButton: true,
+      embedShowTopRightDismissButton: true,
       embedDismissible: true,
       formTemplate: "email_signup",
       formLayout: "classic",
@@ -398,6 +420,39 @@ export const LinksSection = () => {
     control: editForm.control,
     name: "embedDismissible",
   });
+  const editEmbedShowChecklist = useWatch({ control: editForm.control, name: "embedShowChecklist" });
+  const editEmbedShowModalTitle = useWatch({ control: editForm.control, name: "embedShowModalTitle" });
+  const editEmbedShowDescription = useWatch({ control: editForm.control, name: "embedShowDescription" });
+  const editEmbedShowSourceButton = useWatch({ control: editForm.control, name: "embedShowSourceButton" });
+  const editEmbedShowCtaButton = useWatch({ control: editForm.control, name: "embedShowCtaButton" });
+  const editEmbedShowCloseButton = useWatch({ control: editForm.control, name: "embedShowCloseButton" });
+  const editEmbedShowTopRightDismissButton = useWatch({
+    control: editForm.control,
+    name: "embedShowTopRightDismissButton",
+  });
+  const editEmbedShowChecklistItem1 = useWatch({ control: editForm.control, name: "embedShowChecklistItem1" });
+  const editEmbedShowChecklistItem2 = useWatch({ control: editForm.control, name: "embedShowChecklistItem2" });
+  const editEmbedShowChecklistItem3 = useWatch({ control: editForm.control, name: "embedShowChecklistItem3" });
+  const editEmbedSourceButtonEnabled = useWatch({
+    control: editForm.control,
+    name: "embedSourceButtonEnabled",
+  });
+  const editEmbedSourceButtonOpenInNewTab = useWatch({
+    control: editForm.control,
+    name: "embedSourceButtonOpenInNewTab",
+  });
+  const editEmbedCtaButtonEnabled = useWatch({
+    control: editForm.control,
+    name: "embedCtaButtonEnabled",
+  });
+  const editEmbedCtaButtonOpenInNewTab = useWatch({
+    control: editForm.control,
+    name: "embedCtaButtonOpenInNewTab",
+  });
+  const editEmbedCloseButtonEnabled = useWatch({
+    control: editForm.control,
+    name: "embedCloseButtonEnabled",
+  });
   const editFormTemplate = useWatch({ control: editForm.control, name: "formTemplate" });
   const editPreOpenEnabled = useWatch({ control: editForm.control, name: "preOpenEnabled" });
   const editPreOpenShowSecondaryButton = useWatch({
@@ -435,6 +490,7 @@ export const LinksSection = () => {
   const editEmbedProviderError = editForm.formState.errors.embedProvider?.message;
   const editEmbedModeError = editForm.formState.errors.embedMode?.message;
   const editEmbedSourceUrlError = editForm.formState.errors.embedSourceUrl?.message;
+  const editEmbedSourceButtonUrlError = editForm.formState.errors.embedSourceButtonUrl?.message;
   const editEmbedCodeError = editForm.formState.errors.embedCode?.message;
   const editEmbedCardTitleError = editForm.formState.errors.embedCardTitle?.message;
   const editEmbedModalTitleError = editForm.formState.errors.embedModalTitle?.message;
@@ -582,8 +638,30 @@ export const LinksSection = () => {
       embedSourceUrl: embedPost.sourceUrl,
       embedCode: embedPost.embedCode,
       embedDescription: embedPost.description,
+      embedChecklistTitle: embedPost.checklistTitle,
+      embedChecklistItem1Label: embedPost.checklistItem1Label,
+      embedChecklistItem2Label: embedPost.checklistItem2Label,
+      embedChecklistItem3Label: embedPost.checklistItem3Label,
+      embedSourceButtonLabel: embedPost.sourceButtonLabel,
+      embedSourceButtonUrl: embedPost.sourceButtonUrl,
+      embedSourceButtonOpenInNewTab: embedPost.sourceButtonOpenInNewTab,
+      embedSourceButtonEnabled: embedPost.sourceButtonEnabled,
       embedCtaButtonLabel: embedPost.ctaButtonLabel,
       embedCtaUrl: embedPost.ctaUrl,
+      embedCtaButtonOpenInNewTab: embedPost.ctaButtonOpenInNewTab,
+      embedCtaButtonEnabled: embedPost.ctaButtonEnabled,
+      embedCloseButtonLabel: embedPost.closeButtonLabel,
+      embedCloseButtonEnabled: embedPost.closeButtonEnabled,
+      embedShowModalTitle: embedPost.showModalTitle,
+      embedShowDescription: embedPost.showDescription,
+      embedShowChecklist: embedPost.showChecklist,
+      embedShowChecklistItem1: embedPost.showChecklistItem1,
+      embedShowChecklistItem2: embedPost.showChecklistItem2,
+      embedShowChecklistItem3: embedPost.showChecklistItem3,
+      embedShowSourceButton: embedPost.showSourceButton,
+      embedShowCtaButton: embedPost.showCtaButton,
+      embedShowCloseButton: embedPost.showCloseButton,
+      embedShowTopRightDismissButton: embedPost.showTopRightDismissButton,
       embedDismissible: embedPost.dismissible,
       formTemplate: form.template,
       formLayout: form.layout,
@@ -754,8 +832,30 @@ export const LinksSection = () => {
               sourceUrl: values.embedSourceUrl ?? "",
               embedCode: values.embedCode ?? "",
               description: values.embedDescription ?? "",
+              checklistTitle: values.embedChecklistTitle ?? "",
+              checklistItem1Label: values.embedChecklistItem1Label ?? "",
+              checklistItem2Label: values.embedChecklistItem2Label ?? "",
+              checklistItem3Label: values.embedChecklistItem3Label ?? "",
+              sourceButtonLabel: values.embedSourceButtonLabel ?? "",
+              sourceButtonUrl: values.embedSourceButtonUrl ?? "",
+              sourceButtonOpenInNewTab: values.embedSourceButtonOpenInNewTab ?? true,
+              sourceButtonEnabled: values.embedSourceButtonEnabled ?? true,
               ctaButtonLabel: values.embedCtaButtonLabel ?? "",
               ctaUrl: values.embedCtaUrl ?? "",
+              ctaButtonOpenInNewTab: values.embedCtaButtonOpenInNewTab ?? true,
+              ctaButtonEnabled: values.embedCtaButtonEnabled ?? true,
+              closeButtonLabel: values.embedCloseButtonLabel ?? "Close",
+              closeButtonEnabled: values.embedCloseButtonEnabled ?? true,
+              showModalTitle: values.embedShowModalTitle ?? true,
+              showDescription: values.embedShowDescription ?? true,
+              showChecklist: values.embedShowChecklist ?? true,
+              showChecklistItem1: values.embedShowChecklistItem1 ?? true,
+              showChecklistItem2: values.embedShowChecklistItem2 ?? true,
+              showChecklistItem3: values.embedShowChecklistItem3 ?? true,
+              showSourceButton: values.embedShowSourceButton ?? true,
+              showCtaButton: values.embedShowCtaButton ?? true,
+              showCloseButton: values.embedShowCloseButton ?? true,
+              showTopRightDismissButton: values.embedShowTopRightDismissButton ?? true,
               dismissible: values.embedDismissible ?? true,
             }
           : undefined,
@@ -1957,6 +2057,131 @@ export const LinksSection = () => {
                         <Input {...editForm.register("embedDescription")} />
                         <p className="text-xs text-muted-foreground">{t("embed_post_helper_description")}</p>
                       </div>
+                      <div className="space-y-3 rounded-xl border p-3">
+                        <p className="text-sm font-medium">{t("embed_post_modal_visibility_title")}</p>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedShowModalTitle)}
+                            onCheckedChange={(v) => editForm.setValue("embedShowModalTitle", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("embed_post_toggle_show_modal_title")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedShowDescription)}
+                            onCheckedChange={(v) => editForm.setValue("embedShowDescription", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("embed_post_toggle_show_description")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedShowChecklist)}
+                            onCheckedChange={(v) => editForm.setValue("embedShowChecklist", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("embed_post_toggle_show_checklist")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedShowSourceButton)}
+                            onCheckedChange={(v) => editForm.setValue("embedShowSourceButton", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("embed_post_toggle_show_source_button")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedShowCtaButton)}
+                            onCheckedChange={(v) => editForm.setValue("embedShowCtaButton", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("embed_post_toggle_show_cta_button")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedShowCloseButton)}
+                            onCheckedChange={(v) => editForm.setValue("embedShowCloseButton", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("embed_post_toggle_show_close_button")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedShowTopRightDismissButton)}
+                            onCheckedChange={(v) => editForm.setValue("embedShowTopRightDismissButton", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("embed_post_toggle_show_top_right_dismiss")}
+                        </label>
+                      </div>
+
+                      <div className="space-y-3 rounded-xl border p-3">
+                        <p className="text-sm font-medium">{t("embed_post_checklist_title")}</p>
+                        <div className="space-y-2">
+                          <Label>{t("embed_post_fields_checklist_title")}</Label>
+                          <Input {...editForm.register("embedChecklistTitle")} />
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                          <Input {...editForm.register("embedChecklistItem1Label")} placeholder={t("embed_post_fields_checklist_item_1")} />
+                          <label className="flex items-center gap-2 text-xs">
+                            <Switch
+                              checked={Boolean(editEmbedShowChecklistItem1)}
+                              onCheckedChange={(v) => editForm.setValue("embedShowChecklistItem1", v, { shouldDirty: true, shouldValidate: true })}
+                            />
+                            {t("links_enabled")}
+                          </label>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                          <Input {...editForm.register("embedChecklistItem2Label")} placeholder={t("embed_post_fields_checklist_item_2")} />
+                          <label className="flex items-center gap-2 text-xs">
+                            <Switch
+                              checked={Boolean(editEmbedShowChecklistItem2)}
+                              onCheckedChange={(v) => editForm.setValue("embedShowChecklistItem2", v, { shouldDirty: true, shouldValidate: true })}
+                            />
+                            {t("links_enabled")}
+                          </label>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                          <Input {...editForm.register("embedChecklistItem3Label")} placeholder={t("embed_post_fields_checklist_item_3")} />
+                          <label className="flex items-center gap-2 text-xs">
+                            <Switch
+                              checked={Boolean(editEmbedShowChecklistItem3)}
+                              onCheckedChange={(v) => editForm.setValue("embedShowChecklistItem3", v, { shouldDirty: true, shouldValidate: true })}
+                            />
+                            {t("links_enabled")}
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 rounded-xl border p-3">
+                        <p className="text-sm font-medium">{t("embed_post_source_button_title")}</p>
+                        <div className="space-y-2">
+                          <Label>{t("embed_post_fields_source_button_label")}</Label>
+                          <Input {...editForm.register("embedSourceButtonLabel")} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t("embed_post_fields_source_button_url")}</Label>
+                          <Input
+                            type="url"
+                            aria-invalid={Boolean(editEmbedSourceButtonUrlError)}
+                            className={editEmbedSourceButtonUrlError ? "border-destructive" : undefined}
+                            {...editForm.register("embedSourceButtonUrl")}
+                          />
+                          {editEmbedSourceButtonUrlError ? (
+                            <p className="text-xs text-destructive">{editEmbedSourceButtonUrlError}</p>
+                          ) : null}
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedSourceButtonOpenInNewTab)}
+                            onCheckedChange={(v) => editForm.setValue("embedSourceButtonOpenInNewTab", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("links_style_open_in_new_tab")}
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={Boolean(editEmbedSourceButtonEnabled)}
+                            onCheckedChange={(v) => editForm.setValue("embedSourceButtonEnabled", v, { shouldDirty: true, shouldValidate: true })}
+                          />
+                          {t("links_enabled")}
+                        </label>
+                      </div>
+
                       <div className="space-y-2">
                         <Label>{t("embed_post_fields_cta_button_label")}</Label>
                         <Input
@@ -1981,6 +2206,31 @@ export const LinksSection = () => {
                           <p className="text-xs text-destructive">{editEmbedCtaUrlError}</p>
                         ) : null}
                       </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={Boolean(editEmbedCtaButtonOpenInNewTab)}
+                          onCheckedChange={(v) => editForm.setValue("embedCtaButtonOpenInNewTab", v, { shouldDirty: true, shouldValidate: true })}
+                        />
+                        {t("links_style_open_in_new_tab")}
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={Boolean(editEmbedCtaButtonEnabled)}
+                          onCheckedChange={(v) => editForm.setValue("embedCtaButtonEnabled", v, { shouldDirty: true, shouldValidate: true })}
+                        />
+                        {t("links_enabled")}
+                      </label>
+                      <div className="space-y-2">
+                        <Label>{t("embed_post_fields_close_button_label")}</Label>
+                        <Input {...editForm.register("embedCloseButtonLabel")} />
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={Boolean(editEmbedCloseButtonEnabled)}
+                          onCheckedChange={(v) => editForm.setValue("embedCloseButtonEnabled", v, { shouldDirty: true, shouldValidate: true })}
+                        />
+                        {t("links_enabled")}
+                      </label>
                       <label className="flex items-center gap-2 text-sm">
                         <Switch
                           checked={Boolean(editEmbedDismissible)}

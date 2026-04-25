@@ -206,24 +206,6 @@ const getProviderModalClass = (provider: string): string => {
   return "max-w-[520px]";
 };
 
-const getXPostUrlFromEmbedCode = (embedCode: string): string | null => {
-  const citeMatch = embedCode.match(/cite=["']([^"']+)["']/i);
-  const hrefMatch = embedCode.match(/href=["']([^"']+)["']/i);
-  const rawCandidate = citeMatch?.[1] || hrefMatch?.[1] || "";
-  const parsed = parsePreviewHref(rawCandidate);
-  if (!isWebExternalHref(parsed)) {
-    return null;
-  }
-  try {
-    const url = new URL(parsed.href);
-    const isXHost = url.hostname.includes("x.com") || url.hostname.includes("twitter.com");
-    const hasStatusPath = /\/status\/\d+/i.test(url.pathname);
-    return isXHost && hasStatusPath ? parsed.href : null;
-  } catch {
-    return null;
-  }
-};
-
 const buildXEmbedSrcDoc = (embedCode: string): string => embedCode;
 
 const extractXBlockquoteMarkup = (embedCode: string): string | null => {
@@ -1409,19 +1391,6 @@ export const MobilePreview = ({
                   embedPost.embedMode,
                   embedPost.embedCode,
                 );
-                const parsedXSourceHref = (() => {
-                  if (!isXProvider) {
-                    return parsedSourceHref;
-                  }
-                  const fallbackFromCode = getXPostUrlFromEmbedCode(embedPost.embedCode);
-                  if (isWebExternalHref(parsedSourceHref)) {
-                    return parsedSourceHref;
-                  }
-                  if (!fallbackFromCode) {
-                    return { kind: "invalid", href: null } as PreviewHrefResult;
-                  }
-                  return { kind: "external", href: fallbackFromCode } as PreviewHrefResult;
-                })();
                 const xEmbedMarkup = isXProvider
                   ? embedPost.embedMode === "code"
                     ? extractXBlockquoteMarkup(embedPost.embedCode)
@@ -1443,12 +1412,100 @@ export const MobilePreview = ({
                       (embedPost.embedMode === "url" && embedPost.provider === "youtube" && !iframeSrc);
                 const embedActionClass =
                   "inline-flex h-11 w-full items-center justify-center rounded-full border px-4 text-center text-sm font-semibold sm:h-12 sm:px-5 sm:text-base";
+                const parsedSourceButtonHref = parsePreviewHref(
+                  embedPost.sourceButtonUrl || embedPost.sourceUrl,
+                );
+                const checklistItems: Array<{
+                  key: keyof XActivityChecklistState;
+                  label: string;
+                  visible: boolean;
+                }> = [
+                  {
+                    key: "followed",
+                    label: embedPost.checklistItem1Label || "Followed",
+                    visible: embedPost.showChecklistItem1,
+                  },
+                  {
+                    key: "reposted",
+                    label: embedPost.checklistItem2Label || "Reposted",
+                    visible: embedPost.showChecklistItem2,
+                  },
+                  {
+                    key: "commented",
+                    label: embedPost.checklistItem3Label || "Commented",
+                    visible: embedPost.showChecklistItem3,
+                  },
+                ];
+
+                const renderEmbedSourceButton = () => {
+                  if (!embedPost.showSourceButton) {
+                    return null;
+                  }
+                  const label = embedPost.sourceButtonLabel || t("embed_post_action_view_on_platform");
+                  if (!embedPost.sourceButtonEnabled) {
+                    return (
+                      <button
+                        type="button"
+                        className={`${embedActionClass} cursor-not-allowed border-white/30 opacity-65`}
+                        disabled
+                      >
+                        {label}
+                      </button>
+                    );
+                  }
+                  if (!parsedSourceButtonHref.href || parsedSourceButtonHref.kind === "invalid") {
+                    return (
+                      <span className={`${embedActionClass} border-white/30 opacity-65`}>
+                        {label}
+                      </span>
+                    );
+                  }
+                  if (parsedSourceButtonHref.kind === "internal") {
+                    return (
+                      <Link
+                        href={parsedSourceButtonHref.href}
+                        className={`${embedActionClass} border-white/30`}
+                        onClick={() => onPublicLinkClick?.(link.id, "cta")}
+                      >
+                        {label}
+                      </Link>
+                    );
+                  }
+                  return (
+                    <a
+                      href={parsedSourceButtonHref.href}
+                      {...getExternalAnchorTargetProps(
+                        parsedSourceButtonHref,
+                        embedPost.sourceButtonOpenInNewTab,
+                      )}
+                      className={`${embedActionClass} border-white/30`}
+                      onClick={() => onPublicLinkClick?.(link.id, "cta")}
+                    >
+                      {label}
+                    </a>
+                  );
+                };
 
                 const renderEmbedCta = () => {
+                  if (!embedPost.showCtaButton) {
+                    return null;
+                  }
+                  const label = embedPost.ctaButtonLabel || t("embed_post_action_view_on_platform");
+                  if (!embedPost.ctaButtonEnabled) {
+                    return (
+                      <button
+                        type="button"
+                        className={`${embedActionClass} cursor-not-allowed border-white/30 opacity-65`}
+                        disabled
+                      >
+                        {label}
+                      </button>
+                    );
+                  }
                   if (!parsedCtaHref.href || parsedCtaHref.kind === "invalid") {
                     return (
                       <span className={`${embedActionClass} border-white/30 opacity-65`}>
-                        {t("preview_disabled_cta")}
+                        {label}
                       </span>
                     );
                   }
@@ -1460,7 +1517,7 @@ export const MobilePreview = ({
                         className={`${embedActionClass} border-white/35`}
                         onClick={() => onPublicLinkClick?.(link.id, "cta")}
                       >
-                        {embedPost.ctaButtonLabel || t("embed_post_action_view_on_platform")}
+                        {label}
                       </Link>
                     );
                   }
@@ -1468,11 +1525,11 @@ export const MobilePreview = ({
                   return (
                     <a
                       href={parsedCtaHref.href}
-                      {...getExternalAnchorTargetProps(parsedCtaHref)}
+                      {...getExternalAnchorTargetProps(parsedCtaHref, embedPost.ctaButtonOpenInNewTab)}
                       className={`${embedActionClass} border-white/35`}
                       onClick={() => onPublicLinkClick?.(link.id, "cta")}
                     >
-                      {embedPost.ctaButtonLabel || t("embed_post_action_view_on_platform")}
+                      {label}
                     </a>
                   );
                 };
@@ -1518,10 +1575,14 @@ export const MobilePreview = ({
                           onClick={(event) => event.stopPropagation()}
                         >
                           <div className="mb-2 flex items-start justify-between gap-2 sm:mb-3 sm:gap-3">
-                            <h3 className="text-base font-bold leading-tight sm:text-xl md:text-2xl">
-                              {embedPost.modalTitle || embedPost.cardTitle}
-                            </h3>
-                            {embedPost.dismissible ? (
+                            {embedPost.showModalTitle ? (
+                              <h3 className="text-base font-bold leading-tight sm:text-xl md:text-2xl">
+                                {embedPost.modalTitle || embedPost.cardTitle}
+                              </h3>
+                            ) : (
+                              <span />
+                            )}
+                            {embedPost.dismissible && embedPost.showTopRightDismissButton ? (
                               <button
                                 type="button"
                                 className="rounded-md border border-white/25 p-1"
@@ -1574,22 +1635,23 @@ export const MobilePreview = ({
                             </div>
                           </div>
 
-                          {embedPost.description ? (
+                          {embedPost.showDescription && embedPost.description ? (
                             <p className="px-1 py-3 text-sm text-zinc-200 sm:px-5 sm:py-4 sm:text-base">
                               {embedPost.description}
                             </p>
                           ) : null}
                           {isXProvider ? (
                             <>
-                              <div className="mt-3 rounded-lg border border-white/15 bg-white/5 p-3 text-xs text-zinc-200 sm:mt-4">
-                                <p className="mb-2 font-medium">Activity checklist (local confirmation only)</p>
-                                {(
-                                  [
-                                    ["followed", "Followed"],
-                                    ["reposted", "Reposted"],
-                                    ["commented", "Commented"],
-                                  ] as Array<[keyof XActivityChecklistState, string]>
-                                ).map(([activityKey, label]) => {
+                              {embedPost.showChecklist && checklistItems.some((item) => item.visible) ? (
+                                <div className="mt-3 rounded-lg border border-white/15 bg-white/5 p-3 text-xs text-zinc-200 sm:mt-4">
+                                  <p className="mb-2 font-medium">
+                                    {embedPost.checklistTitle || "Activity checklist (local confirmation only)"}
+                                  </p>
+                                  {checklistItems.map(({ key: activityKey, label, visible }) => {
+                                    if (!visible) {
+                                      return null;
+                                    }
+
                                   const currentState = xActivityChecklistByLink[link.id] ?? {
                                     followed: false,
                                     reposted: false,
@@ -1618,66 +1680,32 @@ export const MobilePreview = ({
                                     </label>
                                   );
                                 })}
-                              </div>
+                                </div>
+                              ) : null}
                               <div className="mt-3 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:mt-4 sm:grid-cols-2">
-                                {parsedXSourceHref.kind === "external" && parsedXSourceHref.href ? (
-                                  <a
-                                    href={parsedXSourceHref.href}
-                                    {...getExternalAnchorTargetProps(parsedXSourceHref)}
-                                    className={`${embedActionClass} border-white/30`}
-                                    onClick={() => onPublicLinkClick?.(link.id, "cta")}
-                                  >
-                                    Open on X
-                                  </a>
-                                ) : (
-                                  <span className={`${embedActionClass} border-white/30 opacity-65`}>
-                                    Open on X
-                                  </span>
-                                )}
-                                {parsedCtaHref.kind === "internal" && parsedCtaHref.href ? (
-                                  <Link
-                                    href={parsedCtaHref.href}
-                                    className={`${embedActionClass} border-white/35`}
-                                    onClick={() => onPublicLinkClick?.(link.id, "cta")}
-                                  >
-                                    {embedPost.ctaButtonLabel || "Continue / Open source"}
-                                  </Link>
-                                ) : parsedCtaHref.kind === "external" && parsedCtaHref.href ? (
-                                  <a
-                                    href={parsedCtaHref.href}
-                                    {...getExternalAnchorTargetProps(parsedCtaHref)}
-                                    className={`${embedActionClass} border-white/35`}
-                                    onClick={() => onPublicLinkClick?.(link.id, "cta")}
-                                  >
-                                    {embedPost.ctaButtonLabel || "Continue / Open source"}
-                                  </a>
-                                ) : (
+                                {renderEmbedSourceButton()}
+                                {renderEmbedCta()}
+                                {embedPost.showCloseButton ? (
                                   <button
                                     type="button"
-                                    className={`${embedActionClass} cursor-not-allowed border-white/30 opacity-65`}
-                                    disabled
+                                    className={`${embedActionClass} border-white/30 sm:col-span-2`}
+                                    onClick={() => {
+                                      if (embedPost.dismissible && embedPost.closeButtonEnabled) {
+                                        setActiveEmbedId(null);
+                                        setActiveExternalFormId(null);
+                                      }
+                                    }}
+                                    disabled={!embedPost.dismissible || !embedPost.closeButtonEnabled}
                                   >
-                                    {embedPost.ctaButtonLabel || "Continue / Open source"}
+                                    {embedPost.closeButtonLabel || t("embed_post_action_close")}
                                   </button>
-                                )}
-                                <button
-                                  type="button"
-                                  className={`${embedActionClass} border-white/30 sm:col-span-2`}
-                                  onClick={() => {
-                                    if (embedPost.dismissible) {
-                                      setActiveEmbedId(null);
-                                      setActiveExternalFormId(null);
-                                    }
-                                  }}
-                                  disabled={!embedPost.dismissible}
-                                >
-                                  Close
-                                </button>
+                                ) : null}
                               </div>
                             </>
                           ) : (
                             <>
                               <div className="mt-3 grid grid-cols-1 gap-2 sm:mx-5 sm:mb-5 sm:mt-4 sm:grid-cols-2">
+                                {renderEmbedSourceButton()}
                                 <button
                                   type="button"
                                   className={`${embedActionClass} border-white/30`}
@@ -1706,17 +1734,22 @@ export const MobilePreview = ({
                                   {t("embed_post_action_copy_link")}
                                 </button>
                                 {renderEmbedCta()}
-                                {embedPost.dismissible ? (
+                                {embedPost.dismissible && embedPost.showCloseButton ? (
                                   <button
                                     type="button"
                                     className={`${embedActionClass} border-white/30 sm:col-span-2`}
-                                    onClick={() => setActiveEmbedId(null)}
+                                    onClick={() => {
+                                      if (embedPost.closeButtonEnabled) {
+                                        setActiveEmbedId(null);
+                                      }
+                                    }}
+                                    disabled={!embedPost.closeButtonEnabled}
                                   >
-                                    {t("embed_post_action_close")}
+                                    {embedPost.closeButtonLabel || t("embed_post_action_close")}
                                   </button>
                                 ) : null}
                               </div>
-                              {parsedCtaHref.kind === "invalid" ? (
+                              {embedPost.showCtaButton && embedPost.ctaButtonEnabled && parsedCtaHref.kind === "invalid" ? (
                                 <p className="mt-2 text-[11px] text-amber-300">{t("embed_post_validation_cta_invalid")}</p>
                               ) : null}
                               <p className="mt-2 text-[11px] text-zinc-300">
@@ -1728,7 +1761,7 @@ export const MobilePreview = ({
                               </p>
                             </>
                           )}
-                          {isXProvider && parsedCtaHref.kind === "invalid" ? (
+                          {isXProvider && embedPost.showCtaButton && embedPost.ctaButtonEnabled && parsedCtaHref.kind === "invalid" ? (
                             <p className="mt-2 text-[11px] text-amber-300">{t("embed_post_validation_cta_invalid")}</p>
                           ) : null}
                           </div>
