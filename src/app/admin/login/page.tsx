@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/i18n/use-i18n";
 
 const resolveNextPath = (candidate: string | null): string => {
   if (!candidate || !candidate.startsWith("/admin")) {
@@ -14,6 +15,7 @@ const resolveNextPath = (candidate: string | null): string => {
 };
 
 export default function AdminLoginPage() {
+  const { t } = useI18n();
   const [nextPath, setNextPath] = useState("/admin");
 
   const [password, setPassword] = useState("");
@@ -40,13 +42,13 @@ export default function AdminLoginPage() {
       });
 
       if (!response.ok) {
-        setErrorMessage("รหัสผ่านไม่ถูกต้อง");
+        setErrorMessage(t("admin_login_error_invalid"));
         return;
       }
 
       window.location.href = nextPath;
     } catch {
-      setErrorMessage("เข้าสู่ระบบไม่สำเร็จ");
+      setErrorMessage(t("admin_login_error_failed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -55,11 +57,11 @@ export default function AdminLoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] p-4">
       <section className="w-full max-w-sm rounded-2xl border border-border/70 bg-background p-5 shadow-sm">
-        <h1 className="text-xl font-semibold">Admin Login</h1>
-        <p className="mt-1 text-sm text-muted-foreground">กรอกรหัสผ่านเพื่อเข้า /admin</p>
+        <h1 className="text-xl font-semibold">{t("admin_login_title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("admin_login_subtitle")}</p>
         <form className="mt-5 space-y-3" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="admin-password">Password</Label>
+            <Label htmlFor="admin-password">{t("admin_login_password")}</Label>
             <Input
               id="admin-password"
               type="password"
@@ -73,7 +75,7 @@ export default function AdminLoginPage() {
             <p className="text-xs text-destructive">{errorMessage}</p>
           ) : null}
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Signing in..." : "Login"}
+            {isSubmitting ? t("admin_login_submitting") : t("admin_login_submit")}
           </Button>
         </form>
       </section>

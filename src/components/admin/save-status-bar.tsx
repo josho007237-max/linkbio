@@ -106,7 +106,7 @@ export const SaveStatusBar = ({
           </Button>
           {onLogout ? (
             <Button variant="outline" onClick={onLogout}>
-              Logout
+              {t("admin_logout")}
             </Button>
           ) : null}
         </div>
