@@ -4,6 +4,7 @@ import {
   ContentType,
   DiscountCodeData,
   EmbedPostData,
+  ExternalFormBlock,
   FormBlock,
   FormField,
   FormTemplate,
@@ -378,6 +379,32 @@ export const createEmptyPromoGallery = (): BioLink => ({
   },
 });
 
+export const createEmptyExternalForm = (): BioLink => ({
+  id: createId("external-form"),
+  contentType: "external_form",
+  title: "External Form",
+  url: "https://docs.google.com/forms/",
+  description: "Open external form.",
+  enabled: true,
+  externalForm: {
+    type: "external_form",
+    title: "External Form",
+    description: "",
+    formUrl: "https://docs.google.com/forms/",
+    openMode: "new_tab",
+    embedHtml: "",
+    ctaLabel: "Open form",
+    closeLabel: "Close",
+    enabled: true,
+    showOpenInBrowserButton: false,
+  },
+  settings: {
+    prioritize: false,
+    locked: false,
+    ...DEFAULT_LINK_SETTINGS_STYLE,
+  },
+});
+
 export const getContentType = (item: BioLink): ContentType =>
   item.contentType === "discount"
     ? "discount"
@@ -387,6 +414,8 @@ export const getContentType = (item: BioLink): ContentType =>
         ? "form"
       : item.contentType === "promo_gallery"
         ? "promo_gallery"
+      : item.contentType === "external_form"
+        ? "external_form"
         : "link";
 
 export const getDiscountData = (link: BioLink): DiscountCodeData => {
@@ -504,6 +533,19 @@ export const getPromoGalleryData = (link: BioLink): PromoGalleryBlock => ({
       openInNewTab: item.openInNewTab ?? true,
       active: item.active ?? true,
     })),
+});
+
+export const getExternalFormData = (link: BioLink): ExternalFormBlock => ({
+  type: "external_form",
+  title: link.externalForm?.title ?? link.title,
+  description: link.externalForm?.description ?? link.description ?? "",
+  formUrl: link.externalForm?.formUrl ?? link.url,
+  openMode: link.externalForm?.openMode ?? "new_tab",
+  embedHtml: link.externalForm?.embedHtml ?? "",
+  ctaLabel: link.externalForm?.ctaLabel ?? "Open form",
+  closeLabel: link.externalForm?.closeLabel ?? "Close",
+  enabled: link.externalForm?.enabled ?? link.enabled,
+  showOpenInBrowserButton: link.externalForm?.showOpenInBrowserButton ?? false,
 });
 
 export const getPreOpenModalData = (item: {
@@ -628,6 +670,23 @@ export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
       title: promoGallery.title ?? link.title,
       description: promoGallery.description ?? link.description ?? "",
       promoGallery,
+      settings: {
+        ...link.settings,
+        ...getLinkDisplaySettings(link),
+      },
+    };
+  }).map((link) => {
+    if (getContentType(link) !== "external_form") {
+      return link;
+    }
+
+    const externalForm = getExternalFormData(link);
+    return {
+      ...link,
+      title: externalForm.title ?? link.title,
+      url: externalForm.formUrl ?? link.url,
+      description: externalForm.description ?? link.description ?? "",
+      externalForm,
       settings: {
         ...link.settings,
         ...getLinkDisplaySettings(link),

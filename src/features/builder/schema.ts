@@ -163,7 +163,7 @@ export const socialSchema = z.object({
 
 export const linkSchema = z
   .object({
-    contentType: z.enum(["link", "discount", "embed_post", "form", "promo_gallery"]),
+    contentType: z.enum(["link", "discount", "embed_post", "form", "promo_gallery", "external_form"]),
     title: z.string().trim().optional(),
     url: z.string().trim().optional(),
     description: z.string().trim().optional(),
@@ -247,6 +247,17 @@ export const linkSchema = z
         }),
       )
       .optional(),
+    externalFormTitle: z.string().trim().optional(),
+    externalFormDescription: z.string().trim().optional(),
+    externalFormUrl: optionalUrlOrLocalPathSchema(
+      "External form URL must be a valid URL or local placeholder path.",
+    ),
+    externalFormOpenMode: z.enum(["new_tab", "modal", "embed"]).optional(),
+    externalFormEmbedHtml: z.string().trim().optional(),
+    externalFormCtaLabel: z.string().trim().optional(),
+    externalFormCloseLabel: z.string().trim().optional(),
+    externalFormEnabled: z.boolean().optional(),
+    externalFormShowOpenInBrowserButton: z.boolean().optional(),
     preOpenEnabled: z.boolean().optional(),
     preOpenBannerImageUrl: optionalUrlOrLocalPathSchema(
       "Banner image must be a valid URL or local placeholder path.",
@@ -632,7 +643,7 @@ export const builderDataSchema = z.object({
   links: z.array(
     z.object({
       id: z.string().min(1),
-      contentType: z.enum(["link", "discount", "embed_post", "form", "promo_gallery"]).default("link"),
+      contentType: z.enum(["link", "discount", "embed_post", "form", "promo_gallery", "external_form"]).default("link"),
       title: persistedStringSchema.default("Untitled"),
       url: persistedUrlStringSchema.default(""),
       description: persistedStringSchema.optional(),
@@ -765,6 +776,20 @@ export const builderDataSchema = z.object({
               }),
             )
             .optional(),
+        })
+        .optional(),
+      externalForm: z
+        .object({
+          type: z.literal("external_form").optional(),
+          title: persistedStringSchema.optional(),
+          description: persistedStringSchema.optional(),
+          formUrl: persistedUrlStringSchema.optional(),
+          openMode: z.enum(["new_tab", "modal", "embed"]).optional(),
+          embedHtml: persistedStringSchema.optional(),
+          ctaLabel: persistedStringSchema.optional(),
+          closeLabel: persistedStringSchema.optional(),
+          enabled: z.boolean().optional(),
+          showOpenInBrowserButton: z.boolean().optional(),
         })
         .optional(),
       preOpenModal: persistedPreOpenModalSchema.optional(),

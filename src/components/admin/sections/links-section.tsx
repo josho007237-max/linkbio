@@ -57,12 +57,14 @@ import { BioLink, FormTemplate } from "@/features/builder/types";
 import {
   createEmptyDiscountCode,
   createEmptyEmbedPost,
+  createEmptyExternalForm,
   createEmptyFormBlock,
   createEmptyLink,
   createEmptyPromoGallery,
   getContentType,
   getDiscountData,
   getEmbedPostData,
+  getExternalFormData,
   getFormData,
   getPromoGalleryData,
   getFormTemplateFields,
@@ -83,6 +85,7 @@ type SortableLinkItemProps = {
     embedType: string;
     formType: string;
     promoGalleryType: string;
+    externalFormType: string;
     formSupportDepositType: string;
     formSupportWithdrawType: string;
     layoutClassic: string;
@@ -110,10 +113,12 @@ const LinkItemContent = ({
   const isEmbedPost = getContentType(link) === "embed_post";
   const isForm = getContentType(link) === "form";
   const isPromoGallery = getContentType(link) === "promo_gallery";
+  const isExternalForm = getContentType(link) === "external_form";
   const discount = isDiscount ? getDiscountData(link) : null;
   const embedPost = isEmbedPost ? getEmbedPostData(link) : null;
   const form = isForm ? getFormData(link) : null;
   const promoGallery = isPromoGallery ? getPromoGalleryData(link) : null;
+  const externalForm = isExternalForm ? getExternalFormData(link) : null;
   const formTypeLabel =
     form?.template === "deposit_issue"
       ? labels.formSupportDepositType
@@ -128,6 +133,8 @@ const LinkItemContent = ({
         ? form?.formTitle || link.title
       : isPromoGallery
         ? promoGallery?.title || link.title
+      : isExternalForm
+        ? externalForm?.title || link.title
       : link.title;
   const displayUrl = isDiscount
     ? discount?.destinationUrl || link.url
@@ -137,8 +144,13 @@ const LinkItemContent = ({
         ? link.url
       : isPromoGallery
         ? ""
+      : isExternalForm
+        ? externalForm?.formUrl || link.url
       : link.url;
-  const isInvalidUrl = !isPromoGallery && !linkSchema.shape.url.safeParse(displayUrl).success;
+  const isInvalidUrl =
+    !isPromoGallery &&
+    !isExternalForm &&
+    !linkSchema.shape.url.safeParse(displayUrl).success;
 
   return (
     <div className="space-y-2 rounded-xl border p-3">
@@ -146,10 +158,12 @@ const LinkItemContent = ({
         {dragHandle}
         <div>
           <p className="text-sm font-semibold">{displayTitle}</p>
-          {isDiscount || isEmbedPost || isForm || isPromoGallery ? (
+          {isDiscount || isEmbedPost || isForm || isPromoGallery || isExternalForm ? (
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-amber-700">
               {isPromoGallery
                 ? labels.promoGalleryType
+                : isExternalForm
+                  ? labels.externalFormType
                 : isDiscount
                   ? labels.discountType
                   : isEmbedPost
@@ -323,6 +337,15 @@ export const LinksSection = () => {
       promoTitle: "",
       promoDescription: "",
       promoItems: [],
+      externalFormTitle: "",
+      externalFormDescription: "",
+      externalFormUrl: "",
+      externalFormOpenMode: "new_tab",
+      externalFormEmbedHtml: "",
+      externalFormCtaLabel: "",
+      externalFormCloseLabel: "",
+      externalFormEnabled: true,
+      externalFormShowOpenInBrowserButton: false,
       preOpenEnabled: false,
       preOpenBannerImageUrl: "",
       preOpenTitle: "",
@@ -389,6 +412,12 @@ export const LinksSection = () => {
   const editPreserveLineBreaks = useWatch({ control: editForm.control, name: "preserveLineBreaks" });
   const editFormFields = useWatch({ control: editForm.control, name: "formFields" }) ?? [];
   const editPromoItems = useWatch({ control: editForm.control, name: "promoItems" }) ?? [];
+  const editExternalFormEnabled = useWatch({ control: editForm.control, name: "externalFormEnabled" });
+  const editExternalFormOpenMode = useWatch({ control: editForm.control, name: "externalFormOpenMode" });
+  const editExternalFormShowOpenInBrowserButton = useWatch({
+    control: editForm.control,
+    name: "externalFormShowOpenInBrowserButton",
+  });
   const prioritize = useWatch({ control: settingsForm.control, name: "prioritize" });
   const locked = useWatch({ control: settingsForm.control, name: "locked" });
   const editUrlError = editForm.formState.errors.url?.message;
@@ -473,6 +502,7 @@ export const LinksSection = () => {
       embedType: t("links_type_embed_post"),
       formType: t("links_type_form"),
       promoGalleryType: t("links_type_promo_gallery"),
+      externalFormType: t("links_type_external_form"),
       formSupportDepositType: t("links_type_form_support_deposit"),
       formSupportWithdrawType: t("links_type_form_support_withdraw"),
       layoutClassic: t("links_layout_classic"),
@@ -490,10 +520,12 @@ export const LinksSection = () => {
     const embedPost = getEmbedPostData(link);
     const form = getFormData(link);
     const promoGallery = getPromoGalleryData(link);
+    const externalForm = getExternalFormData(link);
     const isDiscount = getContentType(link) === "discount";
     const isEmbedPost = getContentType(link) === "embed_post";
     const isForm = getContentType(link) === "form";
     const isPromoGallery = getContentType(link) === "promo_gallery";
+    const isExternalForm = getContentType(link) === "external_form";
     editForm.reset({
       contentType: getContentType(link),
       title: isDiscount
@@ -504,8 +536,18 @@ export const LinksSection = () => {
             ? form.formTitle
             : isPromoGallery
               ? promoGallery.title ?? link.title
+            : isExternalForm
+              ? externalForm.title ?? link.title
               : link.title,
-      url: isDiscount ? discount.destinationUrl : isEmbedPost ? embedPost.ctaUrl : isPromoGallery ? "" : link.url,
+      url: isDiscount
+        ? discount.destinationUrl
+        : isEmbedPost
+          ? embedPost.ctaUrl
+          : isPromoGallery
+            ? ""
+            : isExternalForm
+              ? externalForm.formUrl ?? link.url
+              : link.url,
       description: isDiscount
         ? discount.modalDescription
         : isEmbedPost
@@ -514,6 +556,8 @@ export const LinksSection = () => {
             ? form.intro
           : isPromoGallery
             ? promoGallery.description ?? ""
+          : isExternalForm
+            ? externalForm.description ?? ""
           : link.description ?? "",
       enabled: link.enabled,
       cardTitle: discount.cardTitle,
@@ -566,6 +610,15 @@ export const LinksSection = () => {
         openInNewTab: item.openInNewTab ?? true,
         active: item.active ?? true,
       })),
+      externalFormTitle: externalForm.title ?? "",
+      externalFormDescription: externalForm.description ?? "",
+      externalFormUrl: externalForm.formUrl ?? "",
+      externalFormOpenMode: externalForm.openMode ?? "new_tab",
+      externalFormEmbedHtml: externalForm.embedHtml ?? "",
+      externalFormCtaLabel: externalForm.ctaLabel ?? "",
+      externalFormCloseLabel: externalForm.closeLabel ?? "",
+      externalFormEnabled: externalForm.enabled ?? link.enabled,
+      externalFormShowOpenInBrowserButton: externalForm.showOpenInBrowserButton ?? false,
       preOpenEnabled: link.preOpenModal?.enabled ?? false,
       preOpenBannerImageUrl: link.preOpenModal?.bannerImageUrl ?? "",
       preOpenTitle: link.preOpenModal?.title ?? "",
@@ -630,6 +683,8 @@ export const LinksSection = () => {
               ? values.formTitle ?? ""
             : values.contentType === "promo_gallery"
               ? values.promoTitle ?? ""
+            : values.contentType === "external_form"
+              ? values.externalFormTitle ?? ""
             : values.title ?? "",
       url:
         values.contentType === "discount"
@@ -640,6 +695,8 @@ export const LinksSection = () => {
               ? values.url || "https://example.com/form"
             : values.contentType === "promo_gallery"
               ? ""
+            : values.contentType === "external_form"
+              ? values.externalFormUrl ?? ""
             : values.url ?? "",
       description:
         values.contentType === "discount"
@@ -650,8 +707,13 @@ export const LinksSection = () => {
               ? values.formIntro
             : values.contentType === "promo_gallery"
               ? values.promoDescription ?? ""
+            : values.contentType === "external_form"
+              ? values.externalFormDescription ?? ""
             : values.description ?? "",
-      enabled: values.enabled,
+      enabled:
+        values.contentType === "external_form"
+          ? values.externalFormEnabled ?? values.enabled
+          : values.enabled,
       discount:
         values.contentType === "discount"
           ? {
@@ -742,6 +804,21 @@ export const LinksSection = () => {
               })),
             }
           : undefined,
+      externalForm:
+        values.contentType === "external_form"
+          ? {
+              type: "external_form",
+              title: values.externalFormTitle ?? "",
+              description: values.externalFormDescription ?? "",
+              formUrl: values.externalFormUrl ?? "",
+              openMode: values.externalFormOpenMode ?? "new_tab",
+              embedHtml: values.externalFormEmbedHtml ?? "",
+              ctaLabel: values.externalFormCtaLabel ?? "",
+              closeLabel: values.externalFormCloseLabel ?? "",
+              enabled: values.externalFormEnabled ?? values.enabled ?? true,
+              showOpenInBrowserButton: values.externalFormShowOpenInBrowserButton ?? false,
+            }
+          : undefined,
       preOpenModal: {
         enabled: values.preOpenEnabled ?? false,
         bannerImageUrl: values.preOpenBannerImageUrl ?? "",
@@ -794,6 +871,11 @@ export const LinksSection = () => {
       const firstImage = (values.promoItems ?? []).find((item) => (item.imageUrl ?? "").trim())?.imageUrl;
       updateLinkSettings(editId, {
         thumbnailUrl: firstImage || undefined,
+      });
+    }
+    if (values.contentType === "external_form") {
+      updateLinkSettings(editId, {
+        thumbnailUrl: undefined,
       });
     }
     setEditId(null);
@@ -982,7 +1064,9 @@ export const LinksSection = () => {
     reorderLinks(String(active.id), String(over.id));
   };
 
-  const handleAddType = (type: "link" | "discount" | "embed_post" | "form" | "promo_gallery") => {
+  const handleAddType = (
+    type: "link" | "discount" | "embed_post" | "form" | "promo_gallery" | "external_form",
+  ) => {
     if (type === "form") {
       setAddPickerStep("form_templates");
       return;
@@ -993,6 +1077,8 @@ export const LinksSection = () => {
       addLink(createEmptyDiscountCode());
     } else if (type === "promo_gallery") {
       addLink(createEmptyPromoGallery());
+    } else if (type === "external_form") {
+      addLink(createEmptyExternalForm());
     } else {
       addLink(createEmptyEmbedPost());
     }
@@ -1041,6 +1127,9 @@ export const LinksSection = () => {
                 </Button>
                 <Button type="button" variant="outline" onClick={() => handleAddType("promo_gallery")}>
                   {t("links_add_type_promo_gallery")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddType("external_form")}>
+                  {t("links_add_type_external_form")}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => handleAddType("form")}>
                   {t("links_add_type_form")}
@@ -1143,7 +1232,7 @@ export const LinksSection = () => {
               onSubmit={saveEdit}
               className="space-y-4 overflow-x-hidden px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             >
-              {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "promo_gallery" || editContentType === "link" ? (
+              {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "promo_gallery" || editContentType === "external_form" || editContentType === "link" ? (
                 <div className="inline-flex rounded-md border bg-muted/35 p-1 text-xs">
                   <button
                     type="button"
@@ -1159,6 +1248,8 @@ export const LinksSection = () => {
                         ? t("form_tabs_settings")
                         : editContentType === "promo_gallery"
                           ? t("promo_gallery_tabs_settings")
+                          : editContentType === "external_form"
+                            ? t("external_form_tabs_settings")
                         : t("links_tab_link_settings")}
                   </button>
                   <button
@@ -1175,6 +1266,8 @@ export const LinksSection = () => {
                         ? t("form_tabs_layout")
                         : editContentType === "promo_gallery"
                           ? t("promo_gallery_tabs_layout")
+                          : editContentType === "external_form"
+                            ? t("external_form_tabs_layout")
                         : t("links_tab_layout")}
                   </button>
                 </div>
@@ -1190,6 +1283,10 @@ export const LinksSection = () => {
               ) : editContentType === "promo_gallery" ? (
                 <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                   {t("promo_gallery_helper_block")}
+                </p>
+              ) : editContentType === "external_form" ? (
+                <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {t("external_form_helper_block")}
                 </p>
               ) : null}
 
@@ -1697,6 +1794,84 @@ export const LinksSection = () => {
                         {t("links_enabled")}
                       </label>
                     </>
+                  ) : editContentType === "external_form" ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>{t("external_form_title_label")}</Label>
+                        <Input {...editForm.register("externalFormTitle")} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("external_form_description_label")}</Label>
+                        <textarea
+                          className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                          {...editForm.register("externalFormDescription")}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("external_form_url_label")}</Label>
+                        <Input
+                          type="url"
+                          placeholder="https://docs.google.com/forms/..."
+                          {...editForm.register("externalFormUrl")}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("external_form_open_mode_label")}</Label>
+                        <select
+                          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                          {...editForm.register("externalFormOpenMode")}
+                        >
+                          <option value="new_tab">{t("external_form_open_mode_new_tab")}</option>
+                          <option value="modal">{t("external_form_open_mode_modal")}</option>
+                          <option value="embed">{t("external_form_open_mode_embed")}</option>
+                        </select>
+                      </div>
+                      {editExternalFormOpenMode === "modal" || editExternalFormOpenMode === "embed" ? (
+                        <div className="space-y-2">
+                          <Label>{t("external_form_embed_html_label")}</Label>
+                          <textarea
+                            className="min-h-[120px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                            {...editForm.register("externalFormEmbedHtml")}
+                          />
+                        </div>
+                      ) : null}
+                      <div className="space-y-2">
+                        <Label>{t("external_form_cta_label")}</Label>
+                        <Input {...editForm.register("externalFormCtaLabel")} />
+                      </div>
+                      {editExternalFormOpenMode === "modal" || editExternalFormOpenMode === "embed" ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label>{t("external_form_close_label")}</Label>
+                            <Input {...editForm.register("externalFormCloseLabel")} />
+                          </div>
+                          <label className="flex items-center gap-2 text-sm">
+                            <Switch
+                              checked={Boolean(editExternalFormShowOpenInBrowserButton)}
+                              onCheckedChange={(v) =>
+                                editForm.setValue("externalFormShowOpenInBrowserButton", v, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            />
+                            {t("external_form_show_open_in_browser_button")}
+                          </label>
+                        </>
+                      ) : null}
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch
+                          checked={Boolean(editExternalFormEnabled)}
+                          onCheckedChange={(v) =>
+                            editForm.setValue("externalFormEnabled", v, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                        />
+                        {t("links_enabled")}
+                      </label>
+                    </>
                   ) : (
                     <>
                       <div className="space-y-2">
@@ -1820,7 +1995,7 @@ export const LinksSection = () => {
                 </>
               ) : null}
 
-              {(editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "promo_gallery" || editContentType === "link") && editTab === "layout" ? (
+              {(editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "promo_gallery" || editContentType === "external_form" || editContentType === "link") && editTab === "layout" ? (
                 <>
                   <div className="space-y-2">
                     <Label>{t("links_display_style")}</Label>
@@ -1942,7 +2117,7 @@ export const LinksSection = () => {
                     />
                     {t("links_style_open_in_new_tab")}
                   </label>
-                  {editContentType !== "link" && editContentType !== "promo_gallery" ? (
+                  {editContentType !== "link" && editContentType !== "promo_gallery" && editContentType !== "external_form" ? (
                     <div className="space-y-2">
                       <Label>
                         {editContentType === "embed_post"

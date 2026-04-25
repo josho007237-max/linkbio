@@ -19,6 +19,7 @@ import {
   getContentType,
   getDiscountData,
   getEmbedPostData,
+  getExternalFormData,
   getFormData,
   getLinkDisplaySettings,
   getPromoGalleryData,
@@ -477,6 +478,9 @@ export const MobilePreview = ({
   const [activeDiscountId, setActiveDiscountId] = useState<string | null>(null);
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const [activeFormId, setActiveFormId] = useState<string | null>(null);
+  const [activeExternalFormId, setActiveExternalFormId] = useState<string | null>(null);
+  const [externalFormInlineClosedByLink, setExternalFormInlineClosedByLink] = useState<Record<string, boolean>>({});
+  const [externalFormEmbedFailedByLink, setExternalFormEmbedFailedByLink] = useState<Record<string, boolean>>({});
   const [activePromoModal, setActivePromoModal] = useState<{ linkId: string; index: number } | null>(null);
   const [promoCarouselIndexByLink, setPromoCarouselIndexByLink] = useState<Record<string, number>>({});
   const promoCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -638,7 +642,14 @@ export const MobilePreview = ({
   }, [wallpaperRequestSrc]);
 
   useEffect(() => {
-    if (!activeDiscountId && !activeEmbedId && !activeFormId && !activePromoModal && !activePreOpenKey) {
+    if (
+      !activeDiscountId &&
+      !activeEmbedId &&
+      !activeFormId &&
+      !activeExternalFormId &&
+      !activePromoModal &&
+      !activePreOpenKey
+    ) {
       return;
     }
 
@@ -651,6 +662,7 @@ export const MobilePreview = ({
           setActiveEmbedId(null);
         }
         setActiveFormId(null);
+        setActiveExternalFormId(null);
         setActivePromoModal(null);
         setActivePreOpenKey(null);
       }
@@ -662,7 +674,15 @@ export const MobilePreview = ({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [activeDiscountId, activeEmbedDismissible, activeEmbedId, activeFormId, activePreOpenKey, activePromoModal]);
+  }, [
+    activeDiscountId,
+    activeEmbedDismissible,
+    activeEmbedId,
+    activeFormId,
+    activeExternalFormId,
+    activePreOpenKey,
+    activePromoModal,
+  ]);
 
   useEffect(() => {
     if (activeFormId) {
@@ -1029,10 +1049,12 @@ export const MobilePreview = ({
               const isDiscount = getContentType(link) === "discount";
               const isEmbedPost = getContentType(link) === "embed_post";
               const isForm = getContentType(link) === "form";
+              const isExternalForm = getContentType(link) === "external_form";
               const isPromoGallery = getContentType(link) === "promo_gallery";
               const discount = getDiscountData(link);
               const embedPost = getEmbedPostData(link);
               const form = getFormData(link);
+              const externalForm = getExternalFormData(link);
               const promoGallery = getPromoGalleryData(link);
               const lockBadge = link.settings.locked ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-black/20 bg-black/10 px-2 py-1 text-[10px]">
@@ -1254,6 +1276,7 @@ export const MobilePreview = ({
                       onClick={() => {
                         setActiveDiscountId(link.id);
                         setActiveEmbedId(null);
+                        setActiveExternalFormId(null);
                         setActivePromoModal(null);
                         setActivePreOpenKey(null);
                         if (discount.analyticsHooks?.trackModalOpen ?? true) {
@@ -1439,6 +1462,7 @@ export const MobilePreview = ({
                       onClick={() => {
                         setActiveEmbedId(link.id);
                         setActiveDiscountId(null);
+                        setActiveExternalFormId(null);
                         setActivePromoModal(null);
                         setActivePreOpenKey(null);
                         onPublicLinkClick?.(link.id, "modal_open");
@@ -1618,6 +1642,7 @@ export const MobilePreview = ({
                                   onClick={() => {
                                     if (embedPost.dismissible) {
                                       setActiveEmbedId(null);
+                                      setActiveExternalFormId(null);
                                     }
                                   }}
                                   disabled={!embedPost.dismissible}
@@ -1687,6 +1712,252 @@ export const MobilePreview = ({
                       </div>
                     ) : null}
                   </div>
+                );
+              }
+
+              if (isExternalForm) {
+                const formTitle = externalForm.title || link.title;
+                const formDescription = externalForm.description || link.description || "";
+                const formUrlParsed = parsePreviewHref(externalForm.formUrl ?? link.url);
+                const openMode = externalForm.openMode ?? "new_tab";
+                const ctaLabel = externalForm.ctaLabel?.trim() || t("external_form_open");
+                const closeLabel = externalForm.closeLabel?.trim() || t("embed_post_action_close");
+                const hasEmbedHtml = Boolean((externalForm.embedHtml ?? "").trim());
+                const showOpenInBrowserButton = Boolean(externalForm.showOpenInBrowserButton);
+                const canOpenFormUrl = Boolean(formUrlParsed.href && formUrlParsed.kind !== "invalid");
+                const externalFormContent = renderStyledButtonContent({
+                  title: formTitle,
+                  description: formDescription || ctaLabel,
+                  panelText:
+                    displaySettings.textPanelContent ||
+                    `${formTitle || ""}${formDescription ? `\n${formDescription}` : ""}`,
+                });
+                const openFormUrl = () => {
+                  if (!canOpenFormUrl || !formUrlParsed.href) {
+                    return;
+                  }
+                  onPublicLinkClick?.(link.id, "cta");
+                  if (formUrlParsed.kind === "internal") {
+                    window.location.assign(formUrlParsed.href);
+                    return;
+                  }
+                  if (isWebExternalHref(formUrlParsed)) {
+                    if (link.settings.openInNewTab ?? true) {
+                      window.open(formUrlParsed.href, "_blank", "noopener,noreferrer");
+                    } else {
+                      window.location.assign(formUrlParsed.href);
+                    }
+                    return;
+                  }
+                  window.location.assign(formUrlParsed.href);
+                };
+                const showInlineEmbed = !externalFormInlineClosedByLink[link.id];
+                const embedFailed = externalFormEmbedFailedByLink[link.id] === true;
+                const shouldUseEmbedHtml = hasEmbedHtml && !embedFailed;
+                const canFallbackToUrlIframe = canOpenFormUrl && Boolean(formUrlParsed.href);
+
+                if (openMode === "embed") {
+                  return (
+                    <div key={link.id} className="space-y-2 rounded-2xl border border-white/20 bg-black/20 p-3 sm:p-4">
+                      <div className="rounded-xl border border-white/15 bg-black/20 p-3">{externalFormContent}</div>
+                      {showInlineEmbed ? (
+                        <div className="overflow-hidden rounded-xl border border-white/15 bg-black/25">
+                          {shouldUseEmbedHtml ? (
+                            <iframe
+                              title={formTitle || "External form"}
+                              className="h-[560px] w-full border-0 bg-white"
+                              sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+                              srcDoc={`<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0">${externalForm.embedHtml ?? ""}</body></html>`}
+                              onError={() =>
+                                setExternalFormEmbedFailedByLink((current) => ({ ...current, [link.id]: true }))
+                              }
+                            />
+                          ) : canFallbackToUrlIframe ? (
+                            <iframe
+                              title={formTitle || "External form"}
+                              className="h-[560px] w-full border-0 bg-white"
+                              src={formUrlParsed.href ?? undefined}
+                              onError={() =>
+                                setExternalFormEmbedFailedByLink((current) => ({ ...current, [link.id]: true }))
+                              }
+                            />
+                          ) : (
+                            <div className="flex h-[220px] items-center justify-center px-4 text-center text-sm text-zinc-300">
+                              {t("external_form_embed_unavailable")}
+                            </div>
+                          )}
+                          <div className="grid grid-cols-1 gap-2 border-t border-white/15 p-3 sm:grid-cols-3">
+                            <button
+                              type="button"
+                              className="inline-flex w-full items-center justify-center rounded-full border border-white/30 px-4 py-2 text-sm font-semibold"
+                              onClick={openFormUrl}
+                              disabled={!canOpenFormUrl}
+                            >
+                              {ctaLabel}
+                            </button>
+                            {showOpenInBrowserButton ? (
+                              <button
+                                type="button"
+                                className="inline-flex w-full items-center justify-center rounded-full border border-white/30 px-4 py-2 text-sm font-semibold"
+                                onClick={openFormUrl}
+                                disabled={!canOpenFormUrl}
+                              >
+                                {t("external_form_open_in_browser")}
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="inline-flex w-full items-center justify-center rounded-full border border-white/25 px-4 py-2 text-sm font-semibold"
+                              onClick={() =>
+                                setExternalFormInlineClosedByLink((current) => ({ ...current, [link.id]: true }))
+                              }
+                            >
+                              {closeLabel}
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {!showInlineEmbed ? (
+                        <button
+                          type="button"
+                          className="inline-flex w-full items-center justify-center rounded-full border border-white/25 px-4 py-2 text-sm font-semibold"
+                          onClick={() =>
+                            setExternalFormInlineClosedByLink((current) => ({ ...current, [link.id]: false }))
+                          }
+                        >
+                          {ctaLabel}
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                }
+
+                if (openMode === "modal") {
+                  return (
+                    <div key={link.id}>
+                      <button
+                        type="button"
+                        className={className}
+                        style={style}
+                        onClick={() => {
+                          if (hasEmbedHtml && !embedFailed) {
+                            setActiveExternalFormId(link.id);
+                            setActiveDiscountId(null);
+                            setActiveEmbedId(null);
+                            setActiveFormId(null);
+                            setActivePromoModal(null);
+                            setActivePreOpenKey(null);
+                            onPublicLinkClick?.(link.id, "modal_open");
+                            return;
+                          }
+                          openFormUrl();
+                        }}
+                      >
+                        {externalFormContent}
+                      </button>
+                      {activeExternalFormId === link.id && hasEmbedHtml && !embedFailed ? (
+                        <div
+                          className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4"
+                          onClick={() => setActiveExternalFormId(null)}
+                        >
+                          <div
+                            className="mx-auto flex max-h-[88dvh] w-[calc(100%-16px)] max-w-[560px] flex-col overflow-hidden rounded-[28px] border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:w-[calc(100%-24px)] sm:p-5 md:p-6"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                              <h3 className="text-base font-bold leading-tight sm:text-xl md:text-2xl">
+                                {formTitle}
+                              </h3>
+                              <button
+                                type="button"
+                                className="rounded-md border border-white/25 p-1"
+                                onClick={() => setActiveExternalFormId(null)}
+                                aria-label={t("embed_post_action_close")}
+                              >
+                                <X className="size-4" />
+                              </button>
+                            </div>
+                            {formDescription ? (
+                              <p className="mb-3 text-sm text-zinc-200 sm:text-base">{formDescription}</p>
+                            ) : null}
+                            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-white/15 bg-black/25">
+                              <iframe
+                                title={formTitle || "External form"}
+                                className="h-[560px] w-full border-0 bg-white"
+                                sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
+                                srcDoc={`<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0">${externalForm.embedHtml ?? ""}</body></html>`}
+                                onError={() =>
+                                  setExternalFormEmbedFailedByLink((current) => ({ ...current, [link.id]: true }))
+                                }
+                              />
+                            </div>
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                              <button
+                                type="button"
+                                className="inline-flex w-full items-center justify-center rounded-full border border-white/30 px-4 py-2 text-sm font-semibold"
+                                onClick={openFormUrl}
+                                disabled={!canOpenFormUrl}
+                              >
+                                {ctaLabel}
+                              </button>
+                              {showOpenInBrowserButton ? (
+                                <button
+                                  type="button"
+                                  className="inline-flex w-full items-center justify-center rounded-full border border-white/30 px-4 py-2 text-sm font-semibold"
+                                  onClick={openFormUrl}
+                                  disabled={!canOpenFormUrl}
+                                >
+                                  {t("external_form_open_in_browser")}
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="inline-flex w-full items-center justify-center rounded-full border border-white/25 px-4 py-2 text-sm font-semibold"
+                                onClick={() => setActiveExternalFormId(null)}
+                              >
+                                {closeLabel}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }
+
+                if (!canOpenFormUrl || !formUrlParsed.href) {
+                  return (
+                    <div key={link.id} aria-disabled="true" className={cn(className, "cursor-not-allowed opacity-65")} style={style}>
+                      {externalFormContent}
+                    </div>
+                  );
+                }
+
+                if (formUrlParsed.kind === "internal") {
+                  return (
+                    <Link
+                      key={link.id}
+                      href={formUrlParsed.href}
+                      className={className}
+                      style={style}
+                      onClick={() => onPublicLinkClick?.(link.id, "cta")}
+                    >
+                      {externalFormContent}
+                    </Link>
+                  );
+                }
+
+                return (
+                  <a
+                    key={link.id}
+                    href={formUrlParsed.href}
+                    {...getExternalAnchorTargetProps(formUrlParsed, link.settings.openInNewTab ?? true)}
+                    className={className}
+                    style={style}
+                    onClick={() => onPublicLinkClick?.(link.id, "cta")}
+                  >
+                    {externalFormContent}
+                  </a>
                 );
               }
 
@@ -2089,6 +2360,7 @@ export const MobilePreview = ({
                         setActiveFormId(link.id);
                         setActiveDiscountId(null);
                         setActiveEmbedId(null);
+                        setActiveExternalFormId(null);
                         setActivePromoModal(null);
                         setActivePreOpenKey(null);
                         setFormValuesByLink((current) => ({
@@ -2716,6 +2988,7 @@ export const MobilePreview = ({
                     setActiveDiscountId(link.id);
                     setActiveEmbedId(null);
                     setActiveFormId(null);
+                    setActiveExternalFormId(null);
                     if (discount.analyticsHooks?.trackModalOpen ?? true) {
                       onPublicLinkClick?.(link.id, "modal_open");
                     }
@@ -2725,6 +2998,7 @@ export const MobilePreview = ({
                     setActiveEmbedId(link.id);
                     setActiveDiscountId(null);
                     setActiveFormId(null);
+                    setActiveExternalFormId(null);
                     onPublicLinkClick?.(link.id, "modal_open");
                     return;
                   }
@@ -2742,6 +3016,7 @@ export const MobilePreview = ({
                     setActiveFormId(link.id);
                     setActiveDiscountId(null);
                     setActiveEmbedId(null);
+                    setActiveExternalFormId(null);
                     setActivePromoModal(null);
                     setFormValuesByLink((current) => ({
                       ...current,
@@ -2768,6 +3043,22 @@ export const MobilePreview = ({
                     onPublicLinkClick?.(link.id, "modal_open");
                     return;
                   }
+                  if (isExternalForm) {
+                    const formUrlParsed = parsePreviewHref(externalForm.formUrl ?? link.url);
+                    const openMode = externalForm.openMode ?? "new_tab";
+                    const hasEmbedHtml = Boolean((externalForm.embedHtml ?? "").trim());
+                    if (openMode === "modal" && hasEmbedHtml) {
+                      setActiveExternalFormId(link.id);
+                      setActiveDiscountId(null);
+                      setActiveEmbedId(null);
+                      setActiveFormId(null);
+                      setActivePromoModal(null);
+                      onPublicLinkClick?.(link.id, "modal_open");
+                      return;
+                    }
+                    continueWithTarget(formUrlParsed);
+                    return;
+                  }
                   if (isPromoGallery) {
                     const items = (promoGallery.items ?? []).filter((item) => item.active !== false);
                     if (items.length > 0) {
@@ -2775,6 +3066,7 @@ export const MobilePreview = ({
                       setActiveDiscountId(null);
                       setActiveEmbedId(null);
                       setActiveFormId(null);
+                      setActiveExternalFormId(null);
                       onPublicLinkClick?.(link.id, "modal_open");
                     }
                     return;

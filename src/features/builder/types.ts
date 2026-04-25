@@ -116,7 +116,14 @@ export type LinkSettings = {
   borderRadius?: number;
 };
 
-export type ContentType = "link" | "discount" | "embed_post" | "form" | "promo_gallery";
+export type ExternalFormOpenMode = "new_tab" | "modal" | "embed";
+export type ContentType =
+  | "link"
+  | "discount"
+  | "embed_post"
+  | "form"
+  | "promo_gallery"
+  | "external_form";
 
 export type EmbedProvider = "x" | "facebook" | "tiktok" | "youtube" | "generic";
 export type EmbedMode = "url" | "code";
@@ -233,6 +240,19 @@ export type PromoGalleryBlock = {
   items: PromoGalleryItem[];
 };
 
+export type ExternalFormBlock = {
+  type: "external_form";
+  title?: string;
+  description?: string;
+  formUrl?: string;
+  openMode?: ExternalFormOpenMode;
+  embedHtml?: string;
+  ctaLabel?: string;
+  closeLabel?: string;
+  enabled?: boolean;
+  showOpenInBrowserButton?: boolean;
+};
+
 export type BioLink = {
   id: string;
   contentType?: ContentType;
@@ -245,6 +265,7 @@ export type BioLink = {
   embedPost?: EmbedPostData;
   form?: FormBlock;
   promoGallery?: PromoGalleryBlock;
+  externalForm?: ExternalFormBlock;
   settings: LinkSettings;
 };
 
