@@ -21,6 +21,7 @@ import {
   getEmbedPostData,
   getFormData,
   getLinkDisplaySettings,
+  getPromoGalleryData,
   getSortedVisibleLinks,
 } from "@/features/builder/utils";
 import {
@@ -476,6 +477,9 @@ export const MobilePreview = ({
   const [activeDiscountId, setActiveDiscountId] = useState<string | null>(null);
   const [activeEmbedId, setActiveEmbedId] = useState<string | null>(null);
   const [activeFormId, setActiveFormId] = useState<string | null>(null);
+  const [activePromoModal, setActivePromoModal] = useState<{ linkId: string; index: number } | null>(null);
+  const [promoCarouselIndexByLink, setPromoCarouselIndexByLink] = useState<Record<string, number>>({});
+  const promoCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [activePreOpenKey, setActivePreOpenKey] = useState<string | null>(null);
   const [formValuesByLink, setFormValuesByLink] = useState<Record<string, FormSubmissionValues>>({});
   const [formErrorsByLink, setFormErrorsByLink] = useState<Record<string, FormSubmissionErrors>>({});
@@ -634,7 +638,7 @@ export const MobilePreview = ({
   }, [wallpaperRequestSrc]);
 
   useEffect(() => {
-    if (!activeDiscountId && !activeEmbedId && !activeFormId && !activePreOpenKey) {
+    if (!activeDiscountId && !activeEmbedId && !activeFormId && !activePromoModal && !activePreOpenKey) {
       return;
     }
 
@@ -647,6 +651,7 @@ export const MobilePreview = ({
           setActiveEmbedId(null);
         }
         setActiveFormId(null);
+        setActivePromoModal(null);
         setActivePreOpenKey(null);
       }
     };
@@ -657,7 +662,7 @@ export const MobilePreview = ({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [activeDiscountId, activeEmbedDismissible, activeEmbedId, activeFormId, activePreOpenKey]);
+  }, [activeDiscountId, activeEmbedDismissible, activeEmbedId, activeFormId, activePreOpenKey, activePromoModal]);
 
   useEffect(() => {
     if (activeFormId) {
@@ -1024,9 +1029,11 @@ export const MobilePreview = ({
               const isDiscount = getContentType(link) === "discount";
               const isEmbedPost = getContentType(link) === "embed_post";
               const isForm = getContentType(link) === "form";
+              const isPromoGallery = getContentType(link) === "promo_gallery";
               const discount = getDiscountData(link);
               const embedPost = getEmbedPostData(link);
               const form = getFormData(link);
+              const promoGallery = getPromoGalleryData(link);
               const lockBadge = link.settings.locked ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-black/20 bg-black/10 px-2 py-1 text-[10px]">
                   <Lock className="size-3" />
@@ -1247,6 +1254,7 @@ export const MobilePreview = ({
                       onClick={() => {
                         setActiveDiscountId(link.id);
                         setActiveEmbedId(null);
+                        setActivePromoModal(null);
                         setActivePreOpenKey(null);
                         if (discount.analyticsHooks?.trackModalOpen ?? true) {
                           onPublicLinkClick?.(link.id, "modal_open");
@@ -1431,6 +1439,7 @@ export const MobilePreview = ({
                       onClick={() => {
                         setActiveEmbedId(link.id);
                         setActiveDiscountId(null);
+                        setActivePromoModal(null);
                         setActivePreOpenKey(null);
                         onPublicLinkClick?.(link.id, "modal_open");
                       }}
@@ -1681,6 +1690,265 @@ export const MobilePreview = ({
                 );
               }
 
+              if (isPromoGallery) {
+                const promoItems = (promoGallery.items ?? []).filter((item) => item.active !== false);
+                const safeIndex = Math.min(
+                  Math.max(promoCarouselIndexByLink[link.id] ?? 0, 0),
+                  Math.max(promoItems.length - 1, 0),
+                );
+                const slideTo = (nextIndex: number) => {
+                  const container = promoCarouselRefs.current[link.id];
+                  if (!container || promoItems.length === 0) {
+                    return;
+                  }
+                  const clamped = Math.min(Math.max(nextIndex, 0), promoItems.length - 1);
+                  const child = container.children.item(clamped) as HTMLElement | null;
+                  if (!child) {
+                    return;
+                  }
+                  container.scrollTo({ left: child.offsetLeft, behavior: "smooth" });
+                  setPromoCarouselIndexByLink((current) => ({ ...current, [link.id]: clamped }));
+                };
+
+                return (
+                  <div key={link.id} className="space-y-3 rounded-2xl border border-white/20 bg-black/20 p-3 sm:p-4">
+                    {(promoGallery.title || promoGallery.description) ? (
+                      <div className="space-y-1 px-1">
+                        {promoGallery.title ? (
+                          <p className="text-sm font-semibold sm:text-base">{promoGallery.title}</p>
+                        ) : null}
+                        {promoGallery.description ? (
+                          <p className="text-xs text-zinc-300 sm:text-sm">{promoGallery.description}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {promoItems.length === 0 ? (
+                      isAdminPreview ? (
+                        <div className="rounded-xl border border-dashed border-white/20 px-3 py-6 text-center text-xs text-zinc-300">
+                          {t("promo_gallery_items_empty")}
+                        </div>
+                      ) : null
+                    ) : (
+                      <>
+                        <div
+                          ref={(node) => {
+                            promoCarouselRefs.current[link.id] = node;
+                          }}
+                          className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1"
+                          onScroll={(event) => {
+                            const target = event.currentTarget;
+                            const child = target.children.item(0) as HTMLElement | null;
+                            if (!child || child.clientWidth <= 0) {
+                              return;
+                            }
+                            const nextIndex = Math.round(target.scrollLeft / (child.clientWidth + 12));
+                            setPromoCarouselIndexByLink((current) => ({
+                              ...current,
+                              [link.id]: Math.min(Math.max(nextIndex, 0), promoItems.length - 1),
+                            }));
+                          }}
+                        >
+                          {promoItems.map((item, index) => (
+                            <button
+                              key={item.id || `promo-item-${index}`}
+                              type="button"
+                              className="w-[84%] shrink-0 snap-center overflow-hidden rounded-2xl border border-white/20 bg-zinc-900/75 text-left"
+                              onClick={() => setActivePromoModal({ linkId: link.id, index })}
+                            >
+                              {item.imageUrl ? (
+                                <SafeImage
+                                  src={item.imageUrl}
+                                  alt={item.title || ""}
+                                  width={560}
+                                  height={320}
+                                  className="h-40 w-full object-cover"
+                                />
+                              ) : (
+                                <div className="h-40 w-full bg-zinc-800/80" />
+                              )}
+                              <div className="space-y-1 p-3">
+                                {item.badge ? (
+                                  <span className="inline-flex rounded-full border border-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                                    {item.badge}
+                                  </span>
+                                ) : null}
+                                {item.title ? <p className="text-sm font-semibold">{item.title}</p> : null}
+                                {item.description ? (
+                                  <p className="line-clamp-2 text-xs text-zinc-300">{item.description}</p>
+                                ) : null}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            className="rounded-full border border-white/25 px-3 py-1 text-xs disabled:opacity-40"
+                            disabled={safeIndex <= 0}
+                            onClick={() => slideTo(safeIndex - 1)}
+                          >
+                            {t("promo_gallery_prev")}
+                          </button>
+                          <div className="flex items-center gap-1">
+                            {promoItems.map((item, index) => (
+                              <button
+                                key={`dot-${item.id || index}`}
+                                type="button"
+                                aria-label={`promo-${index + 1}`}
+                                className={cn(
+                                  "h-2.5 w-2.5 rounded-full border border-white/40",
+                                  index === safeIndex ? "bg-white" : "bg-transparent",
+                                )}
+                                onClick={() => slideTo(index)}
+                              />
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            className="rounded-full border border-white/25 px-3 py-1 text-xs disabled:opacity-40"
+                            disabled={safeIndex >= promoItems.length - 1}
+                            onClick={() => slideTo(safeIndex + 1)}
+                          >
+                            {t("promo_gallery_next")}
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {activePromoModal?.linkId === link.id && promoItems[activePromoModal.index] ? (
+                      <div
+                        className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4"
+                        onClick={() => setActivePromoModal(null)}
+                      >
+                        <div
+                          className="mx-auto flex max-h-[88dvh] w-[calc(100%-16px)] max-w-[560px] flex-col overflow-hidden rounded-[28px] border border-white/20 bg-zinc-950 p-4 text-white shadow-2xl sm:w-[calc(100%-24px)] sm:p-5 md:p-6"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {(() => {
+                            const modalItem = promoItems[activePromoModal.index];
+                            const modalCta = parsePreviewHref(modalItem.ctaUrl ?? "");
+                            const conditionRows = (modalItem.conditions ?? []).filter(
+                              (row) => (row.label ?? "").trim() || (row.value ?? "").trim(),
+                            );
+                            return (
+                              <>
+                                <div className="mb-3 flex items-start justify-between gap-3">
+                                  <h3 className="text-base font-bold leading-tight sm:text-xl md:text-2xl">
+                                    {modalItem.title || promoGallery.title || ""}
+                                  </h3>
+                                  <button
+                                    type="button"
+                                    className="rounded-md border border-white/25 p-1"
+                                    onClick={() => setActivePromoModal(null)}
+                                    aria-label={t("embed_post_action_close")}
+                                  >
+                                    <X className="size-4" />
+                                  </button>
+                                </div>
+                                <div className="min-h-0 overflow-y-auto overscroll-contain touch-pan-y pr-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                                  {modalItem.imageUrl ? (
+                                    <SafeImage
+                                      src={modalItem.imageUrl}
+                                      alt={modalItem.title || ""}
+                                      width={640}
+                                      height={360}
+                                      className="w-full rounded-2xl border border-white/20 object-cover max-h-[240px] sm:max-h-[320px]"
+                                    />
+                                  ) : null}
+                                  {modalItem.title ? (
+                                    <p className="mt-3 text-base font-semibold sm:text-lg">{modalItem.title}</p>
+                                  ) : null}
+                                  {modalItem.description ? (
+                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-200 sm:text-base">
+                                      {modalItem.description}
+                                    </p>
+                                  ) : null}
+                                  {conditionRows.length > 0 ? (
+                                    <div className="mt-3 overflow-hidden rounded-xl border border-white/20">
+                                      <table className="w-full text-left text-xs sm:text-sm">
+                                        <tbody>
+                                          {conditionRows.map((row, rowIndex) => (
+                                            <tr key={row.id || `condition-row-${rowIndex}`} className="border-b border-white/10 last:border-b-0">
+                                              <td className="w-[45%] bg-white/5 px-3 py-2 text-zinc-300">{row.label}</td>
+                                              <td className="px-3 py-2">{row.value}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : null}
+                                  {modalItem.ctaLabel && modalCta.href && modalCta.kind !== "invalid" ? (
+                                    modalCta.kind === "internal" ? (
+                                      <Link
+                                        href={modalCta.href}
+                                        className="mt-4 inline-flex w-full items-center justify-center rounded-full border border-white/30 px-5 py-3 text-sm font-semibold sm:text-base"
+                                        onClick={() => onPublicLinkClick?.(link.id, "cta")}
+                                      >
+                                        {modalItem.ctaLabel}
+                                      </Link>
+                                    ) : (
+                                      <a
+                                        href={modalCta.href}
+                                        {...getExternalAnchorTargetProps(modalCta, modalItem.openInNewTab ?? true)}
+                                        className="mt-4 inline-flex w-full items-center justify-center rounded-full border border-white/30 px-5 py-3 text-sm font-semibold sm:text-base"
+                                        onClick={() => onPublicLinkClick?.(link.id, "cta")}
+                                      >
+                                        {modalItem.ctaLabel}
+                                      </a>
+                                    )
+                                  ) : null}
+                                  <div className="mt-4 grid grid-cols-3 gap-2">
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-white/25 px-3 py-2 text-xs disabled:opacity-40"
+                                      disabled={activePromoModal.index <= 0}
+                                      onClick={() =>
+                                        setActivePromoModal((current) =>
+                                          current
+                                            ? { ...current, index: Math.max(current.index - 1, 0) }
+                                            : current,
+                                        )
+                                      }
+                                    >
+                                      {t("promo_gallery_prev")}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-white/25 px-3 py-2 text-xs"
+                                      onClick={() => setActivePromoModal(null)}
+                                    >
+                                      {t("embed_post_action_close")}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded-full border border-white/25 px-3 py-2 text-xs disabled:opacity-40"
+                                      disabled={activePromoModal.index >= promoItems.length - 1}
+                                      onClick={() =>
+                                        setActivePromoModal((current) =>
+                                          current
+                                            ? {
+                                                ...current,
+                                                index: Math.min(current.index + 1, promoItems.length - 1),
+                                              }
+                                            : current,
+                                        )
+                                      }
+                                    >
+                                      {t("promo_gallery_next")}
+                                    </button>
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              }
+
               if (isForm) {
                 const currentFormValues = formValuesByLink[link.id] ?? {};
                 const currentFormErrors = formErrorsByLink[link.id] ?? {};
@@ -1821,6 +2089,7 @@ export const MobilePreview = ({
                         setActiveFormId(link.id);
                         setActiveDiscountId(null);
                         setActiveEmbedId(null);
+                        setActivePromoModal(null);
                         setActivePreOpenKey(null);
                         setFormValuesByLink((current) => ({
                           ...current,
@@ -2473,6 +2742,7 @@ export const MobilePreview = ({
                     setActiveFormId(link.id);
                     setActiveDiscountId(null);
                     setActiveEmbedId(null);
+                    setActivePromoModal(null);
                     setFormValuesByLink((current) => ({
                       ...current,
                       [link.id]: {
@@ -2496,6 +2766,17 @@ export const MobilePreview = ({
                     setFormErrorsByLink((current) => ({ ...current, [link.id]: {} }));
                     setFormSubmitErrorByLink((current) => ({ ...current, [link.id]: "" }));
                     onPublicLinkClick?.(link.id, "modal_open");
+                    return;
+                  }
+                  if (isPromoGallery) {
+                    const items = (promoGallery.items ?? []).filter((item) => item.active !== false);
+                    if (items.length > 0) {
+                      setActivePromoModal({ linkId: link.id, index: 0 });
+                      setActiveDiscountId(null);
+                      setActiveEmbedId(null);
+                      setActiveFormId(null);
+                      onPublicLinkClick?.(link.id, "modal_open");
+                    }
                     return;
                   }
                   continueWithTarget(parsedHref);

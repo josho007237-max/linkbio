@@ -163,7 +163,7 @@ export const socialSchema = z.object({
 
 export const linkSchema = z
   .object({
-    contentType: z.enum(["link", "discount", "embed_post", "form"]),
+    contentType: z.enum(["link", "discount", "embed_post", "form", "promo_gallery"]),
     title: z.string().trim().optional(),
     url: z.string().trim().optional(),
     description: z.string().trim().optional(),
@@ -217,6 +217,36 @@ export const linkSchema = z
     formSubmitLabel: z.string().trim().optional(),
     formCancelLabel: z.string().trim().optional(),
     formTermsPlaceholder: z.string().trim().optional(),
+    promoTitle: z.string().trim().optional(),
+    promoDescription: z.string().trim().optional(),
+    promoItems: z
+      .array(
+        z.object({
+          id: z.string().trim().optional(),
+          imageUrl: optionalUrlOrLocalPathSchema(
+            "Promo image URL must be a valid URL or local placeholder path.",
+          ),
+          title: z.string().trim().optional(),
+          description: z.string().trim().optional(),
+          badge: z.string().trim().optional(),
+          conditions: z
+            .array(
+              z.object({
+                id: z.string().trim().optional(),
+                label: z.string().trim().optional(),
+                value: z.string().trim().optional(),
+              }),
+            )
+            .optional(),
+          ctaLabel: z.string().trim().optional(),
+          ctaUrl: optionalUrlOrLocalPathSchema(
+            "Promo CTA URL must be a valid URL or local placeholder path.",
+          ),
+          openInNewTab: z.boolean().optional(),
+          active: z.boolean().optional(),
+        }),
+      )
+      .optional(),
     preOpenEnabled: z.boolean().optional(),
     preOpenBannerImageUrl: optionalUrlOrLocalPathSchema(
       "Banner image must be a valid URL or local placeholder path.",
@@ -602,7 +632,7 @@ export const builderDataSchema = z.object({
   links: z.array(
     z.object({
       id: z.string().min(1),
-      contentType: z.enum(["link", "discount", "embed_post", "form"]).default("link"),
+      contentType: z.enum(["link", "discount", "embed_post", "form", "promo_gallery"]).default("link"),
       title: persistedStringSchema.default("Untitled"),
       url: persistedUrlStringSchema.default(""),
       description: persistedStringSchema.optional(),
@@ -701,6 +731,37 @@ export const builderDataSchema = z.object({
                 required: z.boolean().optional(),
                 placeholder: z.string().optional(),
                 options: z.array(z.string()).optional(),
+              }),
+            )
+            .optional(),
+        })
+        .optional(),
+      promoGallery: z
+        .object({
+          type: z.literal("promo_gallery").optional(),
+          title: persistedStringSchema.optional(),
+          description: persistedStringSchema.optional(),
+          items: z
+            .array(
+              z.object({
+                id: z.string().optional(),
+                imageUrl: persistedStringSchema.optional(),
+                title: persistedStringSchema.optional(),
+                description: persistedStringSchema.optional(),
+                badge: persistedStringSchema.optional(),
+                conditions: z
+                  .array(
+                    z.object({
+                      id: z.string().optional(),
+                      label: persistedStringSchema.optional(),
+                      value: persistedStringSchema.optional(),
+                    }),
+                  )
+                  .optional(),
+                ctaLabel: persistedStringSchema.optional(),
+                ctaUrl: persistedStringSchema.optional(),
+                openInNewTab: z.boolean().optional(),
+                active: z.boolean().optional(),
               }),
             )
             .optional(),

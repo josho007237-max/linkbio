@@ -59,10 +59,12 @@ import {
   createEmptyEmbedPost,
   createEmptyFormBlock,
   createEmptyLink,
+  createEmptyPromoGallery,
   getContentType,
   getDiscountData,
   getEmbedPostData,
   getFormData,
+  getPromoGalleryData,
   getFormTemplateFields,
 } from "@/features/builder/utils";
 import { useI18n } from "@/i18n/use-i18n";
@@ -80,6 +82,7 @@ type SortableLinkItemProps = {
     discountType: string;
     embedType: string;
     formType: string;
+    promoGalleryType: string;
     formSupportDepositType: string;
     formSupportWithdrawType: string;
     layoutClassic: string;
@@ -106,9 +109,11 @@ const LinkItemContent = ({
   const isDiscount = getContentType(link) === "discount";
   const isEmbedPost = getContentType(link) === "embed_post";
   const isForm = getContentType(link) === "form";
+  const isPromoGallery = getContentType(link) === "promo_gallery";
   const discount = isDiscount ? getDiscountData(link) : null;
   const embedPost = isEmbedPost ? getEmbedPostData(link) : null;
   const form = isForm ? getFormData(link) : null;
+  const promoGallery = isPromoGallery ? getPromoGalleryData(link) : null;
   const formTypeLabel =
     form?.template === "deposit_issue"
       ? labels.formSupportDepositType
@@ -121,6 +126,8 @@ const LinkItemContent = ({
       ? embedPost?.cardTitle || link.title
       : isForm
         ? form?.formTitle || link.title
+      : isPromoGallery
+        ? promoGallery?.title || link.title
       : link.title;
   const displayUrl = isDiscount
     ? discount?.destinationUrl || link.url
@@ -128,8 +135,10 @@ const LinkItemContent = ({
       ? embedPost?.ctaUrl || link.url
       : isForm
         ? link.url
+      : isPromoGallery
+        ? ""
       : link.url;
-  const isInvalidUrl = !linkSchema.shape.url.safeParse(displayUrl).success;
+  const isInvalidUrl = !isPromoGallery && !linkSchema.shape.url.safeParse(displayUrl).success;
 
   return (
     <div className="space-y-2 rounded-xl border p-3">
@@ -137,10 +146,16 @@ const LinkItemContent = ({
         {dragHandle}
         <div>
           <p className="text-sm font-semibold">{displayTitle}</p>
-          {isDiscount || isEmbedPost || isForm ? (
+          {isDiscount || isEmbedPost || isForm || isPromoGallery ? (
             <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-amber-700">
-              {isDiscount ? labels.discountType : isEmbedPost ? labels.embedType : formTypeLabel} ·{" "}
-              {(isDiscount ? discount?.layout : isEmbedPost ? embedPost?.layout : form?.layout) === "featured"
+              {isPromoGallery
+                ? labels.promoGalleryType
+                : isDiscount
+                  ? labels.discountType
+                  : isEmbedPost
+                    ? labels.embedType
+                    : formTypeLabel} ·{" "}
+              {(isDiscount ? discount?.layout : isEmbedPost ? embedPost?.layout : isForm ? form?.layout : "classic") === "featured"
                 ? labels.layoutFeatured
                 : labels.layoutClassic}
             </p>
@@ -305,6 +320,9 @@ export const LinksSection = () => {
       formSubmitLabel: "Submit",
       formCancelLabel: "Cancel",
       formTermsPlaceholder: "",
+      promoTitle: "",
+      promoDescription: "",
+      promoItems: [],
       preOpenEnabled: false,
       preOpenBannerImageUrl: "",
       preOpenTitle: "",
@@ -370,6 +388,7 @@ export const LinksSection = () => {
   const editOpenInNewTab = useWatch({ control: editForm.control, name: "openInNewTab" });
   const editPreserveLineBreaks = useWatch({ control: editForm.control, name: "preserveLineBreaks" });
   const editFormFields = useWatch({ control: editForm.control, name: "formFields" }) ?? [];
+  const editPromoItems = useWatch({ control: editForm.control, name: "promoItems" }) ?? [];
   const prioritize = useWatch({ control: settingsForm.control, name: "prioritize" });
   const locked = useWatch({ control: settingsForm.control, name: "locked" });
   const editUrlError = editForm.formState.errors.url?.message;
@@ -401,6 +420,7 @@ export const LinksSection = () => {
   const editIconImageUrlError = editForm.formState.errors.iconImageUrl?.message;
   const editBackgroundImageUrlError = editForm.formState.errors.backgroundImageUrl?.message;
   const editFormFieldsError = editForm.formState.errors.formFields?.message as string | undefined;
+  const editPromoItemsError = editForm.formState.errors.promoItems?.message as string | undefined;
   const editLayoutErrorText =
     editContentType === "discount"
       ? editLayoutError
@@ -452,6 +472,7 @@ export const LinksSection = () => {
       discountType: t("links_type_discount"),
       embedType: t("links_type_embed_post"),
       formType: t("links_type_form"),
+      promoGalleryType: t("links_type_promo_gallery"),
       formSupportDepositType: t("links_type_form_support_deposit"),
       formSupportWithdrawType: t("links_type_form_support_withdraw"),
       layoutClassic: t("links_layout_classic"),
@@ -468,19 +489,31 @@ export const LinksSection = () => {
     const discount = getDiscountData(link);
     const embedPost = getEmbedPostData(link);
     const form = getFormData(link);
+    const promoGallery = getPromoGalleryData(link);
     const isDiscount = getContentType(link) === "discount";
     const isEmbedPost = getContentType(link) === "embed_post";
     const isForm = getContentType(link) === "form";
+    const isPromoGallery = getContentType(link) === "promo_gallery";
     editForm.reset({
       contentType: getContentType(link),
-      title: isDiscount ? discount.cardTitle : isEmbedPost ? embedPost.cardTitle : isForm ? form.formTitle : link.title,
-      url: isDiscount ? discount.destinationUrl : isEmbedPost ? embedPost.ctaUrl : link.url,
+      title: isDiscount
+        ? discount.cardTitle
+        : isEmbedPost
+          ? embedPost.cardTitle
+          : isForm
+            ? form.formTitle
+            : isPromoGallery
+              ? promoGallery.title ?? link.title
+              : link.title,
+      url: isDiscount ? discount.destinationUrl : isEmbedPost ? embedPost.ctaUrl : isPromoGallery ? "" : link.url,
       description: isDiscount
         ? discount.modalDescription
         : isEmbedPost
           ? embedPost.description
           : isForm
             ? form.intro
+          : isPromoGallery
+            ? promoGallery.description ?? ""
           : link.description ?? "",
       enabled: link.enabled,
       cardTitle: discount.cardTitle,
@@ -515,6 +548,24 @@ export const LinksSection = () => {
       formSubmitLabel: form.submitLabel,
       formCancelLabel: form.cancelLabel ?? t("form_submit_cancel"),
       formTermsPlaceholder: form.termsPlaceholder ?? "",
+      promoTitle: promoGallery.title ?? "",
+      promoDescription: promoGallery.description ?? "",
+      promoItems: promoGallery.items.map((item) => ({
+        id: item.id,
+        imageUrl: item.imageUrl ?? "",
+        title: item.title ?? "",
+        description: item.description ?? "",
+        badge: item.badge ?? "",
+        conditions: (item.conditions ?? []).map((row) => ({
+          id: row.id,
+          label: row.label ?? "",
+          value: row.value ?? "",
+        })),
+        ctaLabel: item.ctaLabel ?? "",
+        ctaUrl: item.ctaUrl ?? "",
+        openInNewTab: item.openInNewTab ?? true,
+        active: item.active ?? true,
+      })),
       preOpenEnabled: link.preOpenModal?.enabled ?? false,
       preOpenBannerImageUrl: link.preOpenModal?.bannerImageUrl ?? "",
       preOpenTitle: link.preOpenModal?.title ?? "",
@@ -577,6 +628,8 @@ export const LinksSection = () => {
             ? values.embedCardTitle ?? ""
           : values.contentType === "form"
               ? values.formTitle ?? ""
+            : values.contentType === "promo_gallery"
+              ? values.promoTitle ?? ""
             : values.title ?? "",
       url:
         values.contentType === "discount"
@@ -585,6 +638,8 @@ export const LinksSection = () => {
             ? values.embedCtaUrl ?? ""
           : values.contentType === "form"
               ? values.url || "https://example.com/form"
+            : values.contentType === "promo_gallery"
+              ? ""
             : values.url ?? "",
       description:
         values.contentType === "discount"
@@ -593,6 +648,8 @@ export const LinksSection = () => {
             ? values.embedDescription
           : values.contentType === "form"
               ? values.formIntro
+            : values.contentType === "promo_gallery"
+              ? values.promoDescription ?? ""
             : values.description ?? "",
       enabled: values.enabled,
       discount:
@@ -661,6 +718,30 @@ export const LinksSection = () => {
               })),
             }
           : undefined,
+      promoGallery:
+        values.contentType === "promo_gallery"
+          ? {
+              type: "promo_gallery",
+              title: values.promoTitle ?? "",
+              description: values.promoDescription ?? "",
+              items: (values.promoItems ?? []).map((item) => ({
+                id: item.id || `promo-item-${Math.random().toString(36).slice(2, 9)}`,
+                imageUrl: item.imageUrl ?? "",
+                title: item.title ?? "",
+                description: item.description ?? "",
+                badge: item.badge ?? "",
+                conditions: (item.conditions ?? []).map((row) => ({
+                  id: row.id || `promo-condition-${Math.random().toString(36).slice(2, 9)}`,
+                  label: row.label ?? "",
+                  value: row.value ?? "",
+                })),
+                ctaLabel: item.ctaLabel ?? "",
+                ctaUrl: item.ctaUrl ?? "",
+                openInNewTab: item.openInNewTab ?? true,
+                active: item.active ?? true,
+              })),
+            }
+          : undefined,
       preOpenModal: {
         enabled: values.preOpenEnabled ?? false,
         bannerImageUrl: values.preOpenBannerImageUrl ?? "",
@@ -707,6 +788,12 @@ export const LinksSection = () => {
     if (values.contentType === "form") {
       updateLinkSettings(editId, {
         thumbnailUrl: undefined,
+      });
+    }
+    if (values.contentType === "promo_gallery") {
+      const firstImage = (values.promoItems ?? []).find((item) => (item.imageUrl ?? "").trim())?.imageUrl;
+      updateLinkSettings(editId, {
+        thumbnailUrl: firstImage || undefined,
       });
     }
     setEditId(null);
@@ -794,6 +881,99 @@ export const LinksSection = () => {
     );
   };
 
+  const setPromoItems = (nextItems: NonNullable<LinkFormValues["promoItems"]>) => {
+    editForm.setValue("promoItems", nextItems, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const addPromoItem = () => {
+    setPromoItems([
+      ...editPromoItems,
+      {
+        id: `promo-item-${Math.random().toString(36).slice(2, 9)}`,
+        imageUrl: "",
+        title: "",
+        description: "",
+        badge: "",
+        conditions: [],
+        ctaLabel: "",
+        ctaUrl: "",
+        openInNewTab: true,
+        active: true,
+      },
+    ]);
+  };
+
+  const removePromoItem = (index: number) => {
+    setPromoItems(editPromoItems.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const movePromoItem = (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= editPromoItems.length) {
+      return;
+    }
+    const next = [...editPromoItems];
+    const [current] = next.splice(index, 1);
+    next.splice(nextIndex, 0, current);
+    setPromoItems(next);
+  };
+
+  const updatePromoItem = (
+    index: number,
+    payload: Partial<NonNullable<LinkFormValues["promoItems"]>[number]>,
+  ) => {
+    setPromoItems(
+      editPromoItems.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...payload } : item,
+      ),
+    );
+  };
+
+  const addPromoCondition = (itemIndex: number) => {
+    const item = editPromoItems[itemIndex];
+    if (!item) {
+      return;
+    }
+    updatePromoItem(itemIndex, {
+      conditions: [
+        ...(item.conditions ?? []),
+        {
+          id: `promo-condition-${Math.random().toString(36).slice(2, 9)}`,
+          label: "",
+          value: "",
+        },
+      ],
+    });
+  };
+
+  const updatePromoCondition = (
+    itemIndex: number,
+    conditionIndex: number,
+    payload: { label?: string; value?: string },
+  ) => {
+    const item = editPromoItems[itemIndex];
+    if (!item) {
+      return;
+    }
+    const nextConditions = (item.conditions ?? []).map((condition, index) =>
+      index === conditionIndex ? { ...condition, ...payload } : condition,
+    );
+    updatePromoItem(itemIndex, { conditions: nextConditions });
+  };
+
+  const removePromoCondition = (itemIndex: number, conditionIndex: number) => {
+    const item = editPromoItems[itemIndex];
+    if (!item) {
+      return;
+    }
+    updatePromoItem(itemIndex, {
+      conditions: (item.conditions ?? []).filter((_, index) => index !== conditionIndex),
+    });
+  };
+
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) {
@@ -802,7 +982,7 @@ export const LinksSection = () => {
     reorderLinks(String(active.id), String(over.id));
   };
 
-  const handleAddType = (type: "link" | "discount" | "embed_post" | "form") => {
+  const handleAddType = (type: "link" | "discount" | "embed_post" | "form" | "promo_gallery") => {
     if (type === "form") {
       setAddPickerStep("form_templates");
       return;
@@ -811,6 +991,8 @@ export const LinksSection = () => {
       addLink(createEmptyLink());
     } else if (type === "discount") {
       addLink(createEmptyDiscountCode());
+    } else if (type === "promo_gallery") {
+      addLink(createEmptyPromoGallery());
     } else {
       addLink(createEmptyEmbedPost());
     }
@@ -856,6 +1038,9 @@ export const LinksSection = () => {
                 </Button>
                 <Button type="button" variant="outline" onClick={() => handleAddType("embed_post")}>
                   {t("links_add_type_embed")}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => handleAddType("promo_gallery")}>
+                  {t("links_add_type_promo_gallery")}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => handleAddType("form")}>
                   {t("links_add_type_form")}
@@ -958,7 +1143,7 @@ export const LinksSection = () => {
               onSubmit={saveEdit}
               className="space-y-4 overflow-x-hidden px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
             >
-              {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "link" ? (
+              {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "promo_gallery" || editContentType === "link" ? (
                 <div className="inline-flex rounded-md border bg-muted/35 p-1 text-xs">
                   <button
                     type="button"
@@ -972,6 +1157,8 @@ export const LinksSection = () => {
                       ? t("embed_post_tabs_settings")
                       : editContentType === "form"
                         ? t("form_tabs_settings")
+                        : editContentType === "promo_gallery"
+                          ? t("promo_gallery_tabs_settings")
                         : t("links_tab_link_settings")}
                   </button>
                   <button
@@ -986,6 +1173,8 @@ export const LinksSection = () => {
                       ? t("embed_post_tabs_layout")
                       : editContentType === "form"
                         ? t("form_tabs_layout")
+                        : editContentType === "promo_gallery"
+                          ? t("promo_gallery_tabs_layout")
                         : t("links_tab_layout")}
                   </button>
                 </div>
@@ -997,6 +1186,10 @@ export const LinksSection = () => {
               ) : editContentType === "form" ? (
                 <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                   {t("form_helper_block")}
+                </p>
+              ) : editContentType === "promo_gallery" ? (
+                <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {t("promo_gallery_helper_block")}
                 </p>
               ) : null}
 
@@ -1373,6 +1566,137 @@ export const LinksSection = () => {
                         {t("links_enabled")}
                       </label>
                     </>
+                  ) : editContentType === "promo_gallery" ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>{t("promo_gallery_title_label")}</Label>
+                        <Input {...editForm.register("promoTitle")} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>{t("promo_gallery_description_label")}</Label>
+                        <textarea
+                          className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                          {...editForm.register("promoDescription")}
+                        />
+                      </div>
+                      <div className="space-y-3 rounded-xl border p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">{t("promo_gallery_items_title")}</p>
+                          <Button type="button" variant="outline" size="sm" onClick={addPromoItem}>
+                            <Plus className="size-4" />
+                            {t("promo_gallery_add_item")}
+                          </Button>
+                        </div>
+                        {editPromoItems.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">{t("promo_gallery_items_empty")}</p>
+                        ) : null}
+                        {editPromoItems.map((item, itemIndex) => (
+                          <div key={item.id || `promo-item-${itemIndex}`} className="space-y-2 rounded-lg border p-3">
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <Input
+                                value={item.title ?? ""}
+                                onChange={(event) => updatePromoItem(itemIndex, { title: event.target.value })}
+                                placeholder={t("promo_gallery_item_title")}
+                              />
+                              <Input
+                                value={item.badge ?? ""}
+                                onChange={(event) => updatePromoItem(itemIndex, { badge: event.target.value })}
+                                placeholder={t("promo_gallery_item_badge")}
+                              />
+                            </div>
+                            <Input
+                              value={item.imageUrl ?? ""}
+                              onChange={(event) => updatePromoItem(itemIndex, { imageUrl: event.target.value })}
+                              placeholder={t("promo_gallery_item_image_url_placeholder")}
+                            />
+                            <textarea
+                              className="min-h-[84px] w-full rounded-md border bg-background px-3 py-2 text-sm"
+                              value={item.description ?? ""}
+                              onChange={(event) => updatePromoItem(itemIndex, { description: event.target.value })}
+                              placeholder={t("promo_gallery_item_description")}
+                            />
+                            <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+                              <Input
+                                value={item.ctaLabel ?? ""}
+                                onChange={(event) => updatePromoItem(itemIndex, { ctaLabel: event.target.value })}
+                                placeholder={t("promo_gallery_item_cta_label")}
+                              />
+                              <Input
+                                value={item.ctaUrl ?? ""}
+                                onChange={(event) => updatePromoItem(itemIndex, { ctaUrl: event.target.value })}
+                                placeholder={t("promo_gallery_item_cta_url_placeholder")}
+                              />
+                              <label className="flex items-center gap-2 text-xs">
+                                <Switch
+                                  checked={Boolean(item.openInNewTab)}
+                                  onCheckedChange={(value) => updatePromoItem(itemIndex, { openInNewTab: value })}
+                                />
+                                {t("links_style_open_in_new_tab")}
+                              </label>
+                            </div>
+                            <div className="space-y-2 rounded-md border p-2">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-medium">{t("promo_gallery_conditions_title")}</p>
+                                <Button type="button" variant="ghost" size="sm" onClick={() => addPromoCondition(itemIndex)}>
+                                  {t("promo_gallery_add_condition")}
+                                </Button>
+                              </div>
+                              {(item.conditions ?? []).map((condition, conditionIndex) => (
+                                <div key={condition.id || `condition-${conditionIndex}`} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+                                  <Input
+                                    value={condition.label ?? ""}
+                                    onChange={(event) =>
+                                      updatePromoCondition(itemIndex, conditionIndex, { label: event.target.value })
+                                    }
+                                    placeholder={t("promo_gallery_condition_label")}
+                                  />
+                                  <Input
+                                    value={condition.value ?? ""}
+                                    onChange={(event) =>
+                                      updatePromoCondition(itemIndex, conditionIndex, { value: event.target.value })
+                                    }
+                                    placeholder={t("promo_gallery_condition_value")}
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removePromoCondition(itemIndex, conditionIndex)}
+                                  >
+                                    {t("form_remove_field")}
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <label className="flex items-center gap-2 text-xs">
+                                <Switch
+                                  checked={Boolean(item.active)}
+                                  onCheckedChange={(value) => updatePromoItem(itemIndex, { active: value })}
+                                />
+                                {t("links_enabled")}
+                              </label>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => movePromoItem(itemIndex, -1)}>
+                                {t("form_move_up")}
+                              </Button>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => movePromoItem(itemIndex, 1)}>
+                                {t("form_move_down")}
+                              </Button>
+                              <Button type="button" variant="ghost" size="sm" onClick={() => removePromoItem(itemIndex)}>
+                                {t("form_remove_field")}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        {editPromoItemsError ? (
+                          <p className="text-xs text-destructive">{editPromoItemsError}</p>
+                        ) : null}
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <Switch checked={editEnabled} onCheckedChange={(v) => editForm.setValue("enabled", v)} />
+                        {t("links_enabled")}
+                      </label>
+                    </>
                   ) : (
                     <>
                       <div className="space-y-2">
@@ -1496,7 +1820,7 @@ export const LinksSection = () => {
                 </>
               ) : null}
 
-              {(editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "link") && editTab === "layout" ? (
+              {(editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "promo_gallery" || editContentType === "link") && editTab === "layout" ? (
                 <>
                   <div className="space-y-2">
                     <Label>{t("links_display_style")}</Label>
@@ -1618,7 +1942,7 @@ export const LinksSection = () => {
                     />
                     {t("links_style_open_in_new_tab")}
                   </label>
-                  {editContentType !== "link" ? (
+                  {editContentType !== "link" && editContentType !== "promo_gallery" ? (
                     <div className="space-y-2">
                       <Label>
                         {editContentType === "embed_post"

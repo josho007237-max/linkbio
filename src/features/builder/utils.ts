@@ -8,6 +8,7 @@ import {
   FormField,
   FormTemplate,
   LinkSettings,
+  PromoGalleryBlock,
   UnifiedMenuItemDisplay,
 } from "@/features/builder/types";
 
@@ -344,6 +345,39 @@ export const createEmptyFormBlock = (template: FormTemplate = "email_signup"): B
   },
 });
 
+export const createEmptyPromoGallery = (): BioLink => ({
+  id: createId("promo-gallery"),
+  contentType: "promo_gallery",
+  title: "Promo Gallery",
+  url: "",
+  description: "",
+  enabled: true,
+  promoGallery: {
+    type: "promo_gallery",
+    title: "Promo Gallery",
+    description: "",
+    items: [
+      {
+        id: createId("promo-item"),
+        imageUrl: "/placeholders/link-thumbnail-default.svg",
+        title: "Promotion title",
+        description: "Promotion details",
+        badge: "",
+        conditions: [],
+        ctaLabel: "",
+        ctaUrl: "",
+        openInNewTab: true,
+        active: true,
+      },
+    ],
+  },
+  settings: {
+    prioritize: false,
+    locked: false,
+    ...DEFAULT_LINK_SETTINGS_STYLE,
+  },
+});
+
 export const getContentType = (item: BioLink): ContentType =>
   item.contentType === "discount"
     ? "discount"
@@ -351,7 +385,9 @@ export const getContentType = (item: BioLink): ContentType =>
       ? "embed_post"
       : item.contentType === "form"
         ? "form"
-      : "link";
+      : item.contentType === "promo_gallery"
+        ? "promo_gallery"
+        : "link";
 
 export const getDiscountData = (link: BioLink): DiscountCodeData => {
   const legacyCode =
@@ -445,6 +481,29 @@ export const getFormData = (link: BioLink): FormBlock => ({
       };
     });
   })(),
+});
+
+export const getPromoGalleryData = (link: BioLink): PromoGalleryBlock => ({
+  type: "promo_gallery",
+  title: link.promoGallery?.title ?? link.title,
+  description: link.promoGallery?.description ?? link.description ?? "",
+  items: (link.promoGallery?.items ?? [])
+    .map((item, index) => ({
+      id: item.id || `promo-item-${index}`,
+      imageUrl: item.imageUrl ?? "",
+      title: item.title ?? "",
+      description: item.description ?? "",
+      badge: item.badge ?? "",
+      conditions: (item.conditions ?? []).map((row, rowIndex) => ({
+        id: row.id || `promo-condition-${index}-${rowIndex}`,
+        label: row.label ?? "",
+        value: row.value ?? "",
+      })),
+      ctaLabel: item.ctaLabel ?? "",
+      ctaUrl: item.ctaUrl ?? "",
+      openInNewTab: item.openInNewTab ?? true,
+      active: item.active ?? true,
+    })),
 });
 
 export const getPreOpenModalData = (item: {
@@ -556,6 +615,22 @@ export const normalizeBuilderData = (data: BuilderData): BuilderData => ({
         ...link.settings,
         ...getLinkDisplaySettings(link),
         thumbnailUrl: embedPost.cardThumbnail,
+      },
+    };
+  }).map((link) => {
+    if (getContentType(link) !== "promo_gallery") {
+      return link;
+    }
+
+    const promoGallery = getPromoGalleryData(link);
+    return {
+      ...link,
+      title: promoGallery.title ?? link.title,
+      description: promoGallery.description ?? link.description ?? "",
+      promoGallery,
+      settings: {
+        ...link.settings,
+        ...getLinkDisplaySettings(link),
       },
     };
   }).map((link) => {

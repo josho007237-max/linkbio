@@ -116,7 +116,7 @@ export type LinkSettings = {
   borderRadius?: number;
 };
 
-export type ContentType = "link" | "discount" | "embed_post" | "form";
+export type ContentType = "link" | "discount" | "embed_post" | "form" | "promo_gallery";
 
 export type EmbedProvider = "x" | "facebook" | "tiktok" | "youtube" | "generic";
 export type EmbedMode = "url" | "code";
@@ -207,6 +207,32 @@ export type FormBlock = {
   fields: FormField[];
 };
 
+export type PromoConditionRow = {
+  id: string;
+  label?: string;
+  value?: string;
+};
+
+export type PromoGalleryItem = {
+  id: string;
+  imageUrl?: string;
+  title?: string;
+  description?: string;
+  badge?: string;
+  conditions?: PromoConditionRow[];
+  ctaLabel?: string;
+  ctaUrl?: string;
+  openInNewTab?: boolean;
+  active?: boolean;
+};
+
+export type PromoGalleryBlock = {
+  type: "promo_gallery";
+  title?: string;
+  description?: string;
+  items: PromoGalleryItem[];
+};
+
 export type BioLink = {
   id: string;
   contentType?: ContentType;
@@ -218,6 +244,7 @@ export type BioLink = {
   discount?: DiscountCodeData;
   embedPost?: EmbedPostData;
   form?: FormBlock;
+  promoGallery?: PromoGalleryBlock;
   settings: LinkSettings;
 };
 
