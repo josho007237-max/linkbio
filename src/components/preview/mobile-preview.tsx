@@ -1318,22 +1318,27 @@ export const MobilePreview = ({
                             </button>
                           </div>
                           <div className="min-h-0 overflow-y-auto overscroll-contain touch-pan-y pr-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                          <SafeImage
-                            src={safeHeroSrc}
-                            alt=""
-                            className="w-full rounded-2xl border border-white/20 object-cover max-h-[220px] sm:max-h-[260px] md:max-h-[320px]"
-                            width={480}
-                            height={320}
-                            onError={() => {
-                              if (
-                                safeHeroSrc === THUMBNAIL_FALLBACK_SRC ||
-                                brokenHeroKeys[heroKey]
-                              ) {
-                                return;
-                              }
-                              setBrokenHeroKeys((current) => ({ ...current, [heroKey]: true }));
-                            }}
-                          />
+                          <div
+                            className="relative w-full overflow-hidden rounded-2xl border border-white/20"
+                            style={{ aspectRatio: "4 / 3" }}
+                          >
+                            <SafeImage
+                              src={safeHeroSrc}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              width={1200}
+                              height={900}
+                              onError={() => {
+                                if (
+                                  safeHeroSrc === THUMBNAIL_FALLBACK_SRC ||
+                                  brokenHeroKeys[heroKey]
+                                ) {
+                                  return;
+                                }
+                                setBrokenHeroKeys((current) => ({ ...current, [heroKey]: true }));
+                              }}
+                            />
+                          </div>
                           <p className="mt-3 text-sm leading-relaxed text-zinc-200 sm:text-base">
                             {discount.modalDescription}
                           </p>
