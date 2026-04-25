@@ -816,32 +816,34 @@ export const MobilePreview = ({
           )}
           style={isAdminPreview ? { scrollbarWidth: "thin" } : undefined}
         >
-          <ProfileHeader
-            data={data}
-            avatarSrc={avatarSrc}
-            heroHeaderSrc={heroHeaderSrc}
-            flushToTop={false}
-            onAvatarError={() => {
-              if (avatarSrc === AVATAR_HEADER_FALLBACK_SRC || brokenAvatarSources[avatarRequestSrc]) {
-                return;
-              }
-              setBrokenAvatarSources((current) => ({
-                ...current,
-                [avatarRequestSrc]: true,
-              }));
-            }}
-            onHeroImageError={() => {
-              if (brokenHeroKeys[heroHeaderKey]) {
-                return;
-              }
-              setBrokenHeroKeys((current) => ({
-                ...current,
-                [heroHeaderKey]: true,
-              }));
-            }}
-          />
+          {data.header.layout !== "none" ? (
+            <ProfileHeader
+              data={data}
+              avatarSrc={avatarSrc}
+              heroHeaderSrc={heroHeaderSrc}
+              flushToTop={false}
+              onAvatarError={() => {
+                if (avatarSrc === AVATAR_HEADER_FALLBACK_SRC || brokenAvatarSources[avatarRequestSrc]) {
+                  return;
+                }
+                setBrokenAvatarSources((current) => ({
+                  ...current,
+                  [avatarRequestSrc]: true,
+                }));
+              }}
+              onHeroImageError={() => {
+                if (brokenHeroKeys[heroHeaderKey]) {
+                  return;
+                }
+                setBrokenHeroKeys((current) => ({
+                  ...current,
+                  [heroHeaderKey]: true,
+                }));
+              }}
+            />
+          ) : null}
 
-          <div className="mt-4 flex justify-center gap-3">
+          <div className={cn(data.header.layout === "none" ? "mt-0" : "mt-4", "flex justify-center gap-3")}>
               {data.socials
                 .filter((social) => social.enabled)
                 .map((social) => {
@@ -2027,17 +2029,17 @@ export const MobilePreview = ({
                               className="w-[84%] shrink-0 snap-center overflow-hidden rounded-2xl border border-white/20 bg-zinc-900/75 text-left"
                               onClick={() => setActivePromoModal({ linkId: link.id, index })}
                             >
-                              {item.imageUrl ? (
-                                <SafeImage
-                                  src={item.imageUrl}
-                                  alt={item.title || ""}
-                                  width={560}
-                                  height={320}
-                                  className="h-40 w-full object-cover"
-                                />
-                              ) : (
-                                <div className="h-40 w-full bg-zinc-800/80" />
-                              )}
+                              <div className="aspect-[4/3] w-full overflow-hidden bg-zinc-800/80">
+                                {item.imageUrl ? (
+                                  <SafeImage
+                                    src={item.imageUrl}
+                                    alt={item.title || ""}
+                                    width={1200}
+                                    height={900}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : null}
+                              </div>
                               <div className="space-y-1 p-3">
                                 {item.badge ? (
                                   <span className="inline-flex rounded-full border border-white/25 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
@@ -2119,13 +2121,17 @@ export const MobilePreview = ({
                                 </div>
                                 <div className="min-h-0 overflow-y-auto overscroll-contain touch-pan-y pr-1 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                                   {modalItem.imageUrl ? (
-                                    <SafeImage
-                                      src={modalItem.imageUrl}
-                                      alt={modalItem.title || ""}
-                                      width={640}
-                                      height={360}
-                                      className="w-full rounded-2xl border border-white/20 object-cover max-h-[240px] sm:max-h-[320px]"
-                                    />
+                                    <div className="w-full overflow-hidden rounded-2xl border border-white/20 bg-zinc-800/80">
+                                      <div className="aspect-[4/3] w-full">
+                                        <SafeImage
+                                          src={modalItem.imageUrl}
+                                          alt={modalItem.title || ""}
+                                          width={1200}
+                                          height={900}
+                                          className="h-full w-full object-cover"
+                                        />
+                                      </div>
+                                    </div>
                                   ) : null}
                                   {modalItem.title ? (
                                     <p className="mt-3 text-base font-semibold sm:text-lg">{modalItem.title}</p>

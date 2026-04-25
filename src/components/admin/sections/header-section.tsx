@@ -205,7 +205,7 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
           />
           {avatarError ? <p className="text-xs text-destructive">{avatarError}</p> : null}
         </div>
-      ) : (
+      ) : layout === "hero" ? (
         <div className="space-y-2">
           <Label htmlFor="heroImageUrl">{t("header_hero_image_url")}</Label>
           <Input
@@ -218,10 +218,10 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
           />
           {heroImageError ? <p className="text-xs text-destructive">{heroImageError}</p> : null}
         </div>
-      )}
+      ) : null}
       <div className="space-y-2">
         <Label>{t("header_layout_mode")}</Label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             className={`rounded-md border px-3 py-2 text-sm ${layout === "classic" ? "bg-muted font-medium ring-1 ring-primary/30" : ""}`}
@@ -236,11 +236,20 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
           >
             {t("header_layout_hero")}
           </button>
+          <button
+            type="button"
+            className={`rounded-md border px-3 py-2 text-sm ${layout === "none" ? "bg-muted font-medium ring-1 ring-primary/30" : ""}`}
+            onClick={() => form.setValue("layout", "none", { shouldDirty: true, shouldValidate: true })}
+          >
+            {t("header_layout_none")}
+          </button>
         </div>
         <p className="text-xs text-muted-foreground">
           {layout === "hero"
             ? t("header_hero_description")
-            : t("header_classic_description")}
+            : layout === "none"
+              ? t("header_none_description")
+              : t("header_classic_description")}
         </p>
         {layout === "hero" ? (
           <p className="text-xs text-muted-foreground">{t("header_missing_hero_fallback")}</p>
@@ -262,7 +271,7 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
           />
           {uploadWarning ? <p className="text-xs text-amber-600">{uploadWarning}</p> : null}
         </div>
-      ) : (
+      ) : layout === "hero" ? (
         <div className="space-y-2">
           <Label htmlFor="heroUpload">{t("header_upload_hero")}</Label>
           <CustomImageUpload
@@ -278,7 +287,7 @@ export const HeaderSection = ({ slugCollisionWarning }: HeaderSectionProps) => {
           />
           {uploadWarning ? <p className="text-xs text-amber-600">{uploadWarning}</p> : null}
         </div>
-      )}
+      ) : null}
       <div className="space-y-2">
         <Label>{t("header_title_mode")}</Label>
         <div className="grid grid-cols-2 gap-2">

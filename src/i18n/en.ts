@@ -50,6 +50,7 @@ export const en = {
   header_layout_mode: "Header Layout",
   header_layout_classic: "Classic",
   header_layout_hero: "Hero",
+  header_layout_none: "None",
   header_title_mode: "Title Mode",
   header_title_mode_name: "Display name",
   header_title_mode_username: "Public handle",
@@ -64,6 +65,7 @@ export const en = {
   header_match_theme_to_hero: "Match theme to hero image",
   header_classic_description: "Use a circular avatar layout.",
   header_hero_description: "Use a banner-style header image.",
+  header_none_description: "Hide the header block and start content directly on wallpaper.",
   header_missing_hero_fallback:
     "If no hero image is set, the header will fall back safely.",
   header_slug_collision: "This slug already exists. To edit it, load it from My Pages.",
@@ -288,6 +290,7 @@ export const en = {
   promo_gallery_add_condition: "Add condition row",
   promo_gallery_condition_label: "Condition label",
   promo_gallery_condition_value: "Condition value",
+  promo_gallery_image_helper: "Recommended image ratio: 4:3 (e.g. 1200x900)",
   promo_gallery_prev: "Previous",
   promo_gallery_next: "Next",
   external_form_tabs_settings: "External Form Settings",

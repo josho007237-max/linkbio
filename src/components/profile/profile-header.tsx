@@ -45,6 +45,10 @@ export const ProfileHeader = ({
   const intro = data.text.intro?.trim() ?? "";
   const body = data.text.body?.trim() ?? "";
 
+  if (data.header.layout === "none") {
+    return null;
+  }
+
   if (data.header.layout === "hero") {
     return (
       <section className={cn("-mx-5 mb-2", flushToTop ? "mt-0" : "-mt-6")}>

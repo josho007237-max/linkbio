@@ -52,6 +52,7 @@ export const th: Record<keyof typeof en, string> = {
   header_layout_mode: "รูปแบบส่วนหัว",
   header_layout_classic: "Classic",
   header_layout_hero: "Hero",
+  header_layout_none: "None",
   header_title_mode: "โหมดชื่อ",
   header_title_mode_name: "ชื่อที่แสดง",
   header_title_mode_username: "Public handle",
@@ -66,6 +67,7 @@ export const th: Record<keyof typeof en, string> = {
   header_match_theme_to_hero: "ปรับธีมให้เข้ากับภาพ Hero",
   header_classic_description: "ใช้เลย์เอาต์รูปวงกลม",
   header_hero_description: "ใช้ภาพหัวแบบแบนเนอร์",
+  header_none_description: "ซ่อนบล็อกส่วนหัว และเริ่มคอนเทนต์บนพื้นหลังทันที",
   header_missing_hero_fallback: "หากยังไม่มีรูป Hero ระบบจะใช้รูปสำรองอย่างปลอดภัย",
   header_slug_collision: "Slug นี้มีอยู่แล้ว หากต้องการแก้ไข ให้ Load จาก My Pages ก่อน",
 
@@ -289,6 +291,7 @@ export const th: Record<keyof typeof en, string> = {
   promo_gallery_add_condition: "เพิ่มแถวเงื่อนไข",
   promo_gallery_condition_label: "หัวข้อเงื่อนไข",
   promo_gallery_condition_value: "ค่าเงื่อนไข",
+  promo_gallery_image_helper: "แนะนำอัตราส่วนรูป 4:3 (เช่น 1200x900)",
   promo_gallery_prev: "ก่อนหน้า",
   promo_gallery_next: "ถัดไป",
   external_form_tabs_settings: "ตั้งค่าฟอร์มภายนอก",

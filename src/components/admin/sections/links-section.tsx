@@ -1684,6 +1684,7 @@ export const LinksSection = () => {
                             {t("promo_gallery_add_item")}
                           </Button>
                         </div>
+                        <p className="text-xs text-muted-foreground">{t("promo_gallery_image_helper")}</p>
                         {editPromoItems.length === 0 ? (
                           <p className="text-xs text-muted-foreground">{t("promo_gallery_items_empty")}</p>
                         ) : null}

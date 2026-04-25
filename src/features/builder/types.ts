@@ -281,7 +281,7 @@ export type ProfileHeader = {
   shareImageUrl?: string;
   avatarUrl: string;
   heroImageUrl?: string;
-  layout?: "classic" | "hero";
+  layout?: "classic" | "hero" | "none";
   titleMode?: "display_name" | "username";
   heroTextAlign?: "left" | "center";
   heroOverlay?: boolean;
