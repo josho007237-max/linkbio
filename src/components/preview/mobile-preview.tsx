@@ -1165,11 +1165,11 @@ export const MobilePreview = ({
                 if (activeStyle === "media_card") {
                   return (
                     <div className="flex w-full items-center gap-3">
-                      <div className="h-20 w-20 shrink-0" style={imageFilterStyle}>
+                      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-black/10" style={imageFilterStyle}>
                         <SafeImage
                           src={safeStyleImageSrc}
                           alt=""
-                          className="h-20 w-20 rounded-lg border border-black/10 object-cover"
+                          className="h-20 w-20 object-cover"
                           width={80}
                           height={80}
                           onError={() => {
@@ -1182,6 +1182,12 @@ export const MobilePreview = ({
                             setBrokenThumbnailKeys((current) => ({ ...current, [styleImageKey]: true }));
                           }}
                         />
+                        {imageOverlayExtraOpacity > 0 ? (
+                          <div
+                            className="pointer-events-none absolute inset-0"
+                            style={{ backgroundColor: `rgba(0,0,0,${imageOverlayExtraOpacity / 100})` }}
+                          />
+                        ) : null}
                       </div>
                       <div className="min-w-0 flex-1">
                         {title ? <p className="text-lg font-semibold leading-tight">{title}</p> : null}
