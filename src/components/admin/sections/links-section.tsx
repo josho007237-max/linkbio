@@ -23,7 +23,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { FieldErrors, useForm, useWatch } from "react-hook-form";
 
 import { SectionCard } from "@/components/admin/section-card";
 import { Button } from "@/components/ui/button";
@@ -285,6 +285,7 @@ export const LinksSection = () => {
   const [editTab, setEditTab] = useState<"link" | "layout">("link");
   const [addPickerOpen, setAddPickerOpen] = useState(false);
   const [addPickerStep, setAddPickerStep] = useState<"types" | "form_templates">("types");
+  const [editSubmitError, setEditSubmitError] = useState<string | null>(null);
 
   const editingLink = useMemo(
     () => links.find((link) => link.id === editId) ?? null,
@@ -691,7 +692,7 @@ export const LinksSection = () => {
       })),
       externalFormTitle: externalForm.title ?? "",
       externalFormDescription: externalForm.description ?? "",
-      externalFormUrl: externalForm.formUrl ?? "",
+      externalFormUrl: isExternalForm ? (externalForm.formUrl ?? "") : "",
       externalFormOpenMode: externalForm.openMode ?? "new_tab",
       externalFormEmbedHtml: externalForm.embedHtml ?? "",
       externalFormCtaLabel: externalForm.ctaLabel ?? "",
@@ -727,6 +728,7 @@ export const LinksSection = () => {
       borderRadius: link.settings.borderRadius ?? 0,
       formFields: form.fields,
     });
+    setEditSubmitError(null);
     setEditTab("link");
     setEditId(id);
   };
@@ -747,10 +749,33 @@ export const LinksSection = () => {
     setSettingsId(id);
   };
 
+  const getFirstValidationMessage = (errors: FieldErrors<LinkFormValues>): string | null => {
+    const queue: unknown[] = [errors];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || typeof current !== "object") {
+        continue;
+      }
+      const message =
+        "message" in (current as Record<string, unknown>) &&
+        typeof (current as { message?: unknown }).message === "string"
+          ? (current as { message: string }).message
+          : null;
+      if (message) {
+        return message;
+      }
+      for (const value of Object.values(current as Record<string, unknown>)) {
+        queue.push(value);
+      }
+    }
+    return null;
+  };
+
   const saveEdit = editForm.handleSubmit((values) => {
     if (!editId) {
       return;
     }
+    setEditSubmitError(null);
     updateLink(editId, {
       contentType: values.contentType,
       title:
@@ -980,6 +1005,9 @@ export const LinksSection = () => {
       });
     }
     setEditId(null);
+  }, (errors) => {
+    const firstMessage = getFirstValidationMessage(errors);
+    setEditSubmitError(firstMessage ?? t("data_tools_toast_action_failed"));
   });
 
   const saveSettings = settingsForm.handleSubmit((values) => {
@@ -2469,6 +2497,9 @@ export const LinksSection = () => {
                     </div>
                   ) : null}
                 </>
+              ) : null}
+              {editSubmitError ? (
+                <p className="text-sm text-destructive">{editSubmitError}</p>
               ) : null}
               <SheetFooter className="px-0">
                 <Button type="submit">{t("links_save")}</Button>
