@@ -75,6 +75,10 @@ type FormFilesByLink = Record<string, Record<string, FormFileSelection>>;
 const WALLPAPER_FALLBACK_SRC = "/placeholders/wallpaper-default.svg";
 const THUMBNAIL_FALLBACK_SRC = "/placeholders/link-thumbnail-default.svg";
 const MAX_SUPPORT_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
+const SOCIAL_EMBED_VIEW_SCALE = 0.94;
+const SOCIAL_EMBED_COMPENSATED_PERCENT = 100 / SOCIAL_EMBED_VIEW_SCALE;
+const SOCIAL_EMBED_COMPENSATED_OFFSET_PERCENT =
+  (100 - SOCIAL_EMBED_COMPENSATED_PERCENT) / 2;
 const SAFE_EXTERNAL_HREF_PROTOCOLS = new Set([
   "http:",
   "https:",
@@ -1597,22 +1601,31 @@ export const MobilePreview = ({
 
                           <div
                             className={cn(
-                              "w-full overflow-hidden rounded-[20px] border border-white/15 bg-black/25 sm:rounded-[24px]",
+                              "relative w-full min-h-[420px] h-[420px] overflow-hidden rounded-[20px] border border-white/15 bg-black/25 sm:min-h-[520px] sm:h-[520px] sm:rounded-[24px] md:min-h-[640px] md:h-[640px]",
                             )}
                           >
-                            <div className="w-full max-h-[52dvh] overflow-y-auto overscroll-contain touch-pan-y sm:max-h-[70vh]">
+                            <div
+                              className="absolute top-0"
+                              style={{
+                                left: `${SOCIAL_EMBED_COMPENSATED_OFFSET_PERCENT}%`,
+                                width: `${SOCIAL_EMBED_COMPENSATED_PERCENT}%`,
+                                height: `${SOCIAL_EMBED_COMPENSATED_PERCENT}%`,
+                                transform: `scale(${SOCIAL_EMBED_VIEW_SCALE})`,
+                                transformOrigin: "top center",
+                              }}
+                            >
                               {embedUnavailable ? (
-                                <div className="flex w-full min-h-[420px] items-center justify-center border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200 sm:min-h-[520px] md:min-h-[640px]">
+                                <div className="flex h-full w-full items-center justify-center border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200">
                                   {t("embed_post_public_unavailable")}
                                 </div>
                               ) : isXProvider && xEmbedMarkup ? (
-                                <div className="w-full min-h-[420px] sm:min-h-[520px] md:min-h-[640px]">
+                                <div className="h-full w-full overflow-auto">
                                   <XEmbedRenderer markup={xEmbedMarkup} />
                                 </div>
                               ) : embedPost.embedMode === "code" ? (
                                 <iframe
                                   title={embedPost.modalTitle || embedPost.cardTitle}
-                                  className="w-full min-h-[420px] border border-white/10 bg-white sm:min-h-[520px] md:min-h-[640px]"
+                                  className="h-full w-full border border-white/10 bg-white"
                                   sandbox="allow-scripts allow-same-origin allow-popups"
                                   srcDoc={
                                     providerEmbedSrcDoc ??
@@ -1622,13 +1635,13 @@ export const MobilePreview = ({
                               ) : iframeSrc ? (
                                 <iframe
                                   title={embedPost.modalTitle || embedPost.cardTitle}
-                                  className="w-full min-h-[420px] border border-white/10 bg-black sm:min-h-[520px] md:min-h-[640px]"
+                                  className="h-full w-full border border-white/10 bg-black"
                                   src={iframeSrc}
                                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                   allowFullScreen
                                 />
                               ) : (
-                                <div className="flex w-full min-h-[420px] items-center justify-center border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200 sm:min-h-[520px] md:min-h-[640px]">
+                                <div className="flex h-full w-full items-center justify-center border border-dashed border-white/20 px-4 text-center text-sm text-zinc-200">
                                   {t("embed_post_public_unavailable")}
                                 </div>
                               )}
@@ -3349,4 +3362,3 @@ export const MobilePreview = ({
     </div>
   );
 };
-
