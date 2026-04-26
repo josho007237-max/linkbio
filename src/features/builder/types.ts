@@ -79,6 +79,10 @@ export type UnifiedMenuItemDisplay = {
   imageUrl?: string;
   iconImageUrl?: string;
   backgroundImageUrl?: string;
+  imageBrightness?: number;
+  imageContrast?: number;
+  imageSaturation?: number;
+  overlayOpacity?: number;
   preserveLineBreaks?: boolean;
   bannerRatio?: LinkBannerRatio;
   imageFit?: LinkImageFit;
@@ -104,6 +108,10 @@ export type LinkSettings = {
   imageUrl?: string;
   iconImageUrl?: string;
   backgroundImageUrl?: string;
+  imageBrightness?: number;
+  imageContrast?: number;
+  imageSaturation?: number;
+  overlayOpacity?: number;
   preserveLineBreaks?: boolean;
   textPanelContent?: string;
   openInNewTab?: boolean;

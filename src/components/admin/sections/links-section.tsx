@@ -387,6 +387,10 @@ export const LinksSection = () => {
       imageUrl: "",
       iconImageUrl: "",
       backgroundImageUrl: "",
+      imageBrightness: 100,
+      imageContrast: 100,
+      imageSaturation: 100,
+      overlayOpacity: 0,
       preserveLineBreaks: true,
       textPanelContent: "",
       openInNewTab: true,
@@ -465,6 +469,10 @@ export const LinksSection = () => {
     name: "preOpenDismissible",
   });
   const editStyle = useWatch({ control: editForm.control, name: "style" });
+  const editImageBrightness = useWatch({ control: editForm.control, name: "imageBrightness" });
+  const editImageContrast = useWatch({ control: editForm.control, name: "imageContrast" });
+  const editImageSaturation = useWatch({ control: editForm.control, name: "imageSaturation" });
+  const editOverlayOpacity = useWatch({ control: editForm.control, name: "overlayOpacity" });
   const editOpenInNewTab = useWatch({ control: editForm.control, name: "openInNewTab" });
   const editPreserveLineBreaks = useWatch({ control: editForm.control, name: "preserveLineBreaks" });
   const editFormFields = useWatch({ control: editForm.control, name: "formFields" }) ?? [];
@@ -716,6 +724,10 @@ export const LinksSection = () => {
       imageUrl: link.settings.imageUrl ?? "",
       iconImageUrl: link.settings.iconImageUrl ?? "",
       backgroundImageUrl: link.settings.backgroundImageUrl ?? "",
+      imageBrightness: link.settings.imageBrightness ?? 100,
+      imageContrast: link.settings.imageContrast ?? 100,
+      imageSaturation: link.settings.imageSaturation ?? 100,
+      overlayOpacity: link.settings.overlayOpacity ?? 0,
       preserveLineBreaks: link.settings.preserveLineBreaks ?? true,
       textPanelContent: link.settings.textPanelContent ?? "",
       openInNewTab: link.settings.openInNewTab ?? true,
@@ -966,6 +978,10 @@ export const LinksSection = () => {
       imageUrl: values.imageUrl || undefined,
       iconImageUrl: values.iconImageUrl || undefined,
       backgroundImageUrl: values.backgroundImageUrl || undefined,
+      imageBrightness: values.imageBrightness ?? 100,
+      imageContrast: values.imageContrast ?? 100,
+      imageSaturation: values.imageSaturation ?? 100,
+      overlayOpacity: values.overlayOpacity ?? 0,
       preserveLineBreaks: values.preserveLineBreaks ?? true,
       textPanelContent: values.textPanelContent ?? "",
       openInNewTab: values.openInNewTab ?? true,
@@ -2348,6 +2364,57 @@ export const LinksSection = () => {
                       {editImageUrlError ? (
                         <p className="text-xs text-destructive">{editImageUrlError}</p>
                       ) : null}
+                    </div>
+                  ) : null}
+                  {(editStyle === "image_banner" || editStyle === "media_card") ? (
+                    <div className="rounded-lg border border-border/70 p-3 space-y-3">
+                      <div className="space-y-1">
+                        <Label>Image brightness ({editImageBrightness ?? 100}%)</Label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={200}
+                          step={1}
+                          className="w-full"
+                          {...editForm.register("imageBrightness", { valueAsNumber: true })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Image contrast ({editImageContrast ?? 100}%)</Label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={200}
+                          step={1}
+                          className="w-full"
+                          {...editForm.register("imageContrast", { valueAsNumber: true })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Image saturation ({editImageSaturation ?? 100}%)</Label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={200}
+                          step={1}
+                          className="w-full"
+                          {...editForm.register("imageSaturation", { valueAsNumber: true })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Overlay opacity (+{editOverlayOpacity ?? 0}%)</Label>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          className="w-full"
+                          {...editForm.register("overlayOpacity", { valueAsNumber: true })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Applies to display only. Original image URL is unchanged.
+                        </p>
+                      </div>
                     </div>
                   ) : null}
                   {(editStyle === "icon_left" || editStyle === "text_only") ? (

@@ -998,6 +998,28 @@ export const MobilePreview = ({
                 normalizeImageSrc(displaySettings.backgroundImageUrl, styleImageSrc) ?? styleImageSrc;
               const activeStyle = displaySettings.style ?? "icon_left";
               const openInNewTab = displaySettings.openInNewTab ?? true;
+              const imageBrightness = Math.min(
+                200,
+                Math.max(0, displaySettings.imageBrightness ?? 100),
+              );
+              const imageContrast = Math.min(
+                200,
+                Math.max(0, displaySettings.imageContrast ?? 100),
+              );
+              const imageSaturation = Math.min(
+                200,
+                Math.max(0, displaySettings.imageSaturation ?? 100),
+              );
+              const imageOverlayExtraOpacity = Math.min(
+                100,
+                Math.max(0, displaySettings.overlayOpacity ?? 0),
+              );
+              const imageFilterStyle = {
+                filter: `brightness(${imageBrightness}%) contrast(${imageContrast}%) saturate(${imageSaturation}%)`,
+              } as const;
+              const baseImageOverlayOpacity = activeStyle === "image_banner" ? 35 : 0;
+              const resolvedImageOverlayOpacity =
+                Math.min(100, Math.max(0, baseImageOverlayOpacity + imageOverlayExtraOpacity)) / 100;
               const styleImageKey = `${link.id}::style::${styleImageSrc}`;
               const safeStyleImageSrc = brokenThumbnailKeys[styleImageKey]
                 ? THUMBNAIL_FALLBACK_SRC
@@ -1096,26 +1118,31 @@ export const MobilePreview = ({
                         displaySettings.bannerRatio === "2:1" ? "aspect-[2/1]" : "aspect-[3/1]",
                       )}
                     >
-                      <SafeImage
-                        src={safeBackgroundImageSrc}
-                        alt=""
-                        width={720}
-                        height={360}
-                        className={cn(
-                          "absolute inset-0 h-full w-full",
-                          displaySettings.imageFit === "contain" ? "object-contain" : "object-cover",
-                        )}
-                        onError={() => {
-                          if (
-                            safeBackgroundImageSrc === THUMBNAIL_FALLBACK_SRC ||
-                            brokenThumbnailKeys[backgroundImageKey]
-                          ) {
-                            return;
-                          }
-                          setBrokenThumbnailKeys((current) => ({ ...current, [backgroundImageKey]: true }));
-                        }}
+                      <div className="absolute inset-0" style={imageFilterStyle}>
+                        <SafeImage
+                          src={safeBackgroundImageSrc}
+                          alt=""
+                          width={720}
+                          height={360}
+                          className={cn(
+                            "absolute inset-0 h-full w-full",
+                            displaySettings.imageFit === "contain" ? "object-contain" : "object-cover",
+                          )}
+                          onError={() => {
+                            if (
+                              safeBackgroundImageSrc === THUMBNAIL_FALLBACK_SRC ||
+                              brokenThumbnailKeys[backgroundImageKey]
+                            ) {
+                              return;
+                            }
+                            setBrokenThumbnailKeys((current) => ({ ...current, [backgroundImageKey]: true }));
+                          }}
+                        />
+                      </div>
+                      <div
+                        className="absolute inset-0"
+                        style={{ backgroundColor: `rgba(0,0,0,${resolvedImageOverlayOpacity})` }}
                       />
-                      <div className="absolute inset-0 bg-black/35" />
                       <div className="relative z-[1] flex h-full w-full flex-col justify-center gap-1 px-4 py-3 text-left text-white sm:px-5">
                         {title ? (
                           <p
@@ -1138,22 +1165,24 @@ export const MobilePreview = ({
                 if (activeStyle === "media_card") {
                   return (
                     <div className="flex w-full items-center gap-3">
-                      <SafeImage
-                        src={safeStyleImageSrc}
-                        alt=""
-                        className="h-20 w-20 shrink-0 rounded-lg border border-black/10 object-cover"
-                        width={80}
-                        height={80}
-                        onError={() => {
-                          if (
-                            safeStyleImageSrc === THUMBNAIL_FALLBACK_SRC ||
-                            brokenThumbnailKeys[styleImageKey]
-                          ) {
-                            return;
-                          }
-                          setBrokenThumbnailKeys((current) => ({ ...current, [styleImageKey]: true }));
-                        }}
-                      />
+                      <div className="h-20 w-20 shrink-0" style={imageFilterStyle}>
+                        <SafeImage
+                          src={safeStyleImageSrc}
+                          alt=""
+                          className="h-20 w-20 rounded-lg border border-black/10 object-cover"
+                          width={80}
+                          height={80}
+                          onError={() => {
+                            if (
+                              safeStyleImageSrc === THUMBNAIL_FALLBACK_SRC ||
+                              brokenThumbnailKeys[styleImageKey]
+                            ) {
+                              return;
+                            }
+                            setBrokenThumbnailKeys((current) => ({ ...current, [styleImageKey]: true }));
+                          }}
+                        />
+                      </div>
                       <div className="min-w-0 flex-1">
                         {title ? <p className="text-lg font-semibold leading-tight">{title}</p> : null}
                         {description ? (

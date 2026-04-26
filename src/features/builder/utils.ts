@@ -47,6 +47,10 @@ const DEFAULT_LINK_SETTINGS_STYLE: Pick<
   | "imageUrl"
   | "iconImageUrl"
   | "backgroundImageUrl"
+  | "imageBrightness"
+  | "imageContrast"
+  | "imageSaturation"
+  | "overlayOpacity"
   | "preserveLineBreaks"
   | "textPanelContent"
   | "openInNewTab"
@@ -59,6 +63,10 @@ const DEFAULT_LINK_SETTINGS_STYLE: Pick<
   imageUrl: "",
   iconImageUrl: "",
   backgroundImageUrl: "",
+  imageBrightness: 100,
+  imageContrast: 100,
+  imageSaturation: 100,
+  overlayOpacity: 0,
   preserveLineBreaks: true,
   textPanelContent: "",
   openInNewTab: true,
@@ -92,6 +100,10 @@ export const getUnifiedMenuItemDisplay = (
     imageUrl: settings.imageUrl,
     iconImageUrl: settings.iconImageUrl,
     backgroundImageUrl: settings.backgroundImageUrl,
+    imageBrightness: settings.imageBrightness,
+    imageContrast: settings.imageContrast,
+    imageSaturation: settings.imageSaturation,
+    overlayOpacity: settings.overlayOpacity,
     preserveLineBreaks: settings.preserveLineBreaks,
     bannerRatio: settings.bannerRatio,
     imageFit: settings.imageFit,
