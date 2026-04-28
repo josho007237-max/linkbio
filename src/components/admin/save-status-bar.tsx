@@ -47,8 +47,8 @@ export const SaveStatusBar = ({
   );
 
   return (
-    <div className="mb-4 rounded-2xl border border-border/70 bg-muted/30 p-3 sm:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="mb-3 rounded-2xl border border-border/70 bg-muted/30 p-3 sm:mb-4 sm:p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
             {t("save_status_title")}
@@ -72,7 +72,7 @@ export const SaveStatusBar = ({
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-md border border-border bg-background/70 p-1">
             <span className="px-1 py-1 text-[10px] text-muted-foreground">{t("language_switch_label")}</span>
             <button
@@ -100,7 +100,7 @@ export const SaveStatusBar = ({
               {t("lang_th")}
             </button>
           </div>
-          <Button variant="secondary" onClick={onSaveNow} disabled={isSwitchingWorkspace}>
+          <Button variant="default" onClick={onSaveNow} disabled={isSwitchingWorkspace}>
             <Save className="size-4" />
             {t("save_status_save_now")}
           </Button>

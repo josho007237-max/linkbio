@@ -123,7 +123,7 @@ const AdminSidebarContent = ({
   }, [SECTION_ITEMS]);
 
   return (
-    <aside className="rounded-2xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/35 p-5 shadow-sm">
+    <aside className="rounded-2xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/35 p-4 shadow-sm sm:p-5">
       <div className="space-y-2">
         <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{t("sidebar_brand_builder")}</p>
         <h1 className="text-2xl font-semibold">{t("sidebar_page_editor")}</h1>
@@ -134,7 +134,7 @@ const AdminSidebarContent = ({
 
       <Separator className="my-4" />
 
-      <nav className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-2">
+      <nav className="space-y-1.5 rounded-xl border border-border/60 bg-muted/20 p-2">
         {SECTION_ITEMS.map((item) => (
           <a
             key={item.id}
@@ -176,7 +176,7 @@ const AdminSidebarContent = ({
         </Button>
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-5 space-y-3 border-t border-border/60 pt-4">
         <SavedProfilesManagerCard
           currentSlug={currentSlug}
           isSwitchingWorkspace={isSwitchingWorkspace}

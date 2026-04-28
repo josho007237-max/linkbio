@@ -319,7 +319,7 @@ export const SavedProfilesManagerCard = ({
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{t("saved_manager_title")}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3.5">
           <div className="rounded-lg border border-border/60 bg-background/70 p-3 text-xs text-muted-foreground">
             <p>{t("saved_manager_current_page", { slug: activeSlug })}</p>
             <p className="mt-1">{t("saved_manager_saved_pages")}</p>
@@ -347,12 +347,12 @@ export const SavedProfilesManagerCard = ({
               {t("saved_manager_empty")}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {savedProfiles.map((item) => {
                 const isBusy = pendingActionSlug === item.slug;
                 const isActive = item.slug === activeSlug;
                 return (
-                  <div key={item.slug} className="rounded-lg border bg-background/70 p-3">
+                  <div key={item.slug} className="rounded-lg border border-border/70 bg-background/70 p-3.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-sm font-medium">/{item.slug}</p>
                       {isActive ? (
@@ -364,7 +364,7 @@ export const SavedProfilesManagerCard = ({
                     <p className="truncate text-xs text-muted-foreground">
                       {item.data.header.displayName}
                     </p>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -388,7 +388,7 @@ export const SavedProfilesManagerCard = ({
                         {t("saved_manager_open")}
                       </Button>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <Button
                         variant="outline"
                         size="sm"

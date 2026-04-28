@@ -154,8 +154,8 @@ const LinkItemContent = ({
     !linkSchema.shape.url.safeParse(displayUrl).success;
 
   return (
-    <div className="space-y-2 rounded-xl border p-3">
-      <div className="grid gap-2 sm:grid-cols-[auto_1fr_auto_auto_auto_auto] sm:items-center">
+    <div className="space-y-2.5 rounded-xl border border-border/70 bg-background/60 p-3">
+      <div className="grid gap-2.5 sm:grid-cols-[auto_1fr_auto_auto_auto_auto] sm:items-center">
         {dragHandle}
         <div>
           <p className="text-sm font-semibold">{displayTitle}</p>
@@ -182,13 +182,13 @@ const LinkItemContent = ({
           <Switch checked={link.enabled} onCheckedChange={(v) => onToggle(link.id, v)} />
           {labels.enabled}
         </label>
-        <Button variant="ghost" size="icon" onClick={() => onEdit(link.id)}>
+        <Button variant="secondary" size="icon" onClick={() => onEdit(link.id)}>
           <SquarePen className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => onOpenSettings(link.id)}>
+        <Button variant="outline" size="icon" onClick={() => onOpenSettings(link.id)}>
           <Settings2 className="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => onDelete(link.id)}>
+        <Button variant="destructive" size="icon" onClick={() => onDelete(link.id)}>
           <Trash2 className="size-4" />
         </Button>
       </div>
@@ -1366,7 +1366,7 @@ export const LinksSection = () => {
       >
         <SheetContent
           side="right"
-          className="overflow-y-auto overflow-x-hidden pb-[max(1rem,env(safe-area-inset-bottom))]"
+          className="overflow-y-auto overflow-x-hidden p-0 pb-[max(1rem,env(safe-area-inset-bottom))]"
         >
           <SheetHeader>
             <SheetTitle>{t("links_edit_title")}</SheetTitle>
@@ -1375,7 +1375,7 @@ export const LinksSection = () => {
           {editingLink && (
             <form
               onSubmit={saveEdit}
-              className="space-y-4 overflow-x-hidden px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+              className="space-y-4 overflow-x-hidden px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-5"
             >
               {editContentType === "discount" || editContentType === "embed_post" || editContentType === "form" || editContentType === "promo_gallery" || editContentType === "external_form" || editContentType === "link" ? (
                 <div className="inline-flex rounded-md border bg-muted/35 p-1 text-xs">
@@ -2568,7 +2568,7 @@ export const LinksSection = () => {
               {editSubmitError ? (
                 <p className="text-sm text-destructive">{editSubmitError}</p>
               ) : null}
-              <SheetFooter className="px-0">
+              <SheetFooter className="sticky bottom-0 border-t border-border/60 bg-background px-0 py-3">
                 <Button type="submit">{t("links_save")}</Button>
               </SheetFooter>
             </form>
@@ -2577,7 +2577,7 @@ export const LinksSection = () => {
       </Sheet>
 
       <Drawer open={Boolean(settingsId)} onOpenChange={(open) => !open && setSettingsId(null)}>
-        <DrawerContent className="mx-auto w-full max-w-xl overflow-y-auto overflow-x-hidden">
+        <DrawerContent className="mx-auto w-full max-w-xl overflow-y-auto overflow-x-hidden pb-1">
           <DrawerHeader>
             <DrawerTitle>{t("links_settings_title")}</DrawerTitle>
             <DrawerDescription>
@@ -2587,7 +2587,7 @@ export const LinksSection = () => {
           {settingsLink && (
             <form
               onSubmit={saveSettings}
-              className="space-y-4 overflow-x-hidden px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+              className="space-y-4 overflow-x-hidden px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5"
             >
               <div className="space-y-2">
                 <Label>{t("links_thumbnail_url")}</Label>
@@ -2630,7 +2630,7 @@ export const LinksSection = () => {
                 <Label>{t("links_lock_message")}</Label>
                 <Input {...settingsForm.register("lockMessage")} />
               </div>
-              <DrawerFooter className="px-0">
+              <DrawerFooter className="sticky bottom-0 border-t border-border/60 bg-background px-0 py-3">
                 <Button type="submit">{t("links_save_settings")}</Button>
               </DrawerFooter>
             </form>

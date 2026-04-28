@@ -371,7 +371,7 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">{t("data_tools_title")}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
           <div className="rounded-lg border border-border/60 bg-background/70 p-3">
               <p className="text-sm font-medium">{t("data_tools_pin_title")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -420,7 +420,7 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
             {t("data_tools_import")}
           </Button>
           <Button
-            variant="ghost"
+            variant="outline"
             className="w-full justify-start"
             onClick={() => setConfirmAction("resetEditor")}
           >
@@ -431,7 +431,7 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
             {t("data_tools_reset_help")}
           </p>
           <Button
-            variant="ghost"
+            variant="outline"
             className="w-full justify-start"
             onClick={() => {
               void handleRestoreBackup();
@@ -442,8 +442,8 @@ export const DataToolsCard = ({ currentSlug }: DataToolsCardProps) => {
             {t("data_tools_restore_backup")}
           </Button>
           <Button
-            variant="ghost"
-            className="w-full justify-start text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+            variant="outline"
+            className="w-full justify-start border-amber-300/80 text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
             onClick={() => setConfirmAction("clearCurrentRoute")}
           >
             <Trash2 className="size-4" />

@@ -443,8 +443,8 @@ export const AdminShell = () => {
 
   return (
     <>
-      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#e6edf9,_transparent_35%),radial-gradient(circle_at_top_right,_#e8f4ed,_transparent_32%),linear-gradient(to_bottom,_var(--background),_var(--muted))] px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-[1700px] gap-4 lg:grid-cols-12">
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#e6edf9,_transparent_35%),radial-gradient(circle_at_top_right,_#e8f4ed,_transparent_32%),linear-gradient(to_bottom,_var(--background),_var(--muted))] px-3 py-4 sm:px-5 sm:py-5 lg:px-8">
+      <div className="mx-auto grid max-w-[1700px] gap-3 lg:gap-4 xl:gap-5 lg:grid-cols-12">
         <div className="lg:col-span-3 xl:col-span-2">
           <div className="lg:sticky lg:top-4 rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/35 p-2 shadow-sm backdrop-blur">
             <AdminSidebar
@@ -458,7 +458,7 @@ export const AdminShell = () => {
         </div>
 
         <div className="lg:col-span-6 xl:col-span-6">
-          <div className="rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/25 p-3 shadow-sm sm:p-4">
+          <div className="rounded-3xl border border-border/60 bg-gradient-to-b from-background/95 to-muted/25 p-2.5 shadow-sm sm:p-3.5">
             <SaveStatusBar
               status={saveStatus}
               lastSavedAt={lastSavedAt}

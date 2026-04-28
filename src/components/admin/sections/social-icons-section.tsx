@@ -151,8 +151,8 @@ export const SocialIconsSection = () => {
               bannerImageUrl: social.preOpenModal?.bannerImageUrl ?? "",
             };
             return (
-              <div key={social.id} className="space-y-2 rounded-lg border p-3">
-                <div className="grid gap-2 sm:grid-cols-[1fr_2fr_auto_auto] sm:items-center">
+              <div key={social.id} className="space-y-3 rounded-lg border border-border/70 bg-background/50 p-3">
+                <div className="grid gap-2.5 sm:grid-cols-[1fr_2fr_auto_auto] sm:items-center">
                   <Select
                     value={social.platform}
                     onValueChange={(value) => updateSocial(social.id, { platform: value as SocialFormValues["platform"] })}
@@ -182,7 +182,7 @@ export const SocialIconsSection = () => {
                     />
                     {t("social_enabled")}
                   </label>
-                  <Button variant="ghost" size="icon" onClick={() => deleteSocial(social.id)}>
+                  <Button variant="destructive" size="icon" onClick={() => deleteSocial(social.id)}>
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
@@ -228,7 +228,7 @@ export const SocialIconsSection = () => {
                     />
                   </div>
                 </div>
-                <div className="space-y-2 rounded-lg border border-dashed p-3">
+                <div className="space-y-2.5 rounded-lg border border-dashed p-3">
                   <label className="flex items-center gap-2 text-sm">
                     <Switch
                       checked={Boolean(social.preOpenModal?.enabled)}
@@ -413,7 +413,7 @@ export const SocialIconsSection = () => {
           {t("social_add")}
         </Button>
       ) : (
-        <form onSubmit={handleAdd} className="space-y-3 rounded-lg border p-3">
+        <form onSubmit={handleAdd} className="space-y-3.5 rounded-lg border border-border/70 bg-background/50 p-3.5">
           <div className="space-y-2">
             <Label>{t("social_platform")}</Label>
             <Select value={formPlatform} onValueChange={(value) => form.setValue("platform", value as SocialFormValues["platform"])}>
@@ -465,9 +465,9 @@ export const SocialIconsSection = () => {
               uploadLabel={t("social_icon_upload")}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 border-t border-border/60 pt-2">
             <Button type="submit">{t("social_save")}</Button>
-            <Button type="button" variant="ghost" onClick={() => setOpenAdd(false)}>
+            <Button type="button" variant="outline" onClick={() => setOpenAdd(false)}>
               {t("social_cancel")}
             </Button>
           </div>
