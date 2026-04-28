@@ -141,10 +141,10 @@ const AdminSidebarContent = ({
             href={`#${item.id}`}
             onClick={() => setActiveSection(item.id)}
             className={cn(
-              "block rounded-lg px-3 py-2 text-sm font-medium transition",
+              "relative block rounded-lg px-3 py-2 text-sm font-medium transition",
               activeSection === item.id
-                ? "bg-primary/10 text-foreground ring-1 ring-primary/30"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                ? "bg-primary/20 pl-4 text-primary ring-1 ring-primary/50 shadow-[0_0_0_1px_rgba(59,130,246,0.12)] before:absolute before:inset-y-1 before:left-1 before:w-1 before:rounded-full before:bg-primary"
+                : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
             )}
           >
             {item.label}
